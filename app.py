@@ -18,7 +18,7 @@ creds = Credentials.from_service_account_file(
 )
 
 client = gspread.authorize(creds)
-sheet = client.open("Cylinder Tracking").worksheet("Scan_Log")
+sheet = client.open("Cylinder Tracking").sheet1
 
 
 # ── PWA routes ────────────────────────────────────────────────
