@@ -47,7 +47,7 @@ def send_email(driver, action, valid_cylinders):
             email_body += uid + "\n"
         email_body += f"\nTotal Cylinders: {len(valid_cylinders)}"
 
-        yag = yagmail.SMTP("lodhachaya7@gmail.com", "YOUR_APP_PASSWORD")
+        yag = yagmail.SMTP("lodhachaya7@gmail.com", "qofq vjks imsq oyil")
         yag.send(
             to="adityalodha26@gmail.com",
             subject=f"{action} Scan Report",
