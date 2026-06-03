@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#1a73e8">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CylinderScan">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="apple-touch-icon" href="/static/icon-192.png">
+<script src="https://unpkg.com/html5-qrcode"></script>
+    <title>Cylinder Tracking</title>
+
+    <style>
+
+        body{
+            font-family: Arial, sans-serif;
+            margin:20px;
+        }
+
+        input, select, button{
+
+            padding:10px;
+            margin:5px;
+            width:300px;
+        }
+
+        button{
+
+            cursor:pointer;
+        }
+
+        .row{
+
+            margin-bottom:10px;
+        }
+        input,
+select,
+button{
+
+    width:100%;
+    max-width:500px;
+    box-sizing:border-box;
+}
+
+#reader{
+
+    width:100% !important;
+    max-width:500px;
+}
+
+    </style>
+
+</head>
+
+<body>
+
+<h1>Cylinder Tracking System</h1>
+
+<form method="POST" action="/submit">
+
+    <label><b>Driver Name</b></label>
+
+<br>
+
+<input
+    type="text"
+    name="driver"
+    placeholder="Enter Driver Name"
+    required>
+
+<br><br>
+    <label><b>Action</b></label>
+
+    <br>
+
+    <select name="action">
+
+        <option value="Delivery">
+            Delivery
+        </option>
+
+        <option value="Collection">
+            Collection
+        </option>
+
+    </select>
+
+    <br><br>
+<h3>QR Scanner</h3>
+
+<div id="reader" style="width:350px;"></div>
+
+<br>
+<h3 id="scan-count">Total Scanned: 0</h3>
+
+<p id="status-message"></p>    
+<div id="cylinder-container">
+
+        <div class="row">
+
+            <input
+                type="text"
+                name="cylinders"
+                placeholder="Cylinder UID">
+
+        </div>
+
+    </div>
+
+    <button type="button" onclick="addCylinder()">
+
+        + Add Cylinder
+
+    </button>
+
+    <br><br>
+
+   
+    <button
+    type="submit"
+    onclick="return confirmSubmit()">
+
+    Submit
+
+</button>
+
+</form>
+
+<script>
+
+function addCylinder(){
+
+    let container =
+        document.getElementById(
+            "cylinder-container"
+        );
+
+    let div =
+        document.createElement("div");
+
+    div.className = "row";
+
+    div.innerHTML = `
+
+        <input
+            type="text"
+            name="cylinders"
+            placeholder="Cylinder UID">
+
+    `;
+
+    container.appendChild(div);
+}
+function removeRow(button){
+
+    button.parentElement.remove();
+
+    updateCount();
+}
+
+</script>
+<script>
+const beep = new Audio(
+    "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+);
+let scanLocked = false;
+
+function updateCount(){
+
+    let inputs =
+        document.getElementsByName("cylinders");
+
+    let count = 0;
+
+    for(let i = 0; i < inputs.length; i++){
+
+        if(inputs[i].value.trim() !== ""){
+
+            count++;
+        }
+    }
+
+    document.getElementById(
+        "scan-count"
+    ).innerText = "Total Scanned: " + count;
+}
+
+function showStatus(message){
+
+    document.getElementById(
+        "status-message"
+    ).innerText = message;
+
+    setTimeout(() => {
+
+        document.getElementById(
+            "status-message"
+        ).innerText = "";
+
+    }, 2000);
+}
+
+function onScanSuccess(decodedText) {
+
+    if(scanLocked){
+
+        return;
+    }
+
+    scanLocked = true;
+
+    let container =
+        document.getElementById(
+            "cylinder-container"
+        );
+
+    let inputs =
+        document.getElementsByName(
+            "cylinders"
+        );
+
+    // Duplicate check
+    for(let i = 0; i < inputs.length; i++){
+
+        if(inputs[i].value === decodedText){
+
+            showStatus(
+                "Already Scanned: " +
+                decodedText
+            );
+
+            setTimeout(() => {
+
+                scanLocked = false;
+
+            }, 2000);
+
+            return;
+        }
+    }
+
+    let div =
+        document.createElement(
+            "div"
+        );
+
+    div.className = "row";
+
+  div.innerHTML = `
+<input
+    type="text"
+    name="cylinders"
+    value="${decodedText}">
+
+<button
+    type="button"
+    onclick="removeRow(this)">
+    X
+</button>
+`;
+
+    container.appendChild(div);
+
+    updateCount();
+beep.play();
+    showStatus(
+        "✓ Added: " +
+        decodedText
+    );
+
+    setTimeout(() => {
+
+        scanLocked = false;
+
+    }, 2000);
+}
+
+let html5QrcodeScanner =
+    new Html5QrcodeScanner(
+        "reader",
+        {
+            fps: 10,
+            qrbox: 250
+        }
+    );
+
+html5QrcodeScanner.render(
+    onScanSuccess
+);
+
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(() => console.log('SW registered'))
+      .catch(e => console.log('SW error', e));
+  }
+</script>
+
+</body>
+
+</html>
