@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+
+<title>Manager Dashboard</title>
+
+<style>
+
+body{
+    font-family: Arial;
+    margin:20px;
+}
+
+table{
+
+    border-collapse: collapse;
+    width:100%;
+}
+
+th, td{
+
+    border:1px solid #ccc;
+    padding:10px;
+    text-align:left;
+}
+
+th{
+
+    background:#f0f0f0;
+}
+
+</style>
+
+</head>
+
+<body>
+
+<h1>Manager Dashboard</h1>
+
+<table>
+
+<tr>
+
+<th>Date</th>
+<th>Time</th>
+<th>Driver</th>
+<th>Action</th>
+<th>Cylinder UID</th>
+
+</tr>
+
+{% for scan in scans %}
+
+<tr>
+
+<td>{{ scan[0] }}</td>
+<td>{{ scan[1] }}</td>
+<td>{{ scan[2] }}</td>
+<td>{{ scan[3] }}</td>
+<td>{{ scan[4] }}</td>
+
+</tr>
+
+{% endfor %}
+
+</table>
+
+</body>
+
+</html>
