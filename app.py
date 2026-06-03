@@ -49,10 +49,10 @@ def send_email(driver, action, valid_cylinders):
 
         yag = yagmail.SMTP("lodhachaya7@gmail.com", "qofq vjks imsq oyil")
         yag.send(
-            to="adityalodha26@gmail.com",
-            subject=f"{action} Scan Report",
-            contents=email_body
-        )
+    to=["adityalodha26@gmail.com", "namanjsanghavi@gmail.com"],
+    subject=f"{action} Scan Report",
+    contents=email_body
+)
         print("Email sent successfully")
     except Exception as e:
         print("Email Error:", e)
