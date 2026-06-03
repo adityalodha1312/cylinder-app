@@ -65,6 +65,15 @@ def home():
 
 @app.route('/submit', methods=['POST'])
 def submit():
+    submission_sheet = client.open(
+    "Cylinder Tracking"
+).worksheet("Submission_Log")
+
+last_row = len(
+    submission_sheet.get_all_values()
+)
+
+trip_id = f"T{last_row:03d}"
     action = request.form['action']
     driver = request.form['driver']
     cylinders = request.form.getlist('cylinders')
