@@ -1,7 +1,7 @@
 import threading
 import yagmail
 from flask import Flask, render_template, request, redirect, send_from_directory
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 import gspread
 from google.oauth2.service_account import Credentials
 
@@ -69,7 +69,8 @@ def submit():
     driver = request.form['driver']
     cylinders = request.form.getlist('cylinders')
 
-    now = datetime.now()
+    IST = timezone(timedelta(hours=5, minutes=30))
+    now = datetime.now(IST)
     valid_cylinders = []
 
     for uid in cylinders:
