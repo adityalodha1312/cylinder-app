@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0F6E56">
+  <title>Admin Login – Cylinder Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green-50:  #E1F5EE;
+      --green-500: #1D9E75;
+      --green-700: #0F6E56;
+      --green-900: #04342C;
+      --gray-bg:   #f7f8f6;
+      --gray-bd:   #d8d9d4;
+      --gray-text: #5F5E5A;
+      --dark-text: #2C2C2A;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      background: linear-gradient(155deg, #0F6E56 0%, #04342C 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+
+    /* ── CARD ── */
+    .login-card {
+      background: #ffffff;
+      border-radius: 20px;
+      box-shadow: 0 8px 40px rgba(4, 52, 44, 0.28);
+      width: 100%;
+      max-width: 400px;
+      padding: 44px 36px 36px;
+      animation: cardIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) both;
+    }
+    @keyframes cardIn {
+      from { transform: translateY(24px); opacity: 0; }
+      to   { transform: translateY(0);   opacity: 1; }
+    }
+
+    /* ── HEADER ── */
+    .brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .icon-wrap {
+      width: 68px;
+      height: 68px;
+      border-radius: 18px;
+      background: var(--green-50);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 16px;
+    }
+    .brand-title {
+      font-size: 22px;
+      font-weight: 600;
+      color: var(--green-900);
+      letter-spacing: 0.1px;
+    }
+    .brand-sub {
+      font-size: 13px;
+      color: var(--gray-text);
+      margin-top: 4px;
+      font-weight: 500;
+      letter-spacing: 0.3px;
+    }
+
+    /* ── FORM ── */
+    .field { margin-bottom: 18px; }
+    .field label {
+      display: block;
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--gray-text);
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      margin-bottom: 7px;
+    }
+    .field input {
+      width: 100%;
+      padding: 13px 14px;
+      border: 1.5px solid var(--gray-bd);
+      border-radius: 11px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 15px;
+      color: var(--dark-text);
+      background: #fff;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .field input:focus {
+      border-color: var(--green-500);
+      box-shadow: 0 0 0 3px rgba(29, 158, 117, 0.12);
+    }
+    .field input::placeholder { color: #b0b1ac; }
+
+    /* ── ERROR ── */
+    .error-msg {
+      background: #fef2f2;
+      border: 1.5px solid #fca5a5;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-size: 13.5px;
+      color: #b91c1c;
+      font-weight: 500;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .error-msg svg { flex-shrink: 0; }
+
+    /* ── BUTTON ── */
+    .signin-btn {
+      width: 100%;
+      padding: 15px;
+      background: var(--green-700);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      font-family: 'DM Sans', sans-serif;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+      margin-top: 4px;
+      letter-spacing: 0.2px;
+    }
+    .signin-btn:hover {
+      background: var(--green-500);
+      box-shadow: 0 4px 14px rgba(15, 110, 86, 0.3);
+    }
+    .signin-btn:active { transform: scale(0.98); }
+
+    /* ── FOOTER LINK ── */
+    .footer-link {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 13.5px;
+      color: var(--gray-text);
+    }
+    .footer-link a {
+      color: var(--green-700);
+      font-weight: 600;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+    .footer-link a:hover { color: var(--green-500); }
+
+    /* ── MOBILE ── */
+    @media (max-width: 440px) {
+      .login-card { padding: 36px 24px 28px; }
+      .brand-title { font-size: 20px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="login-card">
+  <div class="brand">
+    <div class="icon-wrap">
+      <svg width="36" height="36" viewBox="0 0 32 32" fill="none">
+        <rect x="10" y="4" width="12" height="24" rx="4" fill="rgba(15,110,86,0.15)"/>
+        <rect x="10" y="4" width="12" height="24" rx="4" stroke="#0F6E56" stroke-width="1.8"/>
+        <ellipse cx="16" cy="4" rx="6" ry="2.5" fill="#0F6E56" opacity="0.9"/>
+        <ellipse cx="16" cy="28" rx="6" ry="2.5" fill="#0F6E56" opacity="0.5"/>
+        <line x1="13" y1="10" x2="19" y2="10" stroke="#0F6E56" stroke-width="1" opacity="0.5"/>
+        <line x1="13" y1="14" x2="19" y2="14" stroke="#0F6E56" stroke-width="1" opacity="0.5"/>
+        <line x1="13" y1="18" x2="19" y2="18" stroke="#0F6E56" stroke-width="1" opacity="0.5"/>
+      </svg>
+    </div>
+    <div class="brand-title">Cylinder Tracker</div>
+    <div class="brand-sub">Admin Portal</div>
+  </div>
+
+  {% if error %}
+  <div class="error-msg">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <form method="POST" action="/admin/login">
+    <div class="field">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="Enter your username" autocomplete="username" required>
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter your password" autocomplete="current-password" required>
+    </div>
+    <button type="submit" class="signin-btn">Sign In</button>
+  </form>
+
+  <div class="footer-link">
+    Log in using your manager, owner, or driver credentials.
+  </div>
+</div>
+
+</body>
+</html>

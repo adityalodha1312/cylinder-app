@@ -1,0 +1,119 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Dashboard</div>
+  <div class="page-sub">Welcome back, {{ user.username if user else 'Admin' }} — here's your overview.</div>
+</div>
+
+<!-- ── KPI CARDS ── -->
+<div class="kpi-grid">
+
+  <!-- Total Out -->
+  <div class="kpi-card">
+    <div class="kpi-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ total_out }}</div>
+    <div class="kpi-label">Total Cylinders Out</div>
+  </div>
+
+  <!-- Active Customers -->
+  <div class="kpi-card">
+    <div class="kpi-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ cust_count }}</div>
+    <div class="kpi-label">Active Customers</div>
+  </div>
+
+  <!-- High Outstanding -->
+  <div class="kpi-card">
+    <div class="kpi-icon {{ 'red' if high_count > 0 else 'green' }}">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{ '#b91c1c' if high_count > 0 else '#0F6E56' }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <div class="kpi-value" style="{{ 'color:#b91c1c' if high_count > 0 else '' }}">{{ high_count }}</div>
+    <div class="kpi-label">High Outstanding (&gt;10)</div>
+  </div>
+
+  <!-- Today's Scans -->
+  <div class="kpi-card">
+    <div class="kpi-icon orange">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ today_scans }}</div>
+    <div class="kpi-label">Today's Scans</div>
+  </div>
+
+</div>
+
+<!-- ── TOP CUSTOMERS TABLE ── -->
+<div style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  <div>
+    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text);">Top 5 Customers by Outstanding</div>
+    <div style="font-size: 12.5px; color: var(--gray-text); margin-top: 3px;">Customers with the highest number of cylinders currently out</div>
+  </div>
+  <a href="/admin/outstanding" style="font-size: 13px; color: var(--green-700); font-weight: 600; text-decoration: none; display: flex; align-items: center; gap: 5px;">
+    View All
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+  </a>
+</div>
+
+<div class="table-wrap">
+  {% if top_customers %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Customer</th>
+        <th>Outstanding</th>
+        <th>Total Delivered</th>
+        <th>Total Collected</th>
+        <th>Last Activity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in top_customers %}
+      <tr>
+        <td style="color: var(--gray-text); font-size: 13px;">{{ loop.index }}</td>
+        <td style="font-weight: 500;">{{ row.customer }}</td>
+        <td>
+          {% if row.outstanding > 10 %}
+            <span class="badge badge-red">{{ row.outstanding }}</span>
+          {% elif row.outstanding > 5 %}
+            <span class="badge badge-yellow">{{ row.outstanding }}</span>
+          {% else %}
+            <span class="badge badge-green">{{ row.outstanding }}</span>
+          {% endif %}
+        </td>
+        <td>{{ row.total_delivered }}</td>
+        <td>{{ row.total_collected }}</td>
+        <td style="color: var(--gray-text); font-size: 13px;">{{ row.last_activity }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div style="padding: 48px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 12px;">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+    </svg>
+    <div style="font-size: 14px; color: var(--gray-text);">No data available yet.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

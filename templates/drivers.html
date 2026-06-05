@@ -1,0 +1,171 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Drivers{% endblock %}
+
+{% block head %}
+<style>
+  .drivers-summary {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+  }
+  .summary-chip {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 10px;
+    padding: 12px 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .summary-chip .chip-val { font-size: 20px; font-weight: 600; color: var(--dark-text); }
+  .summary-chip .chip-lbl { font-size: 12px; color: var(--gray-text); font-weight: 500; }
+
+  /* Progress bar */
+  .progress-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .progress-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: var(--green-50);
+    border-radius: 10px;
+    overflow: hidden;
+    min-width: 60px;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green-700);
+    border-radius: 10px;
+    transition: width 0.4s ease;
+  }
+  .progress-val {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--dark-text);
+    min-width: 24px;
+    text-align: right;
+  }
+
+  /* Top performer row */
+  .top-performer { background: #f0fbf6 !important; }
+  .top-performer:hover { background: #e8f8ef !important; }
+  .top-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--green-50);
+    color: var(--green-900);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 20px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Driver Performance</div>
+  <div class="page-sub">Activity and scan statistics per driver</div>
+</div>
+
+<!-- ── SUMMARY ── -->
+<div class="drivers-summary">
+  <div class="summary-chip">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+    <div>
+      <div class="chip-val">{{ data | length }}</div>
+      <div class="chip-lbl">Total Drivers</div>
+    </div>
+  </div>
+  <div class="summary-chip">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+    </svg>
+    <div>
+      <div class="chip-val">{{ data | sum(attribute='this_week') }}</div>
+      <div class="chip-lbl">Total Scans This Week</div>
+    </div>
+  </div>
+  <div class="summary-chip">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <div>
+      <div class="chip-val">{{ data | sum(attribute='this_month') }}</div>
+      <div class="chip-lbl">Total Scans This Month</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TABLE ── -->
+{% set max_week = (data | map(attribute='this_week') | max) if data else 1 %}
+{% set top_driver = (data | sort(attribute='total_deliveries', reverse=True) | first) if data else None %}
+
+<div class="table-wrap">
+  {% if data %}
+  <table>
+    <thead>
+      <tr>
+        <th>Driver</th>
+        <th>Total Deliveries</th>
+        <th>Total Collections</th>
+        <th>This Week</th>
+        <th>This Month</th>
+        <th>Last Active</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data | sort(attribute='total_deliveries', reverse=True) %}
+      {% set is_top = top_driver and row.driver == top_driver.driver %}
+      <tr class="{{ 'top-performer' if is_top else '' }}">
+        <td style="font-weight: 600;">
+          {{ row.driver }}
+          {% if is_top %}
+          <span class="top-badge">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+            Top
+          </span>
+          {% endif %}
+        </td>
+        <td>{{ row.total_deliveries }}</td>
+        <td>{{ row.total_collections }}</td>
+        <td>
+          {% set pct = ((row.this_week / max_week) * 100) | round | int if max_week > 0 else 0 %}
+          <div class="progress-wrap">
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" style="width: {{ pct }}%;"></div>
+            </div>
+            <span class="progress-val">{{ row.this_week }}</span>
+          </div>
+        </td>
+        <td>{{ row.this_month }}</td>
+        <td style="font-size: 13px; color: var(--gray-text);">{{ row.last_active }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% else %}
+  <div style="padding: 64px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 14px;">
+      <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+      <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+    </svg>
+    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">No Driver Data</div>
+    <div style="font-size: 13.5px; color: var(--gray-text);">Driver activity will appear here once scans are submitted.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

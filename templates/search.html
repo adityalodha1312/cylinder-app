@@ -1,0 +1,274 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Search{% endblock %}
+
+{% block head %}
+<style>
+  /* Search hero */
+  .search-hero {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .search-hero-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-text);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 10px;
+  }
+  .uid-form {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+  .uid-input-wrap {
+    position: relative;
+    flex: 1;
+  }
+  .uid-input-wrap svg {
+    position: absolute;
+    left: 14px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--gray-text);
+    pointer-events: none;
+  }
+  .uid-input {
+    width: 100%;
+    padding: 13px 14px 13px 44px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 11px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: var(--dark-text);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    font-weight: 500;
+  }
+  .uid-input:focus {
+    border-color: var(--green-500);
+    box-shadow: 0 0 0 3px rgba(29,158,117,0.1);
+  }
+  .uid-input::placeholder { color: #b0b1ac; font-weight: 400; }
+  .search-btn {
+    padding: 13px 22px;
+    background: var(--green-700);
+    color: #fff;
+    border: none;
+    border-radius: 11px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .search-btn:hover {
+    background: var(--green-500);
+    box-shadow: 0 4px 12px rgba(15,110,86,0.28);
+  }
+  .search-btn:active { transform: scale(0.97); }
+  @media (max-width: 500px) {
+    .uid-form { flex-direction: column; }
+    .search-btn { width: 100%; justify-content: center; }
+  }
+
+  /* Current status card */
+  .status-card {
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .status-card.with-customer {
+    background: var(--green-50);
+    border: 1.5px solid #9FE1CB;
+  }
+  .status-card.in-stock {
+    background: #f8f9ff;
+    border: 1.5px solid #c7d2fe;
+  }
+  .status-icon-wrap {
+    width: 46px; height: 46px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .status-label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 4px; }
+  .status-value { font-size: 17px; font-weight: 600; color: var(--dark-text); }
+  .status-since { font-size: 12.5px; color: var(--gray-text); margin-top: 3px; }
+
+  /* UID chip in header */
+  .uid-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--green-50);
+    border: 1.5px solid #9FE1CB;
+    border-radius: 8px;
+    padding: 4px 12px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--green-900);
+    font-family: monospace;
+    margin-left: 10px;
+    vertical-align: middle;
+  }
+
+  /* Prompt (no search) */
+  .search-prompt {
+    text-align: center;
+    padding: 64px 24px;
+  }
+  .search-prompt svg { opacity: 0.25; margin-bottom: 16px; }
+  .search-prompt-title { font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px; }
+  .search-prompt-sub   { font-size: 13.5px; color: var(--gray-text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Cylinder Search</div>
+  <div class="page-sub">Look up the full history of any cylinder by its UID</div>
+</div>
+
+<!-- ── SEARCH BAR ── -->
+<div class="search-hero">
+  <div class="search-hero-label">Cylinder UID</div>
+  <form class="uid-form" method="GET" action="/admin/search">
+    <div class="uid-input-wrap">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+      <input
+        class="uid-input"
+        type="text"
+        id="uid"
+        name="uid"
+        placeholder="e.g. CYL-20240101-001"
+        value="{{ uid if uid else '' }}"
+        autocomplete="off"
+        spellcheck="false"
+      >
+    </div>
+    <button type="submit" class="search-btn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Search
+    </button>
+  </form>
+</div>
+
+{% if uid %}
+
+  <!-- ── CURRENT STATUS ── -->
+  {% if current %}
+    <div class="status-card with-customer">
+      <div class="status-icon-wrap" style="background: rgba(15,110,86,0.12);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div>
+        <div class="status-label" style="color: #0F6E56;">Currently With</div>
+        <div class="status-value">{{ current.owner }}</div>
+        <div class="status-since">Since {{ current.since }}</div>
+      </div>
+    </div>
+  {% else %}
+    <div class="status-card in-stock">
+      <div class="status-icon-wrap" style="background: rgba(99,102,241,0.1);">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="20 6 9 17 4 12"/>
+        </svg>
+      </div>
+      <div>
+        <div class="status-label" style="color: #4f46e5;">Status</div>
+        <div class="status-value" style="color: #4f46e5;">In Stock / Not Assigned</div>
+        <div class="status-since">This cylinder is currently in inventory</div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- ── HISTORY TABLE ── -->
+  <div style="margin-bottom: 12px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+    <div style="font-size: 15px; font-weight: 600; color: var(--dark-text);">Full History</div>
+    <span class="uid-chip">{{ uid }}</span>
+    {% if history %}
+      <span style="font-size: 13px; color: var(--gray-text); margin-left: 4px;">{{ history | length }} event{{ 's' if history | length != 1 else '' }}</span>
+    {% endif %}
+  </div>
+
+  <div class="table-wrap">
+    {% if history %}
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Driver</th>
+          <th>Action</th>
+          <th>Customer</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for event in history %}
+        <tr>
+          <td style="font-weight: 500; font-size: 13.5px;">{{ event.date }}</td>
+          <td style="font-size: 13px; color: var(--gray-text);">{{ event.time }}</td>
+          <td style="font-weight: 500;">{{ event.driver }}</td>
+          <td>
+            {% if event.action | lower == 'delivery' %}
+              <span class="badge badge-green">Delivery</span>
+            {% elif event.action | lower == 'collection' %}
+              <span class="badge badge-orange">Collection</span>
+            {% else %}
+              <span class="badge badge-blue">{{ event.action }}</span>
+            {% endif %}
+          </td>
+          <td>{{ event.customer if event.customer else '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    {% else %}
+    <!-- No history found for this UID -->
+    <div style="padding: 56px 24px; text-align: center; background: #fff; border-radius: 14px;">
+      <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 12px;">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <div style="font-size: 15px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">No History Found</div>
+      <div style="font-size: 13.5px; color: var(--gray-text);">
+        No records were found for cylinder <code style="background: var(--green-50); padding: 2px 6px; border-radius: 5px; font-size: 13px; color: var(--green-900);">{{ uid }}</code>.
+      </div>
+      <div style="font-size: 12.5px; color: var(--gray-text); margin-top: 6px;">Check the UID and try again.</div>
+    </div>
+    {% endif %}
+  </div>
+
+{% else %}
+  <!-- ── NO SEARCH YET ── -->
+  <div class="search-prompt">
+    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.2">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+    <div class="search-prompt-title">Enter a Cylinder UID to see its full history</div>
+    <div class="search-prompt-sub">Search by UID to track delivery and collection events for any cylinder.</div>
+  </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Outstanding{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Outstanding Ledger</div>
+  <div class="page-sub">
+    <strong>{{ total_out }}</strong> cylinders currently out across <strong>{{ data | length }}</strong> customer{{ 's' if data | length != 1 else '' }}
+  </div>
+</div>
+
+<!-- ── TOOLBAR ── -->
+<div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
+  <div class="search-bar">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="outstandingSearch" placeholder="Search customer…" oninput="filterTable()" autocomplete="off">
+  </div>
+  <div style="font-size: 13px; color: var(--gray-text);" id="resultCount">
+    Showing {{ data | length }} record{{ 's' if data | length != 1 else '' }}
+  </div>
+</div>
+
+<!-- ── TABLE ── -->
+<div class="table-wrap">
+  {% if data %}
+  <table id="outstandingTable">
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Total Delivered</th>
+        <th>Total Collected</th>
+        <th>Outstanding</th>
+        <th>Cylinder UIDs</th>
+        <th>Last Activity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data %}
+      <tr class="table-row" data-customer="{{ row.customer | lower }}">
+        <td style="font-weight: 500;">{{ row.customer }}</td>
+        <td>{{ row.total_delivered }}</td>
+        <td>{{ row.total_collected }}</td>
+        <td>
+          {% if row.outstanding > 10 %}
+            <span class="badge badge-red">{{ row.outstanding }}</span>
+          {% elif row.outstanding >= 1 %}
+            <span class="badge badge-yellow">{{ row.outstanding }}</span>
+          {% else %}
+            <span class="badge badge-green">{{ row.outstanding }}</span>
+          {% endif %}
+        </td>
+        <td>
+          {% if row.cylinder_uids %}
+            {% set uid_list = row.cylinder_uids %}
+            {% if uid_list | length > 3 %}
+              <span title="{{ uid_list | join(', ') }}" style="cursor: help; font-size: 13px; color: var(--gray-text);">
+                {{ uid_list[:3] | join(', ') }}… <span style="color: var(--green-700); font-weight: 600;">+{{ uid_list | length - 3 }} more</span>
+              </span>
+            {% else %}
+              <span style="font-size: 13px; color: var(--gray-text);">{{ uid_list | join(', ') }}</span>
+            {% endif %}
+          {% else %}
+            <span style="color: var(--gray-bd);">—</span>
+          {% endif %}
+        </td>
+        <td style="color: var(--gray-text); font-size: 13px;">{{ row.last_activity }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Empty state for search -->
+  <div id="emptySearch" style="display:none; padding: 48px 24px; text-align: center; background: #fff;">
+    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 10px;">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <div style="font-size: 14px; color: var(--gray-text);">No customers match your search.</div>
+  </div>
+
+  {% else %}
+  <!-- Full empty state -->
+  <div style="padding: 64px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 14px;">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+    </svg>
+    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">No Outstanding Cylinders</div>
+    <div style="font-size: 13.5px; color: var(--gray-text);">All cylinders have been collected. Great work!</div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  function filterTable() {
+    const q = document.getElementById('outstandingSearch').value.trim().toLowerCase();
+    const rows = document.querySelectorAll('#outstandingTable .table-row');
+    let visible = 0;
+    rows.forEach(r => {
+      const match = !q || r.dataset.customer.includes(q);
+      r.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    document.getElementById('resultCount').textContent = `Showing ${visible} record${visible !== 1 ? 's' : ''}`;
+    document.getElementById('emptySearch').style.display = (visible === 0 && q) ? 'block' : 'none';
+  }
+</script>
+{% endblock %}

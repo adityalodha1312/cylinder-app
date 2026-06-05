@@ -1,0 +1,239 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Movement{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  .chart-card {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 24px;
+    margin-bottom: 28px;
+  }
+  .chart-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .chart-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--dark-text);
+  }
+  .chart-sub {
+    font-size: 12.5px;
+    color: var(--gray-text);
+    margin-top: 3px;
+  }
+  .chart-legend {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--gray-text);
+    font-weight: 500;
+  }
+  .legend-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .chart-wrap {
+    position: relative;
+    height: 280px;
+  }
+
+  /* Net column coloring */
+  .net-positive { color: #b91c1c; font-weight: 600; }
+  .net-negative { color: #0F6E56; font-weight: 600; }
+  .net-zero     { color: var(--gray-text); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Daily Movement</div>
+  <div class="page-sub">Cylinder deliveries and collections over the last 30 days</div>
+</div>
+
+<!-- ── CHART CARD ── -->
+<div class="chart-card">
+  <div class="chart-header">
+    <div>
+      <div class="chart-title">Deliveries vs Collections</div>
+      <div class="chart-sub">Last 30 days — daily totals</div>
+    </div>
+    <div class="chart-legend">
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #0F6E56;"></div>
+        Delivered
+      </div>
+      <div class="legend-item">
+        <div class="legend-dot" style="background: #EA7F29;"></div>
+        Collected
+      </div>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="movementChart"></canvas>
+  </div>
+</div>
+
+<!-- ── DATA TABLE ── -->
+<div style="margin-bottom: 12px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+  <div style="font-size: 15px; font-weight: 600; color: var(--dark-text);">Daily Breakdown</div>
+  <div style="font-size: 12.5px; color: var(--gray-text);">Net = Delivered − Collected (positive = more out, negative = more returned)</div>
+</div>
+
+<div class="table-wrap">
+  {% if data %}
+  <table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Delivered</th>
+        <th>Collected</th>
+        <th>Net</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in data %}
+      {% set net = row.delivered - row.collected %}
+      <tr>
+        <td style="font-weight: 500; font-size: 13.5px;">{{ row.date }}</td>
+        <td>
+          <span style="display:inline-flex; align-items:center; gap:5px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#0F6E56;display:inline-block;"></span>
+            {{ row.delivered }}
+          </span>
+        </td>
+        <td>
+          <span style="display:inline-flex; align-items:center; gap:5px;">
+            <span style="width:8px;height:8px;border-radius:50%;background:#EA7F29;display:inline-block;"></span>
+            {{ row.collected }}
+          </span>
+        </td>
+        <td>
+          {% if net > 0 %}
+            <span class="net-positive">+{{ net }}</span>
+          {% elif net < 0 %}
+            <span class="net-negative">{{ net }}</span>
+          {% else %}
+            <span class="net-zero">0</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% else %}
+  <div style="padding: 64px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 14px;">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
+    </svg>
+    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">No Movement Data</div>
+    <div style="font-size: 13.5px; color: var(--gray-text);">Scan data will appear here once deliveries and collections are logged.</div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  const labels    = {{ labels | tojson }};
+  const delivered = {{ delivered | tojson }};
+  const collected = {{ collected | tojson }};
+
+  const ctx = document.getElementById('movementChart');
+  if (ctx) {
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: 'Delivered',
+            data: delivered,
+            borderColor: '#0F6E56',
+            backgroundColor: 'rgba(15,110,86,0.08)',
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#0F6E56',
+            tension: 0.35,
+            fill: true,
+          },
+          {
+            label: 'Collected',
+            data: collected,
+            borderColor: '#EA7F29',
+            backgroundColor: 'rgba(234,127,41,0.07)',
+            borderWidth: 2.5,
+            pointRadius: 3,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#EA7F29',
+            tension: 0.35,
+            fill: true,
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: '#fff',
+            borderColor: '#d8d9d4',
+            borderWidth: 1.5,
+            titleColor: '#2C2C2A',
+            bodyColor: '#5F5E5A',
+            titleFont: { family: 'DM Sans', weight: '600', size: 13 },
+            bodyFont:  { family: 'DM Sans', size: 12 },
+            padding: 12,
+            cornerRadius: 10,
+            callbacks: {
+              afterBody: function(items) {
+                const d = items.find(i => i.dataset.label === 'Delivered')?.parsed.y ?? 0;
+                const c = items.find(i => i.dataset.label === 'Collected')?.parsed.y ?? 0;
+                return `Net: ${d - c >= 0 ? '+' : ''}${d - c}`;
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: '#f0f0ec' },
+            ticks: {
+              font: { family: 'DM Sans', size: 11 },
+              color: '#5F5E5A',
+              maxTicksLimit: 10,
+              maxRotation: 45,
+            }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: '#f0f0ec' },
+            ticks: {
+              font: { family: 'DM Sans', size: 11 },
+              color: '#5F5E5A',
+              stepSize: 1,
+            }
+          }
+        }
+      }
+    });
+  }
+</script>
+{% endblock %}
