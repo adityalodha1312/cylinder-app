@@ -1,4 +1,3 @@
-import yagmail
 from flask import Flask, render_template, request, redirect, session, jsonify
 from openpyxl import load_workbook
 from datetime import datetime, date, timedelta
@@ -512,39 +511,23 @@ def submit():
     now       = datetime.now()
 
     valid_cylinders = []
+    rows_to_append = []
     for uid in cylinders:
         uid = uid.strip()
         if uid:
             valid_cylinders.append(uid)
-            sheet.append_row([
+            rows_to_append.append([
                 now.strftime('%d-%m-%Y'),
                 now.strftime('%H:%M:%S'),
                 driver,
                 action,
                 uid
             ])
+    
+    if rows_to_append:
+        sheet.append_rows(rows_to_append)
 
-    email_body = f"Driver: {driver}\n\nAction: {action}\n\nCylinders:\n\n"
-    for uid in valid_cylinders:
-        email_body += uid + "\n"
-    email_body += f"\nTotal Cylinders: {len(valid_cylinders)}"
-
-    gmail_user = os.environ.get("GMAIL_USER")
-    gmail_pass = os.environ.get("GMAIL_PASS")
-
-    if gmail_user and gmail_pass:
-        try:
-            yag = yagmail.SMTP(gmail_user, gmail_pass)
-            yag.send(
-                to      = ["adityalodha26@gmail.com"],
-                subject = f"{action} Scan Report",
-                contents= email_body
-            )
-            print("Email sent successfully")
-        except Exception as e:
-            print("Email Error:", e)
-    else:
-        print("Email skipped: GMAIL_USER or GMAIL_PASS environment variables not set.")
+    # Real-time scan emails are now handled automatically by the Google Apps Script onChange trigger (onNewRow function)
 
     clear_cache()
     return f"{len(valid_cylinders)} cylinders saved successfully"

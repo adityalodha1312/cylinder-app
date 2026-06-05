@@ -1,7 +1,6 @@
 Flask
 gspread
 google-auth
-yagmail
 openpyxl
 gunicorn
 python-dotenv
