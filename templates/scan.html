@@ -313,7 +313,7 @@
 
   <div class="field">
     <label>Driver Name</label>
-    <input type="text" id="driver-input" value="{{ user.name if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
+    <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
   </div>
 
   <div class="field">
@@ -444,7 +444,10 @@ async function submitForm() {
 
 function resetForm() {
   document.getElementById("success-screen").classList.remove("show");
-  document.getElementById("driver-input").value = "";
+  let driverInput = document.getElementById("driver-input");
+  if (!driverInput.readOnly) {
+    driverInput.value = "";
+  }
   document.getElementById("action-select").value = "Delivery";
   document.getElementById("cylinder-container").innerHTML =
     `<div class="cylinder-row"><input type="text" name="cylinders" placeholder="Cylinder UID"></div>`;
