@@ -326,16 +326,24 @@
 <div class="form-body" id="main-form">
 
   <div class="field">
-    <label>Driver Name</label>
+    <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
     <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
   </div>
 
   <div class="field">
     <label>Action</label>
     <select id="action-select" onchange="revalidateAllRows()">
-      <option value="Delivery">Delivery</option>
-      <option value="Collection">Collection</option>
-      <option value="Filling">Filling</option>
+      {% if user and user['role'] == 'filler' %}
+        <option value="Filling">Filling</option>
+      {% elif user and user['role'] == 'driver' %}
+        <option value="Delivery">Delivery</option>
+        <option value="Collection">Collection</option>
+      {% else %}
+        <!-- Manager/Owner sees all options -->
+        <option value="Delivery">Delivery</option>
+        <option value="Collection">Collection</option>
+        <option value="Filling">Filling</option>
+      {% endif %}
     </select>
   </div>
 
