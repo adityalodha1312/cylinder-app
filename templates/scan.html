@@ -584,7 +584,7 @@ async function validateRow(inputEl) {
   }
   
   // Re-validate other rows that were marked as duplicates because this duplicate might be resolved now
-  let inputs = document.getElementsByName("cylinders");
+  inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i] !== inputEl && inputs[i].value.trim()) {
       let otherRow = inputs[i].closest(".cylinder-row");
