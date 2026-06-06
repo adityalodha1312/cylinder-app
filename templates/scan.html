@@ -279,6 +279,20 @@
     transition: background 0.15s, transform 0.1s;
   }
   .new-scan-btn:active { transform: scale(0.98); }
+
+  .status-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-top: 4px;
+    align-self: flex-start;
+  }
+  .status-badge.empty { background: #e2e8f0; color: #475569; }
+  .status-badge.filled { background: #d4edda; color: #155724; }
+  .status-badge.delivered { background: #fff3cd; color: #856404; }
+  .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
 </style>
 </head>
 <body>
@@ -318,9 +332,10 @@
 
   <div class="field">
     <label>Action</label>
-    <select id="action-select">
+    <select id="action-select" onchange="revalidateAllRows()">
       <option value="Delivery">Delivery</option>
       <option value="Collection">Collection</option>
+      <option value="Filling">Filling</option>
     </select>
   </div>
 
@@ -344,7 +359,11 @@
 
   <div class="cylinder-list" id="cylinder-container">
     <div class="cylinder-row">
-      <input type="text" name="cylinders" placeholder="Cylinder UID">
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
+        <div class="status-badge" style="display: none;"></div>
+      </div>
+      <button class="remove-btn" onclick="removeRow(this)">×</button>
     </div>
   </div>
 
@@ -369,18 +388,27 @@
 </div>
 
 <script>
+let invalidRows = new Set();
+
 function addCylinder() {
   let container = document.getElementById("cylinder-container");
   let div = document.createElement("div");
   div.className = "cylinder-row";
-  div.innerHTML = `<input type="text" name="cylinders" placeholder="Cylinder UID">
+  div.innerHTML = `
+    <div style="flex: 1; display: flex; flex-direction: column;">
+      <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
+      <div class="status-badge" style="display: none;"></div>
+    </div>
     <button class="remove-btn" onclick="removeRow(this)">×</button>`;
   container.appendChild(div);
 }
 
 function removeRow(btn) {
-  btn.parentElement.remove();
+  let rowDiv = btn.closest(".cylinder-row");
+  invalidRows.delete(rowDiv);
+  rowDiv.remove();
   updateCount();
+  updateSubmitButton();
 }
 
 function updateCount() {
@@ -398,40 +426,155 @@ function showStatus(msg) {
   setTimeout(() => { el.innerText = ""; }, 2500);
 }
 
+async function validateRow(inputEl) {
+  let rowDiv = inputEl.closest(".cylinder-row");
+  if (!rowDiv) return;
+  let uid = inputEl.value.trim();
+  let badgeEl = rowDiv.querySelector(".status-badge");
+  
+  if (!uid) {
+    badgeEl.style.display = "none";
+    badgeEl.className = "status-badge";
+    badgeEl.innerText = "";
+    inputEl.dataset.action = "";
+    invalidRows.delete(rowDiv);
+    updateSubmitButton();
+    return;
+  }
+  
+  badgeEl.style.display = "inline-block";
+  badgeEl.className = "status-badge empty";
+  badgeEl.innerText = "Checking status...";
+  
+  let globalAction = document.getElementById("action-select").value;
+  
+  try {
+    let res = await fetch("/api/cylinder_status/" + encodeURIComponent(uid));
+    if (!res.ok) throw new Error("Fetch error");
+    let data = await res.json();
+    
+    let currentStatus = data.status;
+    let owner = data.owner || "";
+    
+    badgeEl.className = "status-badge";
+    invalidRows.delete(rowDiv);
+    
+    if (globalAction === "Filling") {
+      if (currentStatus === "Empty") {
+        badgeEl.classList.add("filled");
+        badgeEl.innerText = "✓ Empty (Ready to Fill)";
+        inputEl.dataset.action = "Filling";
+      } else {
+        badgeEl.classList.add("conflict");
+        let details = currentStatus === "Delivered" ? `with ${owner}` : "Already Filled";
+        badgeEl.innerText = `⚠️ Conflict: Cylinder is ${details}`;
+        inputEl.dataset.action = "";
+        invalidRows.add(rowDiv);
+      }
+    } 
+    else if (globalAction === "Delivery") {
+      if (currentStatus === "Filled") {
+        badgeEl.classList.add("filled");
+        badgeEl.innerText = "✓ Filled (Ready to Deliver)";
+        inputEl.dataset.action = "Delivery";
+      } else if (currentStatus === "Delivered") {
+        badgeEl.classList.add("delivered");
+        badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
+        inputEl.dataset.action = "Collection";
+      } else if (currentStatus === "Empty") {
+        badgeEl.classList.add("conflict");
+        badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
+        inputEl.dataset.action = "";
+        invalidRows.add(rowDiv);
+      }
+    } 
+    else if (globalAction === "Collection") {
+      if (currentStatus === "Delivered") {
+        badgeEl.classList.add("filled");
+        badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
+        inputEl.dataset.action = "Collection";
+      } else {
+        badgeEl.classList.add("conflict");
+        badgeEl.innerText = "⚠️ Conflict: Already at Depot (In Stock)";
+        inputEl.dataset.action = "";
+        invalidRows.add(rowDiv);
+      }
+    }
+  } catch (err) {
+    badgeEl.className = "status-badge conflict";
+    badgeEl.innerText = "⚠️ Error verifying cylinder status";
+    invalidRows.add(rowDiv);
+  }
+  
+  updateSubmitButton();
+}
+
+function revalidateAllRows() {
+  let inputs = document.getElementsByName("cylinders");
+  for (let i = 0; i < inputs.length; i++) {
+    validateRow(inputs[i]);
+  }
+}
+
+function updateSubmitButton() {
+  let btn = document.getElementById("submit-btn");
+  if (invalidRows.size > 0) {
+    btn.disabled = true;
+    btn.innerText = "Fix Scan Conflicts to Submit";
+  } else {
+    btn.disabled = false;
+    btn.innerText = "Submit Scan";
+  }
+}
+
 async function submitForm() {
   let driver = document.getElementById("driver-input").value.trim();
   if (!driver) { alert("Please enter driver name"); return; }
 
-  let cylinders = [...document.getElementsByName("cylinders")]
-    .map(i => i.value.trim()).filter(v => v !== "");
+  let inputs = document.getElementsByName("cylinders");
+  let scans = [];
+  let globalAction = document.getElementById("action-select").value;
 
-  if (cylinders.length === 0) { alert("No cylinders scanned yet"); return; }
+  for (let i = 0; i < inputs.length; i++) {
+    let uid = inputs[i].value.trim();
+    if (uid) {
+      let action = inputs[i].dataset.action || globalAction;
+      scans.push({ uid: uid, action: action });
+    }
+  }
+
+  if (scans.length === 0) { alert("No cylinders scanned yet"); return; }
 
   let btn = document.getElementById("submit-btn");
   btn.disabled = true;
   btn.innerText = "Submitting...";
 
-  let action = document.getElementById("action-select").value;
-  let formData = new FormData();
-  formData.append("driver", driver);
-  formData.append("action", action);
-  cylinders.forEach(uid => formData.append("cylinders", uid));
-
   try {
-    let res = await fetch("/submit", { method: "POST", body: formData });
+    let res = await fetch("/submit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driver: driver, scans: scans })
+    });
     if (!res.ok) throw new Error("Server error");
 
-    // Populate success screen
-    document.getElementById("success-sub").innerText =
-      "Data saved to Google Sheets · Email sent";
+    document.getElementById("success-sub").innerText = "Data saved to Google Sheets";
 
     let details = document.getElementById("success-details");
-    details.innerHTML = `
+    let deliveryCount = scans.filter(s => s.action === "Delivery").length;
+    let collectionCount = scans.filter(s => s.action === "Collection").length;
+    let fillingCount = scans.filter(s => s.action === "Filling").length;
+
+    let detailsHtml = `
       <div class="detail-row"><span>Driver</span><span>${driver}</span></div>
-      <div class="detail-row"><span>Action</span><span>${action}</span></div>
-      <div class="detail-row"><span>Cylinders</span><span>${cylinders.length}</span></div>
+    `;
+    if (deliveryCount > 0) detailsHtml += `<div class="detail-row"><span>Deliveries</span><span>${deliveryCount}</span></div>`;
+    if (collectionCount > 0) detailsHtml += `<div class="detail-row"><span>Collections</span><span>${collectionCount}</span></div>`;
+    if (fillingCount > 0) detailsHtml += `<div class="detail-row"><span>Fillings</span><span>${fillingCount}</span></div>`;
+    
+    detailsHtml += `
       <div class="detail-row"><span>Time</span><span>${new Date().toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'})}</span></div>
     `;
+    details.innerHTML = detailsHtml;
 
     document.getElementById("success-screen").classList.add("show");
 
@@ -449,12 +592,17 @@ function resetForm() {
     driverInput.value = "";
   }
   document.getElementById("action-select").value = "Delivery";
-  document.getElementById("cylinder-container").innerHTML =
-    `<div class="cylinder-row"><input type="text" name="cylinders" placeholder="Cylinder UID"></div>`;
+  document.getElementById("cylinder-container").innerHTML = `
+    <div class="cylinder-row">
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
+        <div class="status-badge" style="display: none;"></div>
+      </div>
+      <button class="remove-btn" onclick="removeRow(this)">×</button>
+    </div>`;
+  invalidRows.clear();
   updateCount();
-  let btn = document.getElementById("submit-btn");
-  btn.disabled = false;
-  btn.innerText = "Submit Scan";
+  updateSubmitButton();
 }
 </script>
 
@@ -475,12 +623,31 @@ function onScanSuccess(decodedText) {
     }
   }
 
-  let container = document.getElementById("cylinder-container");
-  let div = document.createElement("div");
-  div.className = "cylinder-row";
-  div.innerHTML = `<input type="text" name="cylinders" value="${decodedText}">
-    <button class="remove-btn" onclick="removeRow(this)">×</button>`;
-  container.appendChild(div);
+  let targetInput = null;
+  for (let i = 0; i < inputs.length; i++) {
+    if (inputs[i].value.trim() === "") {
+      targetInput = inputs[i];
+      break;
+    }
+  }
+
+  if (targetInput) {
+    targetInput.value = decodedText;
+    validateRow(targetInput);
+  } else {
+    let container = document.getElementById("cylinder-container");
+    let div = document.createElement("div");
+    div.className = "cylinder-row";
+    div.innerHTML = `
+      <div style="flex: 1; display: flex; flex-direction: column;">
+        <input type="text" name="cylinders" value="${decodedText}" onchange="validateRow(this)" onkeyup="updateCount()">
+        <div class="status-badge" style="display: none;"></div>
+      </div>
+      <button class="remove-btn" onclick="removeRow(this)">×</button>`;
+    container.appendChild(div);
+    let newlyAddedInput = div.querySelector('input');
+    validateRow(newlyAddedInput);
+  }
 
   updateCount();
   beep.play();

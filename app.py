@@ -352,6 +352,34 @@ def get_cylinder_history(uid):
     history.sort(key=lambda x: (parse_date(x['date']) or date.min, x['time']))
     return history
 
+def get_cylinder_status(uid):
+    uid_upper = uid.strip().upper()
+    scan_rows = get_scan_rows()
+    history = [r for r in scan_rows if r['uid'].strip().upper() == uid_upper]
+    if not history:
+        return {'status': 'Empty', 'owner': None, 'date': None}
+    
+    history.sort(key=lambda x: (parse_date(x['date']) or date.min, x['time']))
+    last_event = history[-1]
+    action = last_event['action']
+    
+    if action == 'Filling':
+        return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date']}
+    elif action == 'Delivery':
+        batch_map = build_batch_map()
+        key = f"{last_event['date']}||{last_event['time']}||{last_event['driver']}||{last_event['action']}"
+        customer = batch_map.get(key, '(Unknown Customer)')
+        return {'status': 'Delivered', 'owner': customer, 'date': last_event['date']}
+    elif action == 'Collection':
+        return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date']}
+        
+    return {'status': 'Empty', 'owner': None, 'date': None}
+
+@app.route('/api/cylinder_status/<uid>')
+def api_cylinder_status(uid):
+    status_data = get_cylinder_status(uid)
+    return jsonify(status_data)
+
 
 # ================================================================
 #  AUTH ROUTES
@@ -505,24 +533,45 @@ def home():
 
 @app.route('/submit', methods=['POST'])
 def submit():
-    action    = request.form['action']
-    driver    = request.form['driver']
-    cylinders = request.form.getlist('cylinders')
-    now       = datetime.now()
-
+    now = datetime.now()
     valid_cylinders = []
     rows_to_append = []
-    for uid in cylinders:
-        uid = uid.strip()
-        if uid:
-            valid_cylinders.append(uid)
-            rows_to_append.append([
-                now.strftime('%d-%m-%Y'),
-                now.strftime('%H:%M:%S'),
-                driver,
-                action,
-                uid
-            ])
+
+    # Support JSON payload (modern split-actions submission)
+    if request.is_json:
+        data = request.get_json()
+        driver = data.get('driver', '').strip()
+        scans = data.get('scans', [])
+        
+        for s in scans:
+            uid = s.get('uid', '').strip()
+            action = s.get('action', '').strip()
+            if uid and action:
+                valid_cylinders.append(uid)
+                rows_to_append.append([
+                    now.strftime('%d-%m-%Y'),
+                    now.strftime('%H:%M:%S'),
+                    driver,
+                    action,
+                    uid
+                ])
+    else:
+        # Fallback to standard form-data
+        action    = request.form['action']
+        driver    = request.form['driver']
+        cylinders = request.form.getlist('cylinders')
+    
+        for uid in cylinders:
+            uid = uid.strip()
+            if uid:
+                valid_cylinders.append(uid)
+                rows_to_append.append([
+                    now.strftime('%d-%m-%Y'),
+                    now.strftime('%H:%M:%S'),
+                    driver,
+                    action,
+                    uid
+                ])
     
     if rows_to_append:
         sheet.append_rows(rows_to_append)
