@@ -594,11 +594,20 @@ def admin_receipts():
     batches = get_customer_map_batches()
     customers = get_customer_names()
     emails = get_customer_emails()
+    
+    # Calculate counts in Python to avoid template filter errors
+    sent_count = sum(1 for b in batches if str(b.get('status', '')).startswith('Sent'))
+    pending_count = sum(1 for b in batches if b.get('customer') and not str(b.get('status', '')).startswith('Sent'))
+    unmapped_count = sum(1 for b in batches if not b.get('customer'))
+    
     return render_template('receipts.html',
         user=session['user'],
         batches=batches,
         customers=customers,
-        emails=emails
+        emails=emails,
+        sent_count=sent_count,
+        pending_count=pending_count,
+        unmapped_count=unmapped_count
     )
 
 @app.route('/admin/update_mapping', methods=['POST'])

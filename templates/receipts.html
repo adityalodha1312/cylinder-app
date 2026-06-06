@@ -223,9 +223,7 @@
         <polyline points="22 4 12 14.01 9 11.01"/>
       </svg>
     </div>
-    <div class="kpi-value" id="kpi-sent">
-      {{ batches|selectattr('status', 'startingwith', 'Sent')|list|length }}
-    </div>
+    <div class="kpi-value" id="kpi-sent">{{ sent_count }}</div>
     <div class="kpi-label">Receipts Sent</div>
   </div>
   <div class="kpi-card">
@@ -234,9 +232,7 @@
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
       </svg>
     </div>
-    <div class="kpi-value" id="kpi-pending">
-      {{ batches|rejectattr('customer', 'equalto', '')|rejectattr('status', 'startingwith', 'Sent')|list|length }}
-    </div>
+    <div class="kpi-value" id="kpi-pending">{{ pending_count }}</div>
     <div class="kpi-label">Pending Receipts</div>
   </div>
   <div class="kpi-card">
@@ -246,9 +242,7 @@
         <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
       </svg>
     </div>
-    <div class="kpi-value" id="kpi-unmapped">
-      {{ batches|selectattr('customer', 'equalto', '')|list|length }}
-    </div>
+    <div class="kpi-value" id="kpi-unmapped">{{ unmapped_count }}</div>
     <div class="kpi-label">Unmapped Batches</div>
   </div>
 </div>
