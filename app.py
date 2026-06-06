@@ -681,7 +681,7 @@ def admin_send_receipt():
                     
                     # Batch update Column H (Send Receipt? = TRUE) and Column I (Status = Sending...)
                     # Column H is 8, Column I is 9. This single call executes instantly.
-                    map_ws.update(f"H{idx + 1}:I{idx + 1}", [["TRUE", "Sending..."]])
+                    map_ws.update(f"H{idx + 1}:I{idx + 1}", [[True, "Sending..."]], value_input_option='USER_ENTERED')
                     clear_cache()
                     return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})
