@@ -472,6 +472,38 @@ async function validateRow(inputEl) {
     inputEl.dataset.action = "";
     invalidRows.delete(rowDiv);
     updateSubmitButton();
+    
+    // Re-validate other rows that were marked as duplicates because this duplicate might be resolved now
+    let inputs = document.getElementsByName("cylinders");
+    for (let i = 0; i < inputs.length; i++) {
+      if (inputs[i] !== inputEl && inputs[i].value.trim()) {
+        let otherRow = inputs[i].closest(".cylinder-row");
+        let otherBadge = otherRow ? otherRow.querySelector(".status-badge") : null;
+        if (otherBadge && otherBadge.innerText.includes("Duplicate")) {
+          validateRow(inputs[i]);
+        }
+      }
+    }
+    return;
+  }
+
+  // Check if this UID is already in the list
+  let inputs = document.getElementsByName("cylinders");
+  let isDuplicate = false;
+  for (let i = 0; i < inputs.length; i++) {
+    if (inputs[i] !== inputEl && inputs[i].value.trim().toUpperCase() === uid.toUpperCase()) {
+      isDuplicate = true;
+      break;
+    }
+  }
+
+  if (isDuplicate) {
+    badgeEl.style.display = "inline-block";
+    badgeEl.className = "status-badge conflict";
+    badgeEl.innerText = "⚠️ Duplicate: Already in this scan list";
+    inputEl.dataset.action = "";
+    invalidRows.add(rowDiv);
+    updateSubmitButton();
     return;
   }
   
@@ -549,6 +581,18 @@ async function validateRow(inputEl) {
     badgeEl.className = "status-badge conflict";
     badgeEl.innerText = "⚠️ Error verifying cylinder status";
     invalidRows.add(rowDiv);
+  }
+  
+  // Re-validate other rows that were marked as duplicates because this duplicate might be resolved now
+  let inputs = document.getElementsByName("cylinders");
+  for (let i = 0; i < inputs.length; i++) {
+    if (inputs[i] !== inputEl && inputs[i].value.trim()) {
+      let otherRow = inputs[i].closest(".cylinder-row");
+      let otherBadge = otherRow ? otherRow.querySelector(".status-badge") : null;
+      if (otherBadge && otherBadge.innerText.includes("Duplicate")) {
+        validateRow(inputs[i]);
+      }
+    }
   }
   
   updateSubmitButton();
