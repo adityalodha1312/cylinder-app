@@ -514,6 +514,12 @@ async function validateRow(inputEl) {
         badgeEl.classList.add("delivered");
         badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
         inputEl.dataset.action = "Collection";
+        if (owner) {
+          let custSelect = document.getElementById("customer-select");
+          if (!custSelect.value) {
+            custSelect.value = owner;
+          }
+        }
       } else if (currentStatus === "Empty") {
         badgeEl.classList.add("conflict");
         badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
@@ -526,6 +532,12 @@ async function validateRow(inputEl) {
         badgeEl.classList.add("filled");
         badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
         inputEl.dataset.action = "Collection";
+        if (owner) {
+          let custSelect = document.getElementById("customer-select");
+          if (!custSelect.value) {
+            custSelect.value = owner;
+          }
+        }
       } else {
         badgeEl.classList.add("conflict");
         badgeEl.innerText = "⚠️ Conflict: Already at Depot (In Stock)";
