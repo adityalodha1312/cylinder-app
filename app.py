@@ -28,6 +28,7 @@ SPREADSHEET_NAME = "Cylinder Tracking"
 SCAN_SHEET_NAME  = "Sheet1"
 MAP_SHEET_NAME   = "Customer Map"
 USERS_SHEET_NAME = "Users"
+CUSTOMER_SHEET_NAME = "Customers"
 
 # Cache worksheet objects at startup to avoid roundtrip sheet lookup calls
 try:
@@ -35,6 +36,7 @@ try:
     scan_ws = doc.worksheet(SCAN_SHEET_NAME)
     map_ws = doc.worksheet(MAP_SHEET_NAME)
     users_ws = doc.worksheet(USERS_SHEET_NAME)
+    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
     sheet = scan_ws
 except Exception as e:
     print("Error caching Google Sheets worksheets:", e)
@@ -42,7 +44,43 @@ except Exception as e:
     scan_ws = None
     map_ws = None
     users_ws = None
+    customer_ws = None
     sheet = None
+
+# Helper functions to fetch customer details from Google Sheets
+def get_customer_names():
+    try:
+        if customer_ws is None:
+            return []
+        values = customer_ws.get_all_values()
+        if len(values) < 2:
+            return []
+        # Column B is "Name" (index 1)
+        names = [row[1].strip() for row in values[1:] if len(row) > 1 and row[1].strip()]
+        return sorted(list(set(names)))
+    except Exception as e:
+        print("Error getting customer names from sheet:", e)
+        return []
+
+def get_customer_emails():
+    """Returns a dict of {customer_name: email}"""
+    try:
+        if customer_ws is None:
+            return {}
+        values = customer_ws.get_all_values()
+        if len(values) < 2:
+            return {}
+        # Name is Column B (index 1), Email is Column C (index 2)
+        out = {}
+        for row in values[1:]:
+            if len(row) > 1 and row[1].strip():
+                name = row[1].strip()
+                email = row[2].strip() if len(row) > 2 else ''
+                out[name] = email
+        return out
+    except Exception as e:
+        print("Error getting customer emails from sheet:", e)
+        return {}
 
 # In-memory TTL data cache configurations
 _data_cache = {
@@ -520,6 +558,165 @@ def admin_search():
         history = history,
         current = current
     )
+def get_customer_map_batches():
+    if map_ws is None:
+        return []
+    try:
+        rows = map_ws.get_all_values()
+        if len(rows) < 2:
+            return []
+        out = []
+        for idx, r in enumerate(rows[1:]):
+            # Columns: Date(0), Time(1), Driver(2), Action(3), Count(4), UIDs(5), Customer(6), Send Receipt?(7), Receipt Status(8)
+            if len(r) >= 4:
+                out.append({
+                    'row_num': idx + 2,
+                    'date': r[0].strip(),
+                    'time': r[1].strip(),
+                    'driver': r[2].strip(),
+                    'action': r[3].strip(),
+                    'count': r[4].strip() if len(r) > 4 else '0',
+                    'uids': r[5].strip() if len(r) > 5 else '',
+                    'customer': r[6].strip() if len(r) > 6 else '',
+                    'send_receipt': r[7].strip() if len(r) > 7 else 'FALSE',
+                    'status': r[8].strip() if len(r) > 8 else ''
+                })
+        # Show newest batches first (reverse order)
+        out.reverse()
+        return out
+    except Exception as e:
+        print("Error reading Customer Map:", e)
+        return []
+
+@app.route('/admin/receipts')
+@admin_required
+def admin_receipts():
+    batches = get_customer_map_batches()
+    customers = get_customer_names()
+    emails = get_customer_emails()
+    return render_template('receipts.html',
+        user=session['user'],
+        batches=batches,
+        customers=customers,
+        emails=emails
+    )
+
+@app.route('/admin/update_mapping', methods=['POST'])
+@admin_required
+def admin_update_mapping():
+    data = request.get_json() or {}
+    date_val = data.get('date', '').strip()
+    time_val = data.get('time', '').strip()
+    driver_val = data.get('driver', '').strip()
+    action_val = data.get('action', '').strip()
+    customer_val = data.get('customer', '').strip()
+
+    if not (date_val and time_val and driver_val and action_val):
+        return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
+
+    try:
+        if map_ws is None:
+            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
+        
+        rows = map_ws.get_all_values()
+        for idx, r in enumerate(rows):
+            if idx == 0:
+                continue
+            if len(r) >= 4:
+                if (r[0].strip() == date_val and 
+                    r[1].strip() == time_val and 
+                    r[2].strip() == driver_val and 
+                    r[3].strip() == action_val):
+                    map_ws.update_cell(idx + 1, 7, customer_val) # Column G is 7
+                    clear_cache()
+                    return jsonify({'status': 'Success', 'message': 'Customer mapped successfully'})
+        return jsonify({'status': 'Error', 'message': 'Batch row not found'})
+    except Exception as e:
+        return jsonify({'status': 'Error', 'message': str(e)})
+
+@app.route('/admin/send_receipt', methods=['POST'])
+@admin_required
+def admin_send_receipt():
+    data = request.get_json() or {}
+    date_val = data.get('date', '').strip()
+    time_val = data.get('time', '').strip()
+    driver_val = data.get('driver', '').strip()
+    action_val = data.get('action', '').strip()
+
+    if not (date_val and time_val and driver_val and action_val):
+        return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
+
+    try:
+        if map_ws is None:
+            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
+        
+        rows = map_ws.get_all_values()
+        for idx, r in enumerate(rows):
+            if idx == 0:
+                continue
+            if len(r) >= 4:
+                if (r[0].strip() == date_val and 
+                    r[1].strip() == time_val and 
+                    r[2].strip() == driver_val and 
+                    r[3].strip() == action_val):
+                    
+                    customer_name = r[6].strip() if len(r) > 6 else ''
+                    if not customer_name:
+                        return jsonify({'status': 'Error', 'message': 'Please map a customer first'})
+                    
+                    # Validate if email exists for this customer
+                    emails = get_customer_emails()
+                    email = emails.get(customer_name, '').strip()
+                    if not email or '@' not in email:
+                        return jsonify({'status': 'Error', 'message': f"Missing Email: Please enter an email address for {customer_name} in the Customers page first."})
+                    
+                    # First clear the status and checkbox to ensure Apps Script triggers onEdit even if it was previously checked
+                    map_ws.update_cell(idx + 1, 9, "Sending...") # Column I is 9
+                    map_ws.update_cell(idx + 1, 8, "FALSE") # Column H is 8
+                    
+                    # Small sleep to let Google Sheets synchronize
+                    time.sleep(0.5)
+                    
+                    # Set checkbox to TRUE to trigger script
+                    map_ws.update_cell(idx + 1, 8, "TRUE")
+                    clear_cache()
+                    return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
+        return jsonify({'status': 'Error', 'message': 'Batch row not found'})
+    except Exception as e:
+        return jsonify({'status': 'Error', 'message': str(e)})
+
+@app.route('/admin/receipt_status')
+@admin_required
+def admin_receipt_status():
+    date_val = request.args.get('date', '').strip()
+    time_val = request.args.get('time', '').strip()
+    driver_val = request.args.get('driver', '').strip()
+    action_val = request.args.get('action', '').strip()
+
+    if not (date_val and time_val and driver_val and action_val):
+        return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
+
+    try:
+        if map_ws is None:
+            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
+        
+        rows = map_ws.get_all_values()
+        for r in rows[1:]:
+            if len(r) >= 4:
+                if (r[0].strip() == date_val and 
+                    r[1].strip() == time_val and 
+                    r[2].strip() == driver_val and 
+                    r[3].strip() == action_val):
+                    send_receipt = r[7].strip() if len(r) > 7 else 'FALSE'
+                    status = r[8].strip() if len(r) > 8 else ''
+                    return jsonify({
+                        'status': 'Success',
+                        'send_receipt': send_receipt,
+                        'receipt_status': status
+                    })
+        return jsonify({'status': 'Error', 'message': 'Batch row not found'})
+    except Exception as e:
+        return jsonify({'status': 'Error', 'message': str(e)})
 
 
 # ================================================================
@@ -529,7 +726,8 @@ def admin_search():
 @app.route('/')
 @login_required
 def home():
-    return render_template('scan.html', user=session.get('user'))
+    customers = get_customer_names()
+    return render_template('scan.html', user=session.get('user'), customers=customers)
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -537,10 +735,21 @@ def submit():
     valid_cylinders = []
     rows_to_append = []
 
+    # Check and add "Customer" column in Sheet 1 if missing
+    try:
+        if scan_ws is not None:
+            headers = scan_ws.row_values(1)
+            if len(headers) < 6:
+                # Add "Customer" as the 6th column header
+                scan_ws.update_cell(1, 6, "Customer")
+    except Exception as e:
+        print("Error checking/updating Sheet1 headers:", e)
+
     # Support JSON payload (modern split-actions submission)
     if request.is_json:
         data = request.get_json()
         driver = data.get('driver', '').strip()
+        customer = data.get('customer', '').strip()
         scans = data.get('scans', [])
         
         for s in scans:
@@ -548,35 +757,39 @@ def submit():
             action = s.get('action', '').strip()
             if uid and action:
                 valid_cylinders.append(uid)
+                # Only write customer for Delivery/Collection, leave blank for Filling
+                cust_val = customer if action in ['Delivery', 'Collection'] else ''
                 rows_to_append.append([
                     now.strftime('%d-%m-%Y'),
                     now.strftime('%H:%M:%S'),
                     driver,
                     action,
-                    uid
+                    uid,
+                    cust_val
                 ])
     else:
         # Fallback to standard form-data
         action    = request.form['action']
         driver    = request.form['driver']
+        customer  = request.form.get('customer', '').strip()
         cylinders = request.form.getlist('cylinders')
     
         for uid in cylinders:
             uid = uid.strip()
             if uid:
                 valid_cylinders.append(uid)
+                cust_val = customer if action in ['Delivery', 'Collection'] else ''
                 rows_to_append.append([
                     now.strftime('%d-%m-%Y'),
                     now.strftime('%H:%M:%S'),
                     driver,
                     action,
-                    uid
+                    uid,
+                    cust_val
                 ])
     
     if rows_to_append:
         sheet.append_rows(rows_to_append)
-
-    # Real-time scan emails are now handled automatically by the Google Apps Script onChange trigger (onNewRow function)
 
     clear_cache()
     return f"{len(valid_cylinders)} cylinders saved successfully"

@@ -1,0 +1,652 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Customer Map & Receipts{% endblock %}
+
+{% block head %}
+<style>
+  .receipts-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  
+  .filter-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .batch-table td {
+    vertical-align: middle;
+  }
+
+  /* Dropdown styling */
+  .customer-select-cell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 200px;
+  }
+  
+  .customer-dropdown {
+    flex: 1;
+    padding: 8px 10px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    background: #fff;
+    color: var(--dark-text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .customer-dropdown:focus {
+    border-color: var(--green-500);
+  }
+  .customer-dropdown.unmapped {
+    border-color: #f5c6cb;
+    background: #fff8f8;
+    color: #721c24;
+  }
+
+  .save-map-btn {
+    padding: 8px 10px;
+    background: var(--green-700);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: background 0.15s, opacity 0.15s;
+    display: none;
+  }
+  .save-map-btn.visible {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    animation: fadeIn 0.2s ease;
+  }
+  .save-map-btn:hover {
+    background: var(--green-500);
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.95); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  /* Receipt Button States */
+  .receipt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 14px;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    white-space: nowrap;
+  }
+  
+  .btn-send {
+    background: var(--green-50);
+    color: var(--green-900);
+    border: 1.5px solid var(--green-500);
+  }
+  .btn-send:hover {
+    background: var(--green-500);
+    color: white;
+  }
+
+  .btn-resend {
+    background: #f1efe8;
+    color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd);
+  }
+  .btn-resend:hover {
+    background: var(--gray-bd);
+    color: var(--dark-text);
+  }
+
+  .btn-sending {
+    background: #e0f2fe;
+    color: #0369a1;
+    border: 1.5px solid #38bdf8;
+    cursor: not-allowed;
+  }
+
+  .btn-no-email {
+    background: #fef2f2;
+    color: #991b1b;
+    border: 1.5px solid #fca5a5;
+    cursor: not-allowed;
+  }
+
+  /* Loading Spinner */
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid currentColor;
+    border-bottom-color: transparent;
+    border-radius: 50%;
+    display: inline-block;
+    animation: rotation 1s linear infinite;
+  }
+  @keyframes rotation {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .uids-tooltip {
+    max-width: 250px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-family: monospace;
+    font-size: 12px;
+    color: var(--gray-text);
+  }
+  
+  /* Toast feedback */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .toast {
+    background: #333;
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transform: translateY(20px);
+    opacity: 0;
+    animation: toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.25) forwards;
+  }
+  @keyframes toastIn {
+    to { transform: translateY(0); opacity: 1; }
+  }
+  .toast.success {
+    background: #0F6E56;
+    border-left: 5px solid #1D9E75;
+  }
+  .toast.error {
+    background: #721c24;
+    border-left: 5px solid #f5c6cb;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="receipts-header">
+  <div>
+    <h1 class="page-title">Customer Map &amp; Receipts</h1>
+    <p class="page-sub">Verify driver customer selections, edit mappings, and trigger transaction receipts</p>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <div class="kpi-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ batches|length }}</div>
+    <div class="kpi-label">Total Batches</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+        <polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-sent">
+      {{ batches|selectattr('status', 'startingwith', 'Sent')|list|length }}
+    </div>
+    <div class="kpi-label">Receipts Sent</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon orange">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-pending">
+      {{ batches|rejectattr('customer', 'equalto', '')|rejectattr('status', 'startingwith', 'Sent')|list|length }}
+    </div>
+    <div class="kpi-label">Pending Receipts</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon red">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-unmapped">
+      {{ batches|selectattr('customer', 'equalto', '')|list|length }}
+    </div>
+    <div class="kpi-label">Unmapped Batches</div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card card-pad" style="margin-bottom: 24px;">
+  <div class="filter-section">
+    <div class="search-bar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="receipts-search" placeholder="Search by customer, driver, date..." oninput="filterTable()">
+    </div>
+    
+    <div style="display: flex; gap: 8px;">
+      <select id="action-filter" onchange="filterTable()" class="customer-dropdown" style="width: 140px; padding: 6px 10px;">
+        <option value="">All Actions</option>
+        <option value="Delivery">Delivery</option>
+        <option value="Collection">Collection</option>
+      </select>
+      
+      <select id="status-filter" onchange="filterTable()" class="customer-dropdown" style="width: 140px; padding: 6px 10px;">
+        <option value="">All Statuses</option>
+        <option value="Sent">Sent</option>
+        <option value="Pending">Pending</option>
+        <option value="Unmapped">Unmapped</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Table wrapper -->
+  <div class="table-wrap">
+    <table class="batch-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Time</th>
+          <th>Driver</th>
+          <th>Action</th>
+          <th style="text-align: center;">Cyls</th>
+          <th>Cylinder UIDs</th>
+          <th>Mapped Customer</th>
+          <th style="text-align: center;">Actions &amp; Status</th>
+        </tr>
+      </thead>
+      <tbody id="batches-tbody">
+        {% for b in batches %}
+        {% set batch_id = b.date ~ '_' ~ b.time ~ '_' ~ b.driver ~ '_' ~ b.action %}
+        <tr data-date="{{ b.date }}" data-time="{{ b.time }}" data-driver="{{ b.driver }}" data-action="{{ b.action }}" data-customer="{{ b.customer }}" data-status="{{ b.status }}">
+          <td>{{ b.date }}</td>
+          <td>{{ b.time }}</td>
+          <td><strong>{{ b.driver }}</strong></td>
+          <td>
+            <span class="badge {% if b.action == 'Delivery' %}badge-green{% else %}badge-yellow{% endif %}">
+              {{ b.action }}
+            </span>
+          </td>
+          <td style="text-align: center; font-weight: 600;">{{ b.count }}</td>
+          <td>
+            <div class="uids-tooltip" title="{{ b.uids }}">{{ b.uids }}</div>
+          </td>
+          <td>
+            <div class="customer-select-cell">
+              <select class="customer-dropdown {% if not b.customer %}unmapped{% endif %}" 
+                      onchange="onCustomerChange(this, '{{ b.customer }}')" 
+                      data-original="{{ b.customer }}">
+                <option value="">-- Select Customer --</option>
+                {% for c in customers %}
+                  <option value="{{ c }}" {% if b.customer == c %}selected{% endif %}>{{ c }}</option>
+                {% endfor %}
+              </select>
+              <button class="save-map-btn" onclick="saveCustomerMapping(this)">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                  <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                  <polyline points="17 21 17 13 7 13 7 21"/>
+                  <polyline points="7 3 7 8 15 8"/>
+                </svg>
+                Save
+              </button>
+            </div>
+          </td>
+          <td style="text-align: center;" class="receipt-action-cell">
+            {% if not b.customer %}
+              <span class="badge badge-orange" style="font-size: 12px;">⚠️ Assign Customer</span>
+            {% else %}
+              {% set email = emails.get(b.customer, '') %}
+              {% if not email %}
+                <button class="receipt-btn btn-no-email" onclick="showMissingEmailAlert('{{ b.customer }}')" title="Missing Email in database">
+                  ⚠️ No Email
+                </button>
+              {% elif b.status == 'Sending...' %}
+                <button class="receipt-btn btn-sending" disabled>
+                  <span class="spinner"></span> Sending...
+                </button>
+              {% elif b.status.startswith('Sent') %}
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                  <span class="badge badge-green" style="font-size: 11px;">{{ b.status }}</span>
+                  <button class="receipt-btn btn-resend" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+                    ↺ Resend
+                  </button>
+                </div>
+              {% else %}
+                <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)">
+                  📧 Send Receipt
+                </button>
+              {% endif %}
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8" style="text-align: center; color: var(--gray-text); font-style: italic; padding: 32px;">
+            No batches found in Customer Map (Sheet 2). Ensure drivers have submitted scans.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Toast Box Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<script>
+  // Global customer email dictionary for validation
+  const customerEmails = {{ emails | tojson }};
+
+  function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+      <span>${message}</span>
+    `;
+    container.appendChild(toast);
+    
+    // Auto-remove after 4 seconds
+    setTimeout(() => {
+      toast.style.animation = 'toastIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.25) reverse forwards';
+      setTimeout(() => toast.remove(), 300);
+    }, 4000);
+  }
+
+  function showMissingEmailAlert(customer) {
+    alert(`Missing Email: Please enter an email address for "${customer}" in the Customers sheet first.`);
+  }
+
+  function onCustomerChange(selectEl, originalVal) {
+    const row = selectEl.closest('tr');
+    const saveBtn = row.querySelector('.save-map-btn');
+    const val = selectEl.value;
+    
+    if (val !== selectEl.dataset.original) {
+      saveBtn.classList.add('visible');
+    } else {
+      saveBtn.classList.remove('visible');
+    }
+
+    if (val) {
+      selectEl.classList.remove('unmapped');
+    } else {
+      selectEl.classList.add('unmapped');
+    }
+  }
+
+  async function saveCustomerMapping(btnEl) {
+    const row = btnEl.closest('tr');
+    const selectEl = row.querySelector('.customer-dropdown');
+    const customer = selectEl.value;
+    
+    const date = row.dataset.date;
+    const time = row.dataset.time;
+    const driver = row.dataset.driver;
+    const action = row.dataset.action;
+
+    btnEl.disabled = true;
+    btnEl.innerText = "Saving...";
+
+    try {
+      const res = await fetch('/admin/update_mapping', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, time, driver, action, customer })
+      });
+      const data = await res.json();
+      
+      if (data.status === 'Success') {
+        selectEl.dataset.original = customer;
+        btnEl.classList.remove('visible');
+        row.dataset.customer = customer;
+        showToast(`Mapping saved: ${customer || 'Unmapped'}`);
+        
+        // Re-render the action cell to match the new mapping
+        const actionCell = row.querySelector('.receipt-action-cell');
+        if (!customer) {
+          actionCell.innerHTML = `<span class="badge badge-orange" style="font-size: 12px;">⚠️ Assign Customer</span>`;
+        } else {
+          const email = customerEmails[customer] || '';
+          if (!email) {
+            actionCell.innerHTML = `
+              <button class="receipt-btn btn-no-email" onclick="showMissingEmailAlert('${customer}')" title="Missing Email in database">
+                ⚠️ No Email
+              </button>`;
+          } else {
+            actionCell.innerHTML = `
+              <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)">
+                📧 Send Receipt
+              </button>`;
+          }
+        }
+        updateKPICounts();
+      } else {
+        showToast(data.message || 'Failed to save mapping', 'error');
+      }
+    } catch (e) {
+      showToast('Network error saving mapping', 'error');
+    } finally {
+      btnEl.disabled = false;
+      btnEl.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+          <polyline points="17 21 17 13 7 13 7 21"/>
+          <polyline points="7 3 7 8 15 8"/>
+        </svg> Save`;
+    }
+  }
+
+  async function triggerSendReceipt(btnEl) {
+    const row = btnEl.closest('tr');
+    const date = row.dataset.date;
+    const time = row.dataset.time;
+    const driver = row.dataset.driver;
+    const action = row.dataset.action;
+    const customer = row.dataset.customer;
+
+    // Client-side quick check
+    const email = customerEmails[customer] || '';
+    if (!email) {
+      showMissingEmailAlert(customer);
+      return;
+    }
+
+    const actionCell = row.querySelector('.receipt-action-cell');
+    actionCell.innerHTML = `
+      <button class="receipt-btn btn-sending" disabled>
+        <span class="spinner"></span> Sending...
+      </button>`;
+
+    try {
+      const res = await fetch('/admin/send_receipt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, time, driver, action })
+      });
+      const data = await res.json();
+      
+      if (data.status === 'Success') {
+        showToast("Email sending triggered. Checking status...");
+        row.dataset.status = "Sending...";
+        // Start status polling
+        pollReceiptStatus(row, date, time, driver, action);
+      } else {
+        showToast(data.message || 'Failed to send receipt', 'error');
+        // Restore standard send button
+        actionCell.innerHTML = `
+          <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)">
+            📧 Send Receipt
+          </button>`;
+      }
+    } catch (e) {
+      showToast('Network error triggering receipt', 'error');
+      actionCell.innerHTML = `
+        <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)">
+          📧 Send Receipt
+        </button>`;
+    }
+  }
+
+  function pollReceiptStatus(row, date, time, driver, action) {
+    let attempts = 0;
+    const maxAttempts = 15; // 30 seconds max
+    
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const queryParams = new URLSearchParams({ date, time, driver, action }).toString();
+        const res = await fetch(`/admin/receipt_status?${queryParams}`);
+        const data = await res.json();
+        
+        if (data.status === 'Success') {
+          const rStatus = data.receipt_status;
+          row.dataset.status = rStatus;
+          
+          if (rStatus && rStatus !== 'Sending...' && !rStatus.startsWith('Error:')) {
+            clearInterval(interval);
+            const actionCell = row.querySelector('.receipt-action-cell');
+            actionCell.innerHTML = `
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <span class="badge badge-green" style="font-size: 11px;">${rStatus}</span>
+                <button class="receipt-btn btn-resend" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+                  ↺ Resend
+                </button>
+              </div>`;
+            showToast("Receipt sent successfully!");
+            updateKPICounts();
+          } else if (rStatus && rStatus.startsWith('Error:')) {
+            clearInterval(interval);
+            const actionCell = row.querySelector('.receipt-action-cell');
+            actionCell.innerHTML = `
+              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                <span class="badge badge-red" style="font-size: 11px;" title="${rStatus}">⚠️ Failed</span>
+                <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+                  Retry Send
+                </button>
+              </div>`;
+            showToast(`Apps Script Error: ${rStatus}`, 'error');
+          }
+        }
+      } catch (e) {
+        console.error("Error polling receipt status:", e);
+      }
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(interval);
+        const actionCell = row.querySelector('.receipt-action-cell');
+        actionCell.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+            <span class="badge badge-yellow" style="font-size: 11px;">⌛ Check Sheet</span>
+            <button class="receipt-btn btn-resend" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+              ↺ Retry Check
+            </button>
+          </div>`;
+        showToast("Polling timed out. Please check Google Sheets for the final status.", "error");
+      }
+    }, 2000);
+  }
+
+  function filterTable() {
+    const query = document.getElementById('receipts-search').value.toLowerCase();
+    const actionVal = document.getElementById('action-filter').value;
+    const statusVal = document.getElementById('status-filter').value;
+    
+    const rows = document.querySelectorAll('#batches-tbody tr');
+    
+    rows.forEach(row => {
+      if (row.cells.length <= 1) return; // Skip empty row
+      
+      const date = row.dataset.date.toLowerCase();
+      const driver = row.dataset.driver.toLowerCase();
+      const action = row.dataset.action;
+      const customer = row.dataset.customer.toLowerCase();
+      const status = row.dataset.status;
+      
+      const matchesSearch = date.includes(query) || driver.includes(query) || customer.includes(query);
+      const matchesAction = !actionVal || action === actionVal;
+      
+      let matchesStatus = true;
+      if (statusVal === 'Sent') {
+        matchesStatus = status.startsWith('Sent');
+      } else if (statusVal === 'Pending') {
+        matchesStatus = customer && !status.startsWith('Sent');
+      } else if (statusVal === 'Unmapped') {
+        matchesStatus = !customer;
+      }
+      
+      if (matchesSearch && matchesAction && matchesStatus) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+
+  function updateKPICounts() {
+    const rows = document.querySelectorAll('#batches-tbody tr');
+    if (rows.length === 1 && rows[0].cells.length <= 1) return; // Empty state
+    
+    let sentCount = 0;
+    let pendingCount = 0;
+    let unmappedCount = 0;
+    
+    rows.forEach(row => {
+      const customer = row.dataset.customer;
+      const status = row.dataset.status;
+      
+      if (!customer) {
+        unmappedCount++;
+      } else if (status.startsWith('Sent')) {
+        sentCount++;
+      } else {
+        pendingCount++;
+      }
+    });
+    
+    document.getElementById('kpi-sent').innerText = sentCount;
+    document.getElementById('kpi-pending').innerText = pendingCount;
+    document.getElementById('kpi-unmapped').innerText = unmappedCount;
+  }
+</script>
+{% endblock %}

@@ -332,7 +332,7 @@
 
   <div class="field">
     <label>Action</label>
-    <select id="action-select" onchange="revalidateAllRows()">
+    <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField();">
       {% if user and user['role'] == 'filler' %}
         <option value="Filling">Filling</option>
       {% elif user and user['role'] == 'driver' %}
@@ -344,6 +344,16 @@
         <option value="Collection">Collection</option>
         <option value="Filling">Filling</option>
       {% endif %}
+    </select>
+  </div>
+
+  <div class="field" id="customer-field" style="display: none;">
+    <label>Customer Name</label>
+    <select id="customer-select">
+      <option value="">-- Select Customer --</option>
+      {% for name in customers %}
+        <option value="{{ name }}">{{ name }}</option>
+      {% endfor %}
     </select>
   </div>
 
@@ -397,6 +407,21 @@
 
 <script>
 let invalidRows = new Set();
+
+function toggleCustomerField() {
+  let action = document.getElementById("action-select").value;
+  let field = document.getElementById("customer-field");
+  if (action === "Delivery" || action === "Collection") {
+    field.style.display = "block";
+  } else {
+    field.style.display = "none";
+    document.getElementById("customer-select").value = "";
+  }
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+  toggleCustomerField();
+});
 
 function addCylinder() {
   let container = document.getElementById("cylinder-container");
@@ -543,6 +568,13 @@ async function submitForm() {
   let scans = [];
   let globalAction = document.getElementById("action-select").value;
 
+  // Enforce customer selection for Delivery or Collection scans
+  let customer = "";
+  if (globalAction === "Delivery" || globalAction === "Collection") {
+    customer = document.getElementById("customer-select").value.trim();
+    if (!customer) { alert("Please select a Customer Name"); return; }
+  }
+
   for (let i = 0; i < inputs.length; i++) {
     let uid = inputs[i].value.trim();
     if (uid) {
@@ -561,7 +593,7 @@ async function submitForm() {
     let res = await fetch("/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ driver: driver, scans: scans })
+      body: JSON.stringify({ driver: driver, customer: customer, scans: scans })
     });
     if (!res.ok) throw new Error("Server error");
 
@@ -575,6 +607,9 @@ async function submitForm() {
     let detailsHtml = `
       <div class="detail-row"><span>Driver</span><span>${driver}</span></div>
     `;
+    if (customer) {
+      detailsHtml += `<div class="detail-row"><span>Customer</span><span>${customer}</span></div>`;
+    }
     if (deliveryCount > 0) detailsHtml += `<div class="detail-row"><span>Deliveries</span><span>${deliveryCount}</span></div>`;
     if (collectionCount > 0) detailsHtml += `<div class="detail-row"><span>Collections</span><span>${collectionCount}</span></div>`;
     if (fillingCount > 0) detailsHtml += `<div class="detail-row"><span>Fillings</span><span>${fillingCount}</span></div>`;
@@ -600,6 +635,8 @@ function resetForm() {
     driverInput.value = "";
   }
   document.getElementById("action-select").value = "Delivery";
+  document.getElementById("customer-select").value = "";
+  toggleCustomerField();
   document.getElementById("cylinder-container").innerHTML = `
     <div class="cylinder-row">
       <div style="flex: 1; display: flex; flex-direction: column;">
