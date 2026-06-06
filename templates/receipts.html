@@ -524,7 +524,7 @@
 
   function pollReceiptStatus(row, date, time, driver, action) {
     let attempts = 0;
-    const maxAttempts = 15; // 30 seconds max
+    const maxAttempts = 10; // 50 seconds max (10 attempts * 5s)
     
     const interval = setInterval(async () => {
       attempts++;
@@ -578,7 +578,7 @@
           </div>`;
         showToast("Polling timed out. Please check Google Sheets for the final status.", "error");
       }
-    }, 2000);
+    }, 5000);
   }
 
   function filterTable() {

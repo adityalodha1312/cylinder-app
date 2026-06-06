@@ -679,15 +679,9 @@ def admin_send_receipt():
                     if not email or '@' not in email:
                         return jsonify({'status': 'Error', 'message': f"Missing Email: Please enter an email address for {customer_name} in the Customers page first."})
                     
-                    # First clear the status and checkbox to ensure Apps Script triggers onEdit even if it was previously checked
-                    map_ws.update_cell(idx + 1, 9, "Sending...") # Column I is 9
-                    map_ws.update_cell(idx + 1, 8, "FALSE") # Column H is 8
-                    
-                    # Small sleep to let Google Sheets synchronize
-                    time.sleep(0.5)
-                    
-                    # Set checkbox to TRUE to trigger script
-                    map_ws.update_cell(idx + 1, 8, "TRUE")
+                    # Batch update Column H (Send Receipt? = TRUE) and Column I (Status = Sending...)
+                    # Column H is 8, Column I is 9. This single call executes instantly.
+                    map_ws.update(f"H{idx + 1}:I{idx + 1}", [["TRUE", "Sending..."]])
                     clear_cache()
                     return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})

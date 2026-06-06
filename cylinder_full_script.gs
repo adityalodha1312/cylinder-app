@@ -1260,6 +1260,7 @@ function sendCustomerReceipt(rowNum) {
     });
     
     const nowTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
+    mapSheet.getRange(rowNum, 8).setValue(false); // Auto-uncheck on success
     mapSheet.getRange(rowNum, 9).setValue("Sent @ " + nowTimestamp);
     ss.toast("✅ Receipt sent to " + email, "Success");
   } catch (err) {
