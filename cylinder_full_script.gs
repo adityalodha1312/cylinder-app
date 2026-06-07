@@ -1372,7 +1372,7 @@ function setupRegistrySheets() {
 
   // Status dropdown validation for Column E
   const statusRule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(['Active', 'Retired', 'Lost'], true)
+    .requireValueInList(['Empty', 'Filled', 'Delivered'], true)
     .setAllowInvalid(false)
     .build();
   cylSheet.getRange(2, 5, 500, 1).setDataValidation(statusRule);
