@@ -42,6 +42,7 @@ function onOpen() {
     .addSeparator()
     .addItem('🔑 Enable Background Receipt Trigger', 'setupBackgroundReceiptTrigger')
     .addItem('🚫 Disable Background Receipt Trigger', 'removeBackgroundReceiptTrigger')
+    .addItem('📧 Run Pending Receipts Process Now', 'processPendingReceipts')
     .addSeparator()
     .addItem('📧 Send Pending Scan Emails Now', 'onNewRow')
     .addItem('📧 Reset Scan Email Counter', 'resetEmailCounter')
