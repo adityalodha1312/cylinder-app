@@ -46,6 +46,7 @@ function onOpen() {
     .addItem('🔧 Fix All Dropdowns (run once)', 'fixAllDropdowns')
     .addSeparator()
     .addItem('🗄️ Setup Registry Sheets (Cylinders + Maintenance)', 'setupRegistrySheets')
+    .addItem('📊 Setup Bulk Tanks Sheet', 'setupBulkTanksSheet')
     .addToUi();
 }
 
@@ -1485,3 +1486,58 @@ function updateCylinderRegistryFromScans(scannedBatches) {
     }
   }
 }
+
+// ── Setup Bulk Tanks Sheet ──────────────────────────────────
+const BULK_TANKS_SHEET_NAME = 'Bulk Tanks';
+
+function setupBulkTanksSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let tankSheet = ss.getSheetByName(BULK_TANKS_SHEET_NAME);
+  if (!tankSheet) {
+    tankSheet = ss.insertSheet(BULK_TANKS_SHEET_NAME);
+  } else {
+    if (tankSheet.getLastRow() < 1) {
+      tankSheet.clearContents();
+      tankSheet.clearFormats();
+    }
+  }
+
+  if (tankSheet.getLastRow() < 1) {
+    const headers = ['Date', 'Gas', 'Opening Stock', 'Dead Volume', 'Tank Capacity', 'Unit'];
+    tankSheet.getRange(1, 1, 1, headers.length).setValues([headers])
+      .setBackground('#0F6E56')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold')
+      .setFontSize(11)
+      .setHorizontalAlignment('center');
+
+    tankSheet.setColumnWidth(1, 140);
+    tankSheet.setColumnWidth(2, 130);
+    tankSheet.setColumnWidth(3, 160);
+    tankSheet.setColumnWidth(4, 160);
+    tankSheet.setColumnWidth(5, 160);
+    tankSheet.setColumnWidth(6, 100);
+    tankSheet.setFrozenRows(1);
+
+    // Format date column A
+    tankSheet.getRange(2, 1, 1000, 1).setNumberFormat('dd-mm-yyyy');
+    
+    // Add some default rows for today so the manager has something to start with
+    const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd-MM-yyyy');
+    const defaultData = [
+      [today, 'Argon', 5664.03, 500.0, 10000.0, 'Cum'],
+      [today, 'CO2', 10941.05, 200.0, 15000.0, 'KG'],
+      [today, 'N2', 4271.2, 300.0, 8000.0, 'Cum'],
+      [today, 'Oxygen', 9215.3, 400.0, 12000.0, 'Cum']
+    ];
+    tankSheet.getRange(2, 1, defaultData.length, defaultData[0].length).setValues(defaultData);
+  }
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Bulk Tanks Sheet Created / Verified!\n\n' +
+    '• "Bulk Tanks" sheet is ready.\n' +
+    '• Date, Gas, Opening Stock, Dead Volume, Tank Capacity, and Unit columns are set up.\n' +
+    '• Manager can update opening stocks via "/admin/inventory" on the Admin Portal.'
+  );
+}
+

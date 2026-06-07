@@ -7,6 +7,8 @@ from google.oauth2.service_account import Credentials
 import time
 from dotenv import load_dotenv
 import os
+import re
+
 
 load_dotenv()
 
@@ -31,6 +33,7 @@ USERS_SHEET_NAME    = "Users"
 CUSTOMER_SHEET_NAME = "Customers"
 CYLINDER_SHEET_NAME = "Cylinders"
 CYLINDER_MAINT_NAME = "Cylinder Maintenance"
+BULK_TANKS_NAME     = "Bulk Tanks"
 
 # Cache worksheet objects at startup to avoid roundtrip sheet lookup calls
 try:
@@ -48,6 +51,10 @@ try:
         cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
     except Exception:
         cyl_maint_ws = None
+    try:
+        bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
+    except Exception:
+        bulk_tanks_ws = None
 except Exception as e:
     print("Error caching Google Sheets worksheets:", e)
     doc = None
@@ -58,6 +65,7 @@ except Exception as e:
     sheet = None
     cyl_ws = None
     cyl_maint_ws = None
+    bulk_tanks_ws = None
 
 # Helper functions to fetch customer details from Google Sheets
 def get_customer_names():
@@ -864,9 +872,406 @@ def admin_receipt_status():
         return jsonify({'status': 'Error', 'message': str(e)})
 
 
+# ── Inventory & Bulk Tanks Calculations ─────────────────────────
+
+def parse_mix_ratio(mix_ratio_str, gas_type):
+    """Parses mix ratio percentages from a string."""
+    if not mix_ratio_str:
+        if gas_type == 'ACM':
+            return {'Argon': 0.9073, 'CO2': 0.1928}  # default ACM 90/10 ratio
+        elif gas_type == 'AHM':
+            return {'Argon': 0.9886}  # default AHM
+        return {}
+    
+    mix_ratio_str = str(mix_ratio_str).upper()
+    arg_match = re.search(r'(\d+)%\s*(?:ARG|ARGON)', mix_ratio_str)
+    co2_match = re.search(r'(\d+)%\s*(?:CO2|CARBON)', mix_ratio_str)
+    n2_match = re.search(r'(\d+)%\s*(?:N2|NITROGEN)', mix_ratio_str)
+    oxy_match = re.search(r'(\d+)%\s*(?:O2|OXY|OXYGEN)', mix_ratio_str)
+    
+    parts = {}
+    if arg_match: parts['Argon'] = float(arg_match.group(1)) / 100.0
+    if co2_match: parts['CO2'] = float(co2_match.group(1)) / 100.0
+    if n2_match: parts['N2'] = float(n2_match.group(1)) / 100.0
+    if oxy_match: parts['Oxygen'] = float(oxy_match.group(1)) / 100.0
+    
+    if not parts:
+        slash_match = re.search(r'(\d+)\s*/\s*(\d+)', mix_ratio_str)
+        if slash_match:
+            val1 = float(slash_match.group(1))
+            val2 = float(slash_match.group(2))
+            if gas_type == 'ACM':
+                if val1 == 90 and val2 == 10:
+                    return {'Argon': 0.9073, 'CO2': 0.1928}
+                elif val1 == 80 and val2 == 20:
+                    return {'Argon': 0.80, 'CO2': 0.20}
+                else:
+                    total = val1 + val2
+                    return {'Argon': val1 / total, 'CO2': val2 / total}
+            elif gas_type == 'AHM':
+                total = val1 + val2
+                return {'Argon': val1 / total}
+                
+    if not parts:
+        if gas_type == 'ACM':
+            return {'Argon': 0.9073, 'CO2': 0.1928}
+        elif gas_type == 'AHM':
+            return {'Argon': 0.9886}
+            
+    return parts
+
+def get_tank_data_for_date(target_date_str):
+    """Fetches opening stock, dead volume, capacity, and unit for bulk tanks."""
+    global bulk_tanks_ws
+    defaults = {
+        'Argon': {'opening': 5664.03, 'dead_volume': 500.0, 'capacity': 10000.0, 'unit': 'Cum'},
+        'CO2': {'opening': 10941.05, 'dead_volume': 200.0, 'capacity': 15000.0, 'unit': 'KG'},
+        'N2': {'opening': 4271.20, 'dead_volume': 300.0, 'capacity': 8000.0, 'unit': 'Cum'},
+        'Oxygen': {'opening': 9215.30, 'dead_volume': 400.0, 'capacity': 12000.0, 'unit': 'Cum'}
+    }
+    try:
+        if bulk_tanks_ws is None and doc:
+            try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
+            except Exception: pass
+        if bulk_tanks_ws is None:
+            return defaults
+        
+        rows = bulk_tanks_ws.get_all_values()
+        if len(rows) < 2:
+            return defaults
+            
+        records = []
+        for r in rows[1:]:
+            if len(r) >= 6 and r[0].strip():
+                try:
+                    records.append({
+                        'date': r[0].strip(),
+                        'date_obj': parse_date(r[0]),
+                        'gas': r[1].strip(),
+                        'opening': float(r[2].strip() or 0.0),
+                        'dead_volume': float(r[3].strip() or 0.0),
+                        'capacity': float(r[4].strip() or 0.0),
+                        'unit': r[5].strip()
+                    })
+                except ValueError:
+                    continue
+                    
+        target_records = [rec for rec in records if rec['date'] == target_date_str]
+        if target_records:
+            out = {}
+            for rec in target_records:
+                out[rec['gas']] = {
+                    'opening': rec['opening'],
+                    'dead_volume': rec['dead_volume'],
+                    'capacity': rec['capacity'],
+                    'unit': rec['unit']
+                }
+            for g in defaults:
+                if g not in out:
+                    out[g] = defaults[g]
+            return out
+            
+        # Rollover closing stock of previous date
+        sorted_records = sorted([r for r in records if r['date_obj'] is not None], key=lambda x: x['date_obj'])
+        if not sorted_records:
+            return defaults
+            
+        target_date_obj = parse_date(target_date_str)
+        prev_records = []
+        if target_date_obj:
+            prev_records = [r for r in sorted_records if r['date_obj'] < target_date_obj]
+            
+        if prev_records:
+            latest_prev_date = prev_records[-1]['date']
+            prev_date_records = [r for r in prev_records if r['date'] == latest_prev_date]
+        else:
+            latest_date = sorted_records[-1]['date']
+            prev_date_records = [r for r in sorted_records if r['date'] == latest_date]
+            latest_prev_date = latest_date
+            
+        prev_used = calculate_used_today(latest_prev_date)
+        out = {}
+        for rec in prev_date_records:
+            used = prev_used.get(rec['gas'], 0.0)
+            closing = max(0.0, rec['opening'] - used)
+            out[rec['gas']] = {
+                'opening': round(closing, 2),
+                'dead_volume': rec['dead_volume'],
+                'capacity': rec['capacity'],
+                'unit': rec['unit']
+            }
+        for g in defaults:
+            if g not in out:
+                out[g] = defaults[g]
+        return out
+        
+    except Exception as e:
+        print("Error fetching bulk tank data:", e)
+        return defaults
+
+def calculate_used_today(target_date_str):
+    """Calculates used gas today from fillings logged in scan log."""
+    global scan_ws
+    used = {'Argon': 0.0, 'CO2': 0.0, 'N2': 0.0, 'Oxygen': 0.0}
+    try:
+        if scan_ws is None and doc:
+            try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
+            except Exception: pass
+        if scan_ws is None:
+            return used
+            
+        rows = scan_ws.get_all_values()
+        if len(rows) < 2:
+            return used
+            
+        fillings = []
+        for r in rows[1:]:
+            if len(r) >= 5:
+                # Col A: Date, Col D: Action, Col E: UID
+                if r[0].strip() == target_date_str and r[3].strip() == 'Filling':
+                    fillings.append(r[4].strip().upper())
+                    
+        if not fillings:
+            return used
+            
+        cylinders = get_all_cylinders()
+        maintenance = get_all_maintenance()
+        cyl_map = {c['uid'].upper(): c for c in cylinders}
+        
+        for uid in fillings:
+            cyl = cyl_map.get(uid)
+            if cyl:
+                gas_type = cyl['gas_type'].upper()
+                cyl_type = cyl['cylinder_type'].capitalize()
+            else:
+                cyl_type = 'Standard'
+                if uid.startswith('ARG'): gas_type = 'ARG'
+                elif uid.startswith('CO2'): gas_type = 'CO2'
+                elif uid.startswith('N2'): gas_type = 'N2'
+                elif uid.startswith('OXY'): gas_type = 'OXY'
+                elif uid.startswith('ACM'): gas_type = 'ACM'
+                else: continue
+                
+            maint = maintenance.get(uid, {})
+            try:
+                capacity = float(maint.get('gas_capacity') or 0.0) if maint.get('gas_capacity') else None
+            except ValueError:
+                capacity = None
+                
+            mix_ratio = maint.get('mix_ratio', '')
+            
+            if capacity is None:
+                if gas_type == 'ARG':
+                    capacity = 7.0 if cyl_type == 'Standard' else 0.88
+                elif gas_type == 'CO2':
+                    capacity = 30.0
+                elif gas_type == 'N2':
+                    capacity = 7.0 if cyl_type == 'Standard' else 0.88
+                elif gas_type == 'OXY':
+                    capacity = 7.0 if cyl_type == 'Standard' else 0.88
+                elif gas_type == 'ACM':
+                    capacity = 7.0
+                elif gas_type == 'AHM':
+                    capacity = 7.0
+                else:
+                    capacity = 0.0
+                    
+            if gas_type == 'ARG':
+                used['Argon'] += capacity
+            elif gas_type == 'CO2':
+                used['CO2'] += capacity
+            elif gas_type == 'N2':
+                used['N2'] += capacity
+            elif gas_type == 'OXY':
+                used['Oxygen'] += capacity
+            elif gas_type == 'ACM':
+                ratios = parse_mix_ratio(mix_ratio, 'ACM')
+                used['Argon'] += capacity * ratios.get('Argon', 0.80)
+                used['CO2'] += capacity * ratios.get('CO2', 0.20)
+            elif gas_type == 'AHM':
+                ratios = parse_mix_ratio(mix_ratio, 'AHM')
+                used['Argon'] += capacity * ratios.get('Argon', 0.92)
+                
+        for k in used:
+            used[k] = round(used[k], 2)
+        return used
+    except Exception as e:
+        print("Error calculating used today:", e)
+        return used
+
+def calculate_fleet_sizes():
+    """Calculates fleet size (total cylinder count) by gas type."""
+    cylinders = get_all_cylinders()
+    fleet = {'Argon': 0, 'CO2': 0, 'N2': 0, 'Oxygen': 0}
+    for c in cylinders:
+        gas = c.get('gas_type', '').upper()
+        if gas in ('ARG', 'ACM', 'AHM'):
+            fleet['Argon'] += 1
+        elif gas == 'CO2':
+            fleet['CO2'] += 1
+        elif gas in ('N2', 'N2D'):
+            fleet['N2'] += 1
+        elif gas == 'OXY':
+            fleet['Oxygen'] += 1
+    return fleet
+
+def calculate_table1_filled_inventory():
+    """Calculates Table 1 — Filled Cylinder Inventory."""
+    cylinders = get_all_cylinders()
+    maintenance = get_all_maintenance()
+    
+    products_config = [
+        {'id': 'arg_pura', 'name': 'ARG Pura', 'gas_type': 'ARG', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
+        {'id': 'acm_90_10', 'name': 'ACM (90.10)_', 'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.3512, 'unit': 'Cum'},
+        {'id': 'co2_90_10', 'name': 'Co2 (90.10)_', 'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 1.35, 'unit': 'KG', 'is_virtual': True},
+        {'id': 'co2_pure', 'name': 'Co2', 'gas_type': 'CO2', 'cylinder_type': 'Standard', 'gas_per_cyl': 30.0, 'unit': 'KG'},
+        {'id': 'n2_cyl', 'name': 'N2 Cyl', 'gas_type': 'N2', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
+        {'id': 'oxygen_pure', 'name': 'OXYGEN', 'gas_type': 'OXY', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
+        {'id': 'ahm_92_08', 'name': 'AHM(92.08)', 'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.92, 'unit': 'Cum'},
+        {'id': 'ahm_98_02', 'name': 'AHM (98.02)', 'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.98, 'unit': 'Cum'},
+        {'id': 'arg_dura', 'name': 'ARG Dura', 'gas_type': 'ARG', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.0, 'unit': 'Cum'},
+        {'id': 'n2_dura', 'name': 'N2Dura', 'gas_type': 'N2', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.88, 'unit': 'Cum'},
+        {'id': 'oxygen_dura', 'name': 'Oxygen Dura', 'gas_type': 'OXY', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.0, 'unit': 'Cum'}
+    ]
+    
+    t1_rows = {p['id']: {**p, 'filled_count': 0, 'total_gas': 0.0} for p in products_config}
+    
+    for c in cylinders:
+        if c.get('status') != 'Filled':
+            continue
+            
+        uid = c.get('uid', '').strip().upper()
+        gas_type = c.get('gas_type', '').upper()
+        cyl_type = c.get('cylinder_type', '').capitalize()
+        maint = maintenance.get(uid, {})
+        
+        try:
+            capacity = float(maint.get('gas_capacity') or 0.0) if maint.get('gas_capacity') else None
+        except ValueError:
+            capacity = None
+            
+        mix_ratio = maint.get('mix_ratio', '')
+        
+        pid = None
+        if gas_type == 'ARG':
+            pid = 'arg_pura' if cyl_type == 'Standard' else 'arg_dura'
+        elif gas_type == 'CO2':
+            pid = 'co2_pure'
+        elif gas_type == 'N2':
+            pid = 'n2_cyl' if cyl_type == 'Standard' else 'n2_dura'
+        elif gas_type == 'OXY':
+            pid = 'oxygen_pure' if cyl_type == 'Standard' else 'oxygen_dura'
+        elif gas_type == 'ACM':
+            pid = 'acm_90_10'
+        elif gas_type == 'AHM':
+            if '98' in mix_ratio:
+                pid = 'ahm_98_02'
+            else:
+                pid = 'ahm_92_08'
+                
+        if pid:
+            if pid == 'acm_90_10':
+                t1_rows['acm_90_10']['filled_count'] += 1
+                t1_rows['co2_90_10']['filled_count'] += 1
+                cap_val = capacity if capacity is not None else 7.0
+                t1_rows['acm_90_10']['total_gas'] += cap_val * 0.9073
+                t1_rows['co2_90_10']['total_gas'] += cap_val * 0.1928
+            else:
+                t1_rows[pid]['filled_count'] += 1
+                cap_val = capacity if capacity is not None else t1_rows[pid]['gas_per_cyl']
+                t1_rows[pid]['total_gas'] += cap_val
+                
+    results = []
+    total_physical_filled = 0
+    total_cum = 0.0
+    total_kg = 0.0
+    
+    for p in products_config:
+        res = t1_rows[p['id']]
+        res['total_gas'] = round(res['total_gas'], 3)
+        results.append(res)
+        
+        if not res.get('is_virtual'):
+            total_physical_filled += res['filled_count']
+        if res['unit'] == 'Cum':
+            total_cum += res['total_gas']
+        elif res['unit'] == 'KG':
+            total_kg += res['total_gas']
+            
+    return {
+        'rows': results,
+        'total_filled': total_physical_filled,
+        'total_cum': round(total_cum, 3),
+        'total_kg': round(total_kg, 3)
+    }
+
+def calculate_table2_bulk_inventory(target_date_str):
+    """Calculates Table 2 — Bulk Tank Inventory."""
+    tanks = get_tank_data_for_date(target_date_str)
+    used = calculate_used_today(target_date_str)
+    fleet = calculate_fleet_sizes()
+    
+    gases = [
+        {'id': 'Argon', 'name': 'Argon'},
+        {'id': 'CO2', 'name': 'CO2'},
+        {'id': 'N2', 'name': 'N2'},
+        {'id': 'Oxygen', 'name': 'Oxygen'}
+    ]
+    
+    rows = []
+    for g in gases:
+        tank_data = tanks.get(g['id'], {'opening': 0.0, 'dead_volume': 0.0, 'capacity': 10000.0, 'unit': 'Cum'})
+        used_today = used.get(g['id'], 0.0)
+        closing = round(max(0.0, tank_data['opening'] - used_today), 2)
+        usable = round(max(0.0, tank_data['opening'] - tank_data['dead_volume']), 2)
+        
+        rows.append({
+            'gas': g['name'],
+            'opening': tank_data['opening'],
+            'used_today': used_today,
+            'closing': closing,
+            'usable': usable,
+            'dead_volume': tank_data['dead_volume'],
+            'capacity': tank_data['capacity'],
+            'fleet': fleet.get(g['id'], 0),
+            'unit': tank_data['unit']
+        })
+        
+    return rows
+
+def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume, unit):
+    """Updates opening stock, capacity, and dead volume for a specific gas and date."""
+    global bulk_tanks_ws
+    try:
+        if bulk_tanks_ws is None and doc:
+            try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
+            except Exception: pass
+        if bulk_tanks_ws is None:
+            return False
+            
+        rows = bulk_tanks_ws.get_all_values()
+        row_num = None
+        for idx, r in enumerate(rows):
+            if idx == 0: continue
+            if len(r) >= 2 and r[0].strip() == date_str and r[1].strip() == gas_name:
+                row_num = idx + 1
+                break
+                
+        row_data = [date_str, gas_name, float(opening), float(dead_volume), float(capacity), unit]
+        if row_num:
+            bulk_tanks_ws.update(f'A{row_num}:F{row_num}', [row_data])
+        else:
+            bulk_tanks_ws.append_row(row_data)
+        return True
+    except Exception as e:
+        print("Error updating tank opening stock:", e)
+        return False
+
+
 # ================================================================
 #  CYLINDER REGISTRY ROUTES
 # ================================================================
+
 
 @app.route('/admin/cylinders')
 @admin_required
@@ -1412,6 +1817,316 @@ def add_customer():
     ws.append([customer, email, phone])
     wb.save('data.xlsx')
     return redirect('/customers')
+
+
+# ================================================================
+#  INVENTORY & BULK TANKS ROUTES
+# ================================================================
+
+@app.route('/admin/inventory')
+@admin_required
+def admin_inventory():
+    selected_date = request.args.get('date', '')
+    parsed = parse_date(selected_date) if selected_date else date.today()
+    target_date_str = parsed.strftime('%d-%m-%Y')
+    target_date_iso = parsed.strftime('%Y-%m-%d')
+    
+    t1 = calculate_table1_filled_inventory()
+    t2 = calculate_table2_bulk_inventory(target_date_str)
+    
+    hydro_alerts = [c for c in merge_cylinder_data() if c.get('hydro_badge') in ('Overdue', 'Due Soon')]
+    hydro_alerts.sort(key=lambda x: parse_date(x.get('next_hydro_due')) or date.max)
+    
+    return render_template('inventory.html',
+        user=session['user'],
+        target_date=target_date_str,
+        target_date_iso=target_date_iso,
+        t1=t1,
+        t2=t2,
+        hydro_alerts=hydro_alerts
+    )
+
+@app.route('/admin/tanks/update', methods=['POST'])
+@admin_required
+def admin_tanks_update():
+    target_date = request.form.get('date', date.today().strftime('%d-%m-%Y'))
+    
+    gases = ['Argon', 'CO2', 'N2', 'Oxygen']
+    success = True
+    for g in gases:
+        opening = request.form.get(f'{g}_opening', '0').strip() or '0'
+        capacity = request.form.get(f'{g}_capacity', '0').strip() or '0'
+        dead_volume = request.form.get(f'{g}_dead', '0').strip() or '0'
+        unit = 'KG' if g == 'CO2' else 'Cum'
+        
+        ok = update_tank_opening_stock(target_date, g, opening, capacity, dead_volume, unit)
+        if not ok:
+            success = False
+            
+    if success:
+        clear_cache()
+        return redirect(f'/admin/inventory?date={target_date}')
+    else:
+        return "Error updating some tank levels. Please verify your sheets connection.", 500
+
+@app.route('/admin/inventory/export/excel')
+@admin_required
+def export_excel():
+    target_date = request.args.get('date', date.today().strftime('%d-%m-%Y'))
+    
+    t1 = calculate_table1_filled_inventory()
+    t2 = calculate_table2_bulk_inventory(target_date)
+    
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    
+    wb = Workbook()
+    ws1 = wb.active
+    ws1.title = "Inventory Report"
+    
+    title_font = Font(name='Arial', size=16, bold=True, color='0F6E56')
+    header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
+    sub_font = Font(name='Arial', size=11, bold=True, color='0F6E56')
+    normal_font = Font(name='Arial', size=11)
+    bold_font = Font(name='Arial', size=11, bold=True)
+    
+    green_fill = PatternFill(start_color='0F6E56', end_color='0F6E56', fill_type='solid')
+    yellow_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
+    orange_fill = PatternFill(start_color='C25E3B', end_color='C25E3B', fill_type='solid')
+    
+    border_thin = Border(
+        left=Side(style='thin', color='DDDDDD'),
+        right=Side(style='thin', color='DDDDDD'),
+        top=Side(style='thin', color='DDDDDD'),
+        bottom=Side(style='thin', color='DDDDDD')
+    )
+    
+    ws1['A1'] = "Daily Dispatch & Tank Status Report"
+    ws1['A1'].font = title_font
+    ws1['A2'] = f"Report Date: {target_date}"
+    ws1['A2'].font = Font(name='Arial', size=11, italic=True)
+    
+    # Table 1: Cyl Status Dispatch Stock
+    ws1['A4'] = "Cyl Status Dispatch Stock (Filled Cylinder Inventory)"
+    ws1['A4'].font = sub_font
+    
+    t1_headers = ["Product", "Full Feeling Cyl", "Gas per Cyl", "Total Gas", "Unit"]
+    for col_idx, h in enumerate(t1_headers, 1):
+        cell = ws1.cell(row=5, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = green_fill
+        cell.alignment = Alignment(horizontal='center')
+        
+    row_idx = 6
+    for row in t1['rows']:
+        ws1.cell(row=row_idx, column=1, value=row['name']).font = normal_font
+        ws1.cell(row=row_idx, column=2, value=row['filled_count']).font = normal_font
+        ws1.cell(row=row_idx, column=3, value=row['gas_per_cyl']).font = normal_font
+        ws1.cell(row=row_idx, column=4, value=row['total_gas']).font = normal_font
+        ws1.cell(row=row_idx, column=5, value=row['unit']).font = normal_font
+        
+        for col_idx in range(1, 6):
+            ws1.cell(row=row_idx, column=col_idx).border = border_thin
+            
+        row_idx += 1
+        
+    # Total row
+    total_cell = ws1.cell(row=row_idx, column=1, value="TOTAL FILLED")
+    total_cell.font = bold_font
+    total_cell.fill = yellow_fill
+    
+    cnt_cell = ws1.cell(row=row_idx, column=2, value=t1['total_filled'])
+    cnt_cell.font = bold_font
+    cnt_cell.fill = yellow_fill
+    
+    ws1.cell(row=row_idx, column=3, value="").fill = yellow_fill
+    
+    gas_tot_cell = ws1.cell(row=row_idx, column=4, value=f"{t1['total_cum']} Cum + {t1['total_kg']} KG")
+    gas_tot_cell.font = bold_font
+    gas_tot_cell.fill = yellow_fill
+    
+    ws1.cell(row=row_idx, column=5, value="Mixed").font = bold_font
+    ws1.cell(row=row_idx, column=5).fill = yellow_fill
+    
+    for col_idx in range(1, 6):
+        ws1.cell(row=row_idx, column=col_idx).border = border_thin
+        
+    row_idx += 3
+    
+    # Table 2: Bulk Tanks
+    ws1.cell(row=row_idx, column=1, value="Total USED Stock (Bulk Tank Gas Inventory)").font = sub_font
+    row_idx += 1
+    
+    t2_headers = ["Gas", "Opening Stock", "Used Today", "Closing Stock", "Fleet Size", "Usable Stock", "Unit"]
+    for col_idx, h in enumerate(t2_headers, 1):
+        cell = ws1.cell(row=row_idx, column=col_idx, value=h)
+        cell.font = header_font
+        cell.fill = orange_fill
+        cell.alignment = Alignment(horizontal='center')
+        
+    row_idx += 1
+    for row in t2:
+        ws1.cell(row=row_idx, column=1, value=row['gas']).font = normal_font
+        ws1.cell(row=row_idx, column=2, value=row['opening']).font = normal_font
+        ws1.cell(row=row_idx, column=3, value=row['used_today']).font = normal_font
+        ws1.cell(row=row_idx, column=4, value=row['closing']).font = normal_font
+        ws1.cell(row=row_idx, column=5, value=row['fleet']).font = normal_font
+        ws1.cell(row=row_idx, column=6, value=row['usable']).font = normal_font
+        ws1.cell(row=row_idx, column=7, value=row['unit']).font = normal_font
+        
+        for col_idx in range(1, 8):
+            ws1.cell(row=row_idx, column=col_idx).border = border_thin
+            
+        row_idx += 1
+        
+    # Auto-fit columns
+    for col in ws1.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws1.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    from io import BytesIO
+    out = BytesIO()
+    wb.save(out)
+    out.seek(0)
+    
+    filename = f"Inventory_Report_{target_date}.xlsx"
+    from flask import send_file
+    return send_file(out, as_attachment=True, download_name=filename, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+@app.route('/admin/inventory/export/pdf')
+@admin_required
+def export_pdf():
+    target_date = request.args.get('date', date.today().strftime('%d-%m-%Y'))
+    
+    t1 = calculate_table1_filled_inventory()
+    t2 = calculate_table2_bulk_inventory(target_date)
+    
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    primary_color = colors.HexColor('#0F6E56')
+    dark_text = colors.HexColor('#2C2C2A')
+    orange_color = colors.HexColor('#C25E3B')
+    
+    title_style = ParagraphStyle(
+        'DocTitle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=18,
+        textColor=primary_color,
+        spaceAfter=4
+    )
+    subtitle_style = ParagraphStyle(
+        'DocSubTitle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Oblique',
+        fontSize=10,
+        textColor=dark_text,
+        spaceAfter=12
+    )
+    section_style = ParagraphStyle(
+        'SectionHeader',
+        parent=styles['Heading2'],
+        fontName='Helvetica-Bold',
+        fontSize=12,
+        textColor=primary_color,
+        spaceBefore=10,
+        spaceAfter=6
+    )
+    
+    story.append(Paragraph("Cylinder Tracker — Daily Inventory & Tanks Report", title_style))
+    story.append(Paragraph(f"Report Generated for Date: {target_date}", subtitle_style))
+    
+    story.append(Paragraph("Cyl Status Dispatch Stock (Filled Cylinder Inventory)", section_style))
+    
+    t1_data = [["Product", "Full Feeling Cyl", "Gas/Cyl", "Total Gas", "Unit"]]
+    for row in t1['rows']:
+        t1_data.append([
+            row['name'],
+            str(row['filled_count']),
+            f"{row['gas_per_cyl']:.4f}".rstrip('0').rstrip('.'),
+            f"{row['total_gas']:.4f}".rstrip('0').rstrip('.'),
+            row['unit']
+        ])
+    t1_data.append([
+        "TOTAL FILLED",
+        str(t1['total_filled']),
+        "",
+        f"{t1['total_cum']} Cum + {t1['total_kg']} KG",
+        "Mixed"
+    ])
+    
+    table1 = Table(t1_data, colWidths=[150, 100, 100, 120, 60])
+    table1.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), primary_color),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 5),
+        ('TOPPADDING', (0,0), (-1,0), 5),
+        ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,1), (-1,-2), 'Helvetica'),
+        ('FONTSIZE', (0,1), (-1,-2), 9),
+        ('GRID', (0,0), (-1,-2), 0.5, colors.lightgrey),
+        ('BACKGROUND', (0,-1), (-1,-1), colors.HexColor('#FFFFCC')),
+        ('FONTNAME', (0,-1), (-1,-1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,-1), (-1,-1), 9),
+        ('GRID', (0,-1), (-1,-1), 0.5, colors.HexColor('#CCCCCC')),
+        ('TOPPADDING', (0,-1), (-1,-1), 5),
+        ('BOTTOMPADDING', (0,-1), (-1,-1), 5),
+    ]))
+    story.append(table1)
+    
+    story.append(Spacer(1, 15))
+    
+    story.append(Paragraph("Total USED Stock (Bulk Tank Gas Inventory)", section_style))
+    
+    t2_data = [["Gas", "Opening Stock", "Used Today", "Closing Stock", "Fleet Size", "Usable Stock", "Unit"]]
+    for row in t2:
+        t2_data.append([
+            row['gas'],
+            f"{row['opening']:.2f}",
+            f"{row['used_today']:.2f}",
+            f"{row['closing']:.2f}",
+            str(row['fleet']),
+            f"{row['usable']:.2f}",
+            row['unit']
+        ])
+        
+    table2 = Table(t2_data, colWidths=[90, 85, 75, 85, 65, 85, 45])
+    table2.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (-1,0), orange_color),
+        ('TEXTCOLOR', (0,0), (-1,0), colors.white),
+        ('FONTNAME', (0,0), (-1,0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,0), 9),
+        ('ALIGN', (0,0), (-1,0), 'CENTER'),
+        ('BOTTOMPADDING', (0,0), (-1,0), 5),
+        ('TOPPADDING', (0,0), (-1,0), 5),
+        ('ALIGN', (1,1), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,1), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,1), (-1,-1), 9),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FAF5F3')])
+    ]))
+    story.append(table2)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    filename = f"Inventory_Report_{target_date}.pdf"
+    from flask import send_file
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
 
 if __name__ == '__main__':
     app.run(debug=True)

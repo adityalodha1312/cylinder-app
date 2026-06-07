@@ -4,3 +4,4 @@ google-auth
 openpyxl
 gunicorn
 python-dotenv
+reportlab
