@@ -1267,6 +1267,173 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
         print("Error updating tank opening stock:", e)
         return False
 
+def calculate_daily_dispatch_report(target_date_str):
+    """Calculates customer-wise dispatches (deliveries) and collections on target_date_str"""
+    global scan_ws
+    try:
+        if scan_ws is None and doc:
+            try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
+            except Exception: pass
+        if scan_ws is None:
+            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            
+        rows = scan_ws.get_all_values()
+        if len(rows) < 2:
+            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            
+        day_scans = []
+        for r in rows[1:]:
+            if len(r) >= 6:
+                if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection'):
+                    day_scans.append({
+                        'action': r[3].strip(),
+                        'uid': r[4].strip().upper(),
+                        'customer': r[5].strip()
+                    })
+                    
+        if not day_scans:
+            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            
+        cylinders = get_all_cylinders()
+        maint_data = get_all_maintenance()
+        cyl_map = {c['uid'].upper(): c for c in cylinders}
+        
+        def make_empty_row():
+            return {
+                'ACM': 0, 'ARG': 0, 'CO2': 0, 'N2': 0, 'Oxy': 0, 'Helium': 0, 'DA': 0,
+                'Dura': {'count': 0, 'gases': {}}
+            }
+            
+        company_customers = {}
+        party_customers = {}
+        
+        for s in day_scans:
+            uid = s['uid']
+            action = s['action'].lower()
+            customer = s['customer'] or '(No Customer)'
+            
+            cyl = cyl_map.get(uid)
+            
+            owner = cyl.get('owner', '').strip() if cyl else ''
+            if not owner or owner.upper() in ('COMPANY', 'DEPOT'):
+                is_company_owned = True
+            else:
+                is_company_owned = False
+                
+            if cyl:
+                gas_type = cyl['gas_type'].upper()
+                cyl_type = cyl['cylinder_type'].capitalize()
+            else:
+                cyl_type = 'Standard'
+                if 'DURA' in uid:
+                    cyl_type = 'Dura'
+                if uid.startswith('ARG'): gas_type = 'ARG'
+                elif uid.startswith('CO2'): gas_type = 'CO2'
+                elif uid.startswith('N2'): gas_type = 'N2'
+                elif uid.startswith('OXY'): gas_type = 'OXY'
+                elif uid.startswith('ACM'): gas_type = 'ACM'
+                elif uid.startswith('HEL'): gas_type = 'HEL'
+                elif uid.startswith('DA'): gas_type = 'DA'
+                else: gas_type = 'OXY'
+                
+            col_key = None
+            if cyl_type == 'Dura':
+                col_key = 'Dura'
+            else:
+                if gas_type == 'ACM': col_key = 'ACM'
+                elif gas_type == 'ARG': col_key = 'ARG'
+                elif gas_type == 'CO2': col_key = 'CO2'
+                elif gas_type in ('N2', 'N2D'): col_key = 'N2'
+                elif gas_type == 'OXY': col_key = 'Oxy'
+                elif 'HEL' in gas_type: col_key = 'Helium'
+                elif gas_type == 'DA': col_key = 'DA'
+                else: col_key = 'Oxy'
+                
+            group = company_customers if is_company_owned else party_customers
+            
+            if customer not in group:
+                group[customer] = {
+                    'dispatch': make_empty_row(),
+                    'collection': make_empty_row()
+                }
+                
+            act_key = 'dispatch' if action == 'delivery' else 'collection'
+            row_dict = group[customer][act_key]
+            
+            if col_key == 'Dura':
+                row_dict['Dura']['count'] += 1
+                gas_symbol = 'Ar'
+                if gas_type == 'N2': gas_symbol = 'N²'
+                elif gas_type == 'OXY': gas_symbol = 'O²'
+                elif gas_type == 'CO2': gas_symbol = 'CO²'
+                
+                row_dict['Dura']['gases'][gas_symbol] = row_dict['Dura']['gases'].get(gas_symbol, 0) + 1
+            else:
+                row_dict[col_key] += 1
+                
+        def format_dura(dura_dict):
+            if dura_dict['count'] == 0:
+                return ''
+            parts = []
+            for gas, cnt in sorted(dura_dict['gases'].items()):
+                parts.append(f"{cnt} {gas}")
+            if not parts:
+                return str(dura_dict['count'])
+            return " / ".join(parts)
+            
+        def convert_to_list(group_dict):
+            out = []
+            for cust, data in sorted(group_dict.items()):
+                formatted_row = {
+                    'customer': cust,
+                    'dispatch': {k: (v if k != 'Dura' else format_dura(v)) for k, v in data['dispatch'].items()},
+                    'collection': {k: (v if k != 'Dura' else format_dura(v)) for k, v in data['collection'].items()},
+                    'raw_dispatch': {k: (v if k != 'Dura' else v['count']) for k, v in data['dispatch'].items()},
+                    'raw_collection': {k: (v if k != 'Dura' else v['count']) for k, v in data['collection'].items()}
+                }
+                out.append(formatted_row)
+            return out
+            
+        company_rows = convert_to_list(company_customers)
+        party_rows = convert_to_list(party_customers)
+        
+        def calc_totals(rows_list):
+            tot = {
+                'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+                'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+                'dispatch_total': 0,
+                'collection_total': 0
+            }
+            for r in rows_list:
+                for k in tot['dispatch']:
+                    tot['dispatch'][k] += r['raw_dispatch'][k]
+                    tot['collection'][k] += r['raw_collection'][k]
+            tot['dispatch_total'] = sum(tot['dispatch'].values())
+            tot['collection_total'] = sum(tot['collection'].values())
+            return tot
+            
+        company_totals = calc_totals(company_rows)
+        party_totals = calc_totals(party_rows)
+        
+        grand_totals = {
+            'dispatch': {k: company_totals['dispatch'][k] + party_totals['dispatch'][k] for k in company_totals['dispatch']},
+            'collection': {k: company_totals['collection'][k] + party_totals['collection'][k] for k in company_totals['collection']},
+            'dispatch_total': company_totals['dispatch_total'] + party_totals['dispatch_total'],
+            'collection_total': company_totals['collection_total'] + party_totals['collection_total']
+        }
+        
+        return {
+            'company_rows': company_rows,
+            'party_rows': party_rows,
+            'company_totals': company_totals,
+            'party_totals': party_totals,
+            'grand_totals': grand_totals
+        }
+    except Exception as e:
+        print("Error calculating daily dispatch report:", e)
+        return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+
+
 
 # ================================================================
 #  CYLINDER REGISTRY ROUTES
@@ -1833,6 +2000,7 @@ def admin_inventory():
     
     t1 = calculate_table1_filled_inventory()
     t2 = calculate_table2_bulk_inventory(target_date_str)
+    dispatch_report = calculate_daily_dispatch_report(target_date_str)
     
     hydro_alerts = [c for c in merge_cylinder_data() if c.get('hydro_badge') in ('Overdue', 'Due Soon')]
     hydro_alerts.sort(key=lambda x: parse_date(x.get('next_hydro_due')) or date.max)
@@ -1843,6 +2011,7 @@ def admin_inventory():
         target_date_iso=target_date_iso,
         t1=t1,
         t2=t2,
+        dispatch_report=dispatch_report,
         hydro_alerts=hydro_alerts
     )
 
@@ -1876,13 +2045,17 @@ def export_excel():
     
     t1 = calculate_table1_filled_inventory()
     t2 = calculate_table2_bulk_inventory(target_date)
+    dr = calculate_daily_dispatch_report(target_date)
     
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
     
     wb = Workbook()
+    
+    # ── Tab 1: Inventory Report ─────────────────────────────────
     ws1 = wb.active
     ws1.title = "Inventory Report"
+    ws1.views.sheetView[0].showGridLines = True
     
     title_font = Font(name='Arial', size=16, bold=True, color='0F6E56')
     header_font = Font(name='Arial', size=11, bold=True, color='FFFFFF')
@@ -1893,6 +2066,7 @@ def export_excel():
     green_fill = PatternFill(start_color='0F6E56', end_color='0F6E56', fill_type='solid')
     yellow_fill = PatternFill(start_color='FFFFCC', end_color='FFFFCC', fill_type='solid')
     orange_fill = PatternFill(start_color='C25E3B', end_color='C25E3B', fill_type='solid')
+    gray_fill = PatternFill(start_color='F2F2F2', end_color='F2F2F2', fill_type='solid')
     
     border_thin = Border(
         left=Side(style='thin', color='DDDDDD'),
@@ -1906,7 +2080,6 @@ def export_excel():
     ws1['A2'] = f"Report Date: {target_date}"
     ws1['A2'].font = Font(name='Arial', size=11, italic=True)
     
-    # Table 1: Cyl Status Dispatch Stock
     ws1['A4'] = "Cyl Status Dispatch Stock (Filled Cylinder Inventory)"
     ws1['A4'].font = sub_font
     
@@ -1930,7 +2103,6 @@ def export_excel():
             
         row_idx += 1
         
-    # Total row
     total_cell = ws1.cell(row=row_idx, column=1, value="TOTAL FILLED")
     total_cell.font = bold_font
     total_cell.fill = yellow_fill
@@ -1938,7 +2110,6 @@ def export_excel():
     cnt_cell = ws1.cell(row=row_idx, column=2, value=t1['total_filled'])
     cnt_cell.font = bold_font
     cnt_cell.fill = yellow_fill
-    
     ws1.cell(row=row_idx, column=3, value="").fill = yellow_fill
     
     gas_tot_cell = ws1.cell(row=row_idx, column=4, value=f"{t1['total_cum']} Cum + {t1['total_kg']} KG")
@@ -1953,7 +2124,6 @@ def export_excel():
         
     row_idx += 3
     
-    # Table 2: Bulk Tanks
     ws1.cell(row=row_idx, column=1, value="Total USED Stock (Bulk Tank Gas Inventory)").font = sub_font
     row_idx += 1
     
@@ -1979,11 +2149,198 @@ def export_excel():
             
         row_idx += 1
         
-    # Auto-fit columns
     for col in ws1.columns:
         max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = col[0].column_letter
         ws1.column_dimensions[col_letter].width = max(max_len + 3, 12)
+        
+    # ── Tab 2: Dispatch Report ──────────────────────────────────
+    ws2 = wb.create_sheet(title="Dispatch Report")
+    ws2.views.sheetView[0].showGridLines = True
+    
+    def style_range(ws, cell_range, font=None, fill=None, border=None, alignment=None):
+        for row in ws[cell_range]:
+            for cell in row:
+                if font: cell.font = font
+                if fill: cell.fill = fill
+                if border: cell.border = border
+                if alignment: cell.alignment = alignment
+                
+    ws2['A1'] = "Daily Dispatch Report"
+    ws2['A1'].font = title_font
+    ws2['A2'] = f"Report Date: {target_date}"
+    ws2['A2'].font = Font(name='Arial', size=11, italic=True)
+    
+    ws2.merge_cells('A4:A5')
+    ws2['A4'] = "Today Dispatch & Empty Collection Party Name"
+    ws2['A4'].alignment = Alignment(horizontal='center', vertical='center', wrap_text=True)
+    ws2['A4'].font = Font(name='Arial', size=10, bold=True, color='FFFFFF')
+    ws2['A4'].fill = green_fill
+    
+    ws2.merge_cells('B4:I4')
+    ws2['B4'] = "Today Dispatch Cyld."
+    ws2['B4'].alignment = Alignment(horizontal='center', vertical='center')
+    ws2['B4'].font = Font(name='Arial', size=10, bold=True, color='FFFFFF')
+    ws2['B4'].fill = green_fill
+    
+    ws2.merge_cells('J4:Q4')
+    ws2['J4'] = "Today Empty Collection Cyld."
+    ws2['J4'].alignment = Alignment(horizontal='center', vertical='center')
+    ws2['J4'].font = Font(name='Arial', size=10, bold=True, color='FFFFFF')
+    ws2['J4'].fill = green_fill
+    
+    cols = ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']
+    for idx, col_name in enumerate(cols):
+        c1 = ws2.cell(row=5, column=2 + idx, value=col_name)
+        c1.font = Font(name='Arial', size=9, bold=True, color='FFFFFF')
+        c1.fill = green_fill
+        c1.alignment = Alignment(horizontal='center')
+        
+        c2 = ws2.cell(row=5, column=10 + idx, value=col_name)
+        c2.font = Font(name='Arial', size=9, bold=True, color='FFFFFF')
+        c2.fill = green_fill
+        c2.alignment = Alignment(horizontal='center')
+        
+    for r_idx in (4, 5):
+        for c_idx in range(1, 18):
+            ws2.cell(row=r_idx, column=c_idx).border = border_thin
+            
+    row_idx = 6
+    if dr.get('company_rows'):
+        for row in dr['company_rows']:
+            ws2.cell(row=row_idx, column=1, value=row['customer']).font = normal_font
+            for col_idx, k in enumerate(cols):
+                v1 = row['dispatch'][k]
+                ws2.cell(row=row_idx, column=2 + col_idx, value=v1 if v1 != 0 else '').font = normal_font
+                ws2.cell(row=row_idx, column=2 + col_idx).alignment = Alignment(horizontal='center')
+                
+                v2 = row['collection'][k]
+                ws2.cell(row=row_idx, column=10 + col_idx, value=v2 if v2 != 0 else '').font = normal_font
+                ws2.cell(row=row_idx, column=10 + col_idx).alignment = Alignment(horizontal='center')
+            for c_idx in range(1, 18):
+                ws2.cell(row=row_idx, column=c_idx).border = border_thin
+            row_idx += 1
+            
+    c_tot_cell = ws2.cell(row=row_idx, column=1, value="Dispatch Cyld")
+    c_tot_cell.font = bold_font
+    c_tot_cell.fill = yellow_fill
+    
+    comp_t = dr.get('company_totals', {'dispatch': {}, 'collection': {}, 'dispatch_total': 0, 'collection_total': 0})
+    for col_idx, k in enumerate(cols):
+        v1 = comp_t['dispatch'].get(k, 0)
+        ws2.cell(row=row_idx, column=2 + col_idx, value=v1 if v1 != 0 else '').font = bold_font
+        ws2.cell(row=row_idx, column=2 + col_idx).fill = yellow_fill
+        ws2.cell(row=row_idx, column=2 + col_idx).alignment = Alignment(horizontal='center')
+        
+        v2 = comp_t['collection'].get(k, 0)
+        ws2.cell(row=row_idx, column=10 + col_idx, value=v2 if v2 != 0 else '').font = bold_font
+        ws2.cell(row=row_idx, column=10 + col_idx).fill = yellow_fill
+        ws2.cell(row=row_idx, column=10 + col_idx).alignment = Alignment(horizontal='center')
+        
+    for c_idx in range(1, 18):
+        ws2.cell(row=row_idx, column=c_idx).border = border_thin
+    row_idx += 1
+    
+    ws2.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=9)
+    ws2.cell(row=row_idx, column=1, value=f"Today Dispatch Cyld: {comp_t['dispatch_total']}").font = bold_font
+    ws2.cell(row=row_idx, column=1).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'A{row_idx}:I{row_idx}', fill=yellow_fill)
+    
+    ws2.merge_cells(start_row=row_idx, start_column=10, end_row=row_idx, end_column=17)
+    ws2.cell(row=row_idx, column=10, value=f"Today Empty Collection Cyld: {comp_t['collection_total']}").font = bold_font
+    ws2.cell(row=row_idx, column=10).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'J{row_idx}:Q{row_idx}', fill=yellow_fill)
+    
+    for c_idx in range(1, 18):
+        ws2.cell(row=row_idx, column=c_idx).border = border_thin
+    row_idx += 1
+    
+    # Party Header Row
+    header_party_row = row_idx
+    ws2.merge_cells(start_row=header_party_row, start_column=1, end_row=header_party_row, end_column=9)
+    ws2.cell(row=header_party_row, column=1, value="Party Name & Today Dispatch Party Cyld").font = bold_font
+    style_range(ws2, f'A{header_party_row}:I{header_party_row}', fill=gray_fill)
+    
+    ws2.merge_cells(start_row=header_party_row, start_column=10, end_row=header_party_row, end_column=17)
+    ws2.cell(row=header_party_row, column=10, value="").fill = gray_fill
+    
+    for c_idx in range(1, 18):
+        ws2.cell(row=header_party_row, column=c_idx).border = border_thin
+    row_idx += 1
+    
+    if dr.get('party_rows'):
+        for row in dr['party_rows']:
+            ws2.cell(row=row_idx, column=1, value=row['customer']).font = normal_font
+            for col_idx, k in enumerate(cols):
+                v1 = row['dispatch'][k]
+                ws2.cell(row=row_idx, column=2 + col_idx, value=v1 if v1 != 0 else '').font = normal_font
+                ws2.cell(row=row_idx, column=2 + col_idx).alignment = Alignment(horizontal='center')
+                
+                v2 = row['collection'][k]
+                ws2.cell(row=row_idx, column=10 + col_idx, value=v2 if v2 != 0 else '').font = normal_font
+                ws2.cell(row=row_idx, column=10 + col_idx).alignment = Alignment(horizontal='center')
+            for c_idx in range(1, 18):
+                ws2.cell(row=row_idx, column=c_idx).border = border_thin
+            row_idx += 1
+            
+    p_tot_cell = ws2.cell(row=row_idx, column=1, value="Total")
+    p_tot_cell.font = bold_font
+    p_tot_cell.fill = gray_fill
+    
+    party_t = dr.get('party_totals', {'dispatch': {}, 'collection': {}, 'dispatch_total': 0, 'collection_total': 0})
+    for col_idx, k in enumerate(cols):
+        v1 = party_t['dispatch'].get(k, 0)
+        ws2.cell(row=row_idx, column=2 + col_idx, value=v1 if v1 != 0 else '').font = bold_font
+        ws2.cell(row=row_idx, column=2 + col_idx).fill = gray_fill
+        ws2.cell(row=row_idx, column=2 + col_idx).alignment = Alignment(horizontal='center')
+        
+        v2 = party_t['collection'].get(k, 0)
+        ws2.cell(row=row_idx, column=10 + col_idx, value=v2 if v2 != 0 else '').font = bold_font
+        ws2.cell(row=row_idx, column=10 + col_idx).fill = gray_fill
+        ws2.cell(row=row_idx, column=10 + col_idx).alignment = Alignment(horizontal='center')
+        
+    for c_idx in range(1, 18):
+        ws2.cell(row=row_idx, column=c_idx).border = border_thin
+    row_idx += 1
+    
+    ws2.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=9)
+    ws2.cell(row=row_idx, column=1, value=f"Today Party Cyld Dispatch Total: {party_t['dispatch_total']}").font = bold_font
+    ws2.cell(row=row_idx, column=1).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'A{row_idx}:I{row_idx}', fill=yellow_fill)
+    
+    ws2.merge_cells(start_row=row_idx, start_column=10, end_row=row_idx, end_column=17)
+    ws2.cell(row=row_idx, column=10, value=f"Today Party Cyld Collection Total: {party_t['collection_total']}").font = bold_font
+    ws2.cell(row=row_idx, column=10).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'J{row_idx}:Q{row_idx}', fill=yellow_fill)
+    
+    for c_idx in range(1, 18):
+        ws2.cell(row=row_idx, column=c_idx).border = border_thin
+    row_idx += 1
+    
+    # Grand Totals
+    grand_t = dr.get('grand_totals', {'dispatch_total': 0, 'collection_total': 0})
+    ws2.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=9)
+    ws2.cell(row=row_idx, column=1, value=f"Today Total Dispatch Cylinders: {grand_t['dispatch_total']}").font = Font(name='Arial', size=11, bold=True)
+    ws2.cell(row=row_idx, column=1).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'A{row_idx}:I{row_idx}', fill=orange_fill)
+    
+    ws2.merge_cells(start_row=row_idx, start_column=10, end_row=row_idx, end_column=17)
+    ws2.cell(row=row_idx, column=10, value=f"Today Total Collection Cylinders: {grand_t['collection_total']}").font = Font(name='Arial', size=11, bold=True)
+    ws2.cell(row=row_idx, column=10).alignment = Alignment(horizontal='center')
+    style_range(ws2, f'J{row_idx}:Q{row_idx}', fill=orange_fill)
+    
+    border_double = Border(
+        top=Side(style='medium', color='000000'),
+        bottom=Side(style='double', color='000000'),
+        left=Side(style='thin', color='DDDDDD'),
+        right=Side(style='thin', color='DDDDDD')
+    )
+    for c_idx in range(1, 18):
+        ws2.cell(row=row_idx, column=c_idx).border = border_double
+        
+    ws2.column_dimensions['A'].width = 32
+    for c_letter in ['B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q']:
+        ws2.column_dimensions[c_letter].width = 8
         
     from io import BytesIO
     out = BytesIO()
@@ -2001,11 +2358,12 @@ def export_pdf():
     
     t1 = calculate_table1_filled_inventory()
     t2 = calculate_table2_bulk_inventory(target_date)
+    dr = calculate_daily_dispatch_report(target_date)
     
     from io import BytesIO
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import letter
-    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     
     buffer = BytesIO()
@@ -2043,6 +2401,7 @@ def export_pdf():
         spaceAfter=6
     )
     
+    # Page 1: Stock Status & Bulk Tanks
     story.append(Paragraph("Cylinder Tracker — Daily Inventory & Tanks Report", title_style))
     story.append(Paragraph(f"Report Generated for Date: {target_date}", subtitle_style))
     
@@ -2119,6 +2478,191 @@ def export_pdf():
         ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, colors.HexColor('#FAF5F3')])
     ]))
     story.append(table2)
+    
+    # Page 2: Daily Dispatch Report Matrix
+    story.append(PageBreak())
+    story.append(Paragraph("Cylinder Tracker — Daily Dispatch Report", title_style))
+    story.append(Paragraph(f"Report Generated for Date: {target_date}", subtitle_style))
+    story.append(Paragraph("Today Dispatch & Empty Collection Party-wise Matrix", section_style))
+    
+    dp_data = []
+    dp_data.append(["Today Dispatch & Empty Collection Party Name", "Today Dispatch Cyld.", "", "", "", "", "", "", "", "Today Empty Collection Cyld.", "", "", "", "", "", "", ""])
+    dp_data.append(["", "ACM", "ARG", "CO2", "N2", "Oxy", "Hel", "DA", "Dur", "ACM", "ARG", "CO2", "N2", "Oxy", "Hel", "DA", "Dur"])
+    
+    cols = ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']
+    
+    # 1. Company Rows
+    if dr.get('company_rows'):
+        for r in dr['company_rows']:
+            dp_data.append([
+                r['customer'],
+                str(r['dispatch']['ACM'] or ''),
+                str(r['dispatch']['ARG'] or ''),
+                str(r['dispatch']['CO2'] or ''),
+                str(r['dispatch']['N2'] or ''),
+                str(r['dispatch']['Oxy'] or ''),
+                str(r['dispatch']['Helium'] or ''),
+                str(r['dispatch']['DA'] or ''),
+                str(r['dispatch']['Dura'] or ''),
+                str(r['collection']['ACM'] or ''),
+                str(r['collection']['ARG'] or ''),
+                str(r['collection']['CO2'] or ''),
+                str(r['collection']['N2'] or ''),
+                str(r['collection']['Oxy'] or ''),
+                str(r['collection']['Helium'] or ''),
+                str(r['collection']['DA'] or ''),
+                str(r['collection']['Dura'] or '')
+            ])
+            
+    comp_t = dr.get('company_totals', {'dispatch': {}, 'collection': {}, 'dispatch_total': 0, 'collection_total': 0})
+    dp_data.append([
+        "Dispatch Cyld",
+        str(comp_t['dispatch'].get('ACM', '') or ''),
+        str(comp_t['dispatch'].get('ARG', '') or ''),
+        str(comp_t['dispatch'].get('CO2', '') or ''),
+        str(comp_t['dispatch'].get('N2', '') or ''),
+        str(comp_t['dispatch'].get('Oxy', '') or ''),
+        str(comp_t['dispatch'].get('Helium', '') or ''),
+        str(comp_t['dispatch'].get('DA', '') or ''),
+        str(comp_t['dispatch'].get('Dura', '') or ''),
+        str(comp_t['collection'].get('ACM', '') or ''),
+        str(comp_t['collection'].get('ARG', '') or ''),
+        str(comp_t['collection'].get('CO2', '') or ''),
+        str(comp_t['collection'].get('N2', '') or ''),
+        str(comp_t['collection'].get('Oxy', '') or ''),
+        str(comp_t['collection'].get('Helium', '') or ''),
+        str(comp_t['collection'].get('DA', '') or ''),
+        str(comp_t['collection'].get('Dura', '') or '')
+    ])
+    
+    dp_data.append([
+        f"Today Dispatch Cyld: {comp_t['dispatch_total']}", "", "", "", "", "", "", "", "",
+        f"Today Empty Collection Cyld: {comp_t['collection_total']}", "", "", "", "", "", "", ""
+    ])
+    
+    # Party Header Row
+    dp_data.append(["Party Name & Today Dispatch Party Cyld", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""])
+    
+    # 2. Party Rows
+    if dr.get('party_rows'):
+        for r in dr['party_rows']:
+            dp_data.append([
+                r['customer'],
+                str(r['dispatch']['ACM'] or ''),
+                str(r['dispatch']['ARG'] or ''),
+                str(r['dispatch']['CO2'] or ''),
+                str(r['dispatch']['N2'] or ''),
+                str(r['dispatch']['Oxy'] or ''),
+                str(r['dispatch']['Helium'] or ''),
+                str(r['dispatch']['DA'] or ''),
+                str(r['dispatch']['Dura'] or ''),
+                str(r['collection']['ACM'] or ''),
+                str(r['collection']['ARG'] or ''),
+                str(r['collection']['CO2'] or ''),
+                str(r['collection']['N2'] or ''),
+                str(r['collection']['Oxy'] or ''),
+                str(r['collection']['Helium'] or ''),
+                str(r['collection']['DA'] or ''),
+                str(r['collection']['Dura'] or '')
+            ])
+            
+    party_t = dr.get('party_totals', {'dispatch': {}, 'collection': {}, 'dispatch_total': 0, 'collection_total': 0})
+    dp_data.append([
+        "Total",
+        str(party_t['dispatch'].get('ACM', '') or ''),
+        str(party_t['dispatch'].get('ARG', '') or ''),
+        str(party_t['dispatch'].get('CO2', '') or ''),
+        str(party_t['dispatch'].get('N2', '') or ''),
+        str(party_t['dispatch'].get('Oxy', '') or ''),
+        str(party_t['dispatch'].get('Helium', '') or ''),
+        str(party_t['dispatch'].get('DA', '') or ''),
+        str(party_t['dispatch'].get('Dura', '') or ''),
+        str(party_t['collection'].get('ACM', '') or ''),
+        str(party_t['collection'].get('ARG', '') or ''),
+        str(party_t['collection'].get('CO2', '') or ''),
+        str(party_t['collection'].get('N2', '') or ''),
+        str(party_t['collection'].get('Oxy', '') or ''),
+        str(party_t['collection'].get('Helium', '') or ''),
+        str(party_t['collection'].get('DA', '') or ''),
+        str(party_t['collection'].get('Dura', '') or '')
+    ])
+    
+    dp_data.append([
+        f"Today Party Cyld Dispatch Total: {party_t['dispatch_total']}", "", "", "", "", "", "", "", "",
+        f"Today Party Cyld Collection Total: {party_t['collection_total']}", "", "", "", "", "", "", ""
+    ])
+    
+    # Grand Totals
+    grand_t = dr.get('grand_totals', {'dispatch_total': 0, 'collection_total': 0})
+    dp_data.append([
+        f"Today Total Dispatch Cylinders: {grand_t['dispatch_total']}", "", "", "", "", "", "", "", "",
+        f"Today Total Collection Cylinders: {grand_t['collection_total']}", "", "", "", "", "", "", ""
+    ])
+    
+    col_widths = [124] + [26] * 16
+    
+    comp_len = len(dr.get('company_rows', []))
+    party_len = len(dr.get('party_rows', []))
+    
+    comp_sub_idx = 2 + comp_len
+    comp_tot_idx = 3 + comp_len
+    party_head_idx = 4 + comp_len
+    party_sub_idx = 5 + comp_len + party_len
+    party_tot_idx = 6 + comp_len + party_len
+    grand_tot_idx = 7 + comp_len + party_len
+    
+    t_style = [
+        ('SPAN', (0,0), (0,1)),
+        ('SPAN', (1,0), (8,0)),
+        ('SPAN', (9,0), (16,0)),
+        ('BACKGROUND', (0,0), (-1,1), primary_color),
+        ('TEXTCOLOR', (0,0), (-1,1), colors.white),
+        ('FONTNAME', (0,0), (-1,1), 'Helvetica-Bold'),
+        ('FONTSIZE', (0,0), (-1,1), 8),
+        ('ALIGN', (0,0), (-1,1), 'CENTER'),
+        ('VALIGN', (0,0), (-1,1), 'MIDDLE'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('ALIGN', (1,2), (-1,-1), 'CENTER'),
+        ('FONTNAME', (0,2), (-1,-1), 'Helvetica'),
+        ('FONTSIZE', (0,2), (-1,-1), 7.5),
+        ('VALIGN', (0,2), (-1,-1), 'MIDDLE'),
+        
+        ('SPAN', (0, comp_tot_idx), (8, comp_tot_idx)),
+        ('SPAN', (9, comp_tot_idx), (16, comp_tot_idx)),
+        ('SPAN', (0, party_head_idx), (8, party_head_idx)),
+        ('SPAN', (9, party_head_idx), (16, party_head_idx)),
+        ('SPAN', (0, party_tot_idx), (8, party_tot_idx)),
+        ('SPAN', (9, party_tot_idx), (16, party_tot_idx)),
+        ('SPAN', (0, grand_tot_idx), (8, grand_tot_idx)),
+        ('SPAN', (9, grand_tot_idx), (16, grand_tot_idx)),
+        
+        ('BACKGROUND', (0, comp_sub_idx), (-1, comp_sub_idx), colors.HexColor('#FFFFCC')),
+        ('FONTNAME', (0, comp_sub_idx), (-1, comp_sub_idx), 'Helvetica-Bold'),
+        
+        ('BACKGROUND', (0, comp_tot_idx), (-1, comp_tot_idx), colors.HexColor('#FFFF99')),
+        ('FONTNAME', (0, comp_tot_idx), (-1, comp_tot_idx), 'Helvetica-Bold'),
+        ('ALIGN', (0, comp_tot_idx), (-1, comp_tot_idx), 'CENTER'),
+        
+        ('BACKGROUND', (0, party_head_idx), (-1, party_head_idx), colors.HexColor('#F0F0F0')),
+        ('FONTNAME', (0, party_head_idx), (-1, party_head_idx), 'Helvetica-Bold'),
+        ('ALIGN', (0, party_head_idx), (-1, party_head_idx), 'CENTER'),
+        
+        ('BACKGROUND', (0, party_sub_idx), (-1, party_sub_idx), colors.HexColor('#EAEAEA')),
+        ('FONTNAME', (0, party_sub_idx), (-1, party_sub_idx), 'Helvetica-Bold'),
+        
+        ('BACKGROUND', (0, party_tot_idx), (-1, party_tot_idx), colors.HexColor('#FFFF99')),
+        ('FONTNAME', (0, party_tot_idx), (-1, party_tot_idx), 'Helvetica-Bold'),
+        ('ALIGN', (0, party_tot_idx), (-1, party_tot_idx), 'CENTER'),
+        
+        ('BACKGROUND', (0, grand_tot_idx), (-1, grand_tot_idx), colors.HexColor('#FFE6CC')),
+        ('FONTNAME', (0, grand_tot_idx), (-1, grand_tot_idx), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, grand_tot_idx), (-1, grand_tot_idx), 8),
+        ('ALIGN', (0, grand_tot_idx), (-1, grand_tot_idx), 'CENTER'),
+    ]
+    
+    table_dispatch = Table(dp_data, colWidths=col_widths)
+    table_dispatch.setStyle(TableStyle(t_style))
+    story.append(table_dispatch)
     
     doc.build(story)
     buffer.seek(0)

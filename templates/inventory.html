@@ -319,6 +319,96 @@
     box-shadow: 0 1px 4px rgba(0,0,0,0.05);
     margin-bottom: 24px;
   }
+
+  /* Daily Dispatch Report Matrix Styles */
+  .matrix-card {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    margin-bottom: 24px;
+  }
+  .matrix-table-wrap {
+    overflow-x: auto;
+    border-radius: 8px;
+    border: 1.5px solid var(--gray-bd);
+  }
+  .matrix-table {
+    width: 100%;
+    border-collapse: collapse;
+    min-width: 1000px;
+  }
+  .matrix-table th, .matrix-table td {
+    padding: 10px 8px;
+    font-size: 12.5px;
+    border-right: 1px solid var(--gray-bd);
+    border-bottom: 1px solid var(--gray-bd);
+    text-align: center;
+    vertical-align: middle;
+  }
+  .matrix-table th {
+    background: #f7f8f6;
+    color: var(--dark-text);
+    font-weight: 600;
+  }
+  .matrix-table th.dispatch-header {
+    background: var(--green-700, #0F6E56);
+    color: #fff;
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .matrix-table th.collection-header {
+    background: #8c764b;
+    color: #fff;
+    font-weight: 600;
+    font-size: 13.5px;
+  }
+  .matrix-table td:first-child, .matrix-table th:first-child {
+    text-align: left;
+    padding-left: 14px;
+    font-weight: 600;
+    color: var(--dark-text);
+    border-right: 1.5px solid var(--gray-bd);
+  }
+  .matrix-table tr:hover td {
+    background: #fafbfa;
+  }
+  .matrix-table tr.total-row-sub td {
+    font-weight: 700;
+    background: #fcfdfc;
+    border-top: 1.5px solid var(--gray-bd);
+    border-bottom: 1.5px solid var(--gray-bd);
+  }
+  .matrix-table tr.total-row-summary td {
+    font-weight: 700;
+    background: #ffffcc;
+    border-top: 1.5px solid var(--gray-bd);
+    border-bottom: 1.5px solid var(--gray-bd);
+  }
+  .matrix-table tr.section-divider-row td {
+    font-weight: 700;
+    background: #f1efe8;
+    color: var(--dark-text);
+    border-top: 1.5px solid var(--gray-bd);
+    border-bottom: 1.5px solid var(--gray-bd);
+    font-size: 13px;
+  }
+  .matrix-table tr.grand-total-row td {
+    font-weight: 800;
+    background: #fbeee9;
+    color: var(--orange-900, #c25e3b);
+    border-top: 2px solid var(--orange-700, #c25e3b);
+    border-bottom: 2px double var(--orange-700, #c25e3b);
+  }
+  .matrix-table .dura-cell {
+    font-weight: 600;
+    font-size: 11.5px;
+    color: var(--orange-700, #c25e3b);
+  }
+  .matrix-table .border-right-thick {
+    border-right: 1.5px solid var(--gray-bd);
+  }
 </style>
 {% endblock %}
 
@@ -400,6 +490,222 @@
     </div>
   </div>
   {% endfor %}
+</div>
+
+<!-- Daily Dispatch Report (Matrix) Section -->
+<div class="matrix-card">
+  <div class="tbl-title-bar" style="margin-bottom: 16px;">
+    <div>
+      <h3 class="tbl-title">Daily Dispatch Report (Matrix)</h3>
+      <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--gray-text);">
+        Party-wise dispatch (Delivery) and empty cylinder collection grid for {{ target_date }}
+      </p>
+    </div>
+  </div>
+  
+  <div class="matrix-table-wrap">
+    <table class="matrix-table">
+      <thead>
+        <!-- Row 1: Today Dispatch Cyld & Today Empty Collection Cyld headers -->
+        <tr>
+          <th rowspan="2" class="border-right-thick" style="vertical-align: middle; min-width: 200px;">
+            Today Dispatch &amp; Empty Collection Party Name
+          </th>
+          <th colspan="8" class="dispatch-header border-right-thick">
+            Today Dispatch Cyld.
+          </th>
+          <th colspan="8" class="collection-header">
+            Today Empty Collection Cyld.
+          </th>
+        </tr>
+        <!-- Row 2: Gas Sub-headers -->
+        <tr>
+          <!-- Dispatch Columns -->
+          <th>ACM</th>
+          <th>ARG</th>
+          <th>CO₂</th>
+          <th>N₂</th>
+          <th>Oxy</th>
+          <th>Helium</th>
+          <th>DA</th>
+          <th class="border-right-thick">Dura</th>
+          <!-- Collection Columns -->
+          <th>ACM</th>
+          <th>ARG</th>
+          <th>CO₂</th>
+          <th>N₂</th>
+          <th>Oxy</th>
+          <th>Helium</th>
+          <th>DA</th>
+          <th>Dura</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 1. Company-Owned Cylinders -->
+        {% if dispatch_report.company_rows %}
+          {% for row in dispatch_report.company_rows %}
+          <tr>
+            <td class="border-right-thick">
+              {{ row.customer }}
+            </td>
+            <!-- Dispatch values -->
+            <td>{{ row.dispatch.ACM if row.dispatch.ACM != 0 else '' }}</td>
+            <td>{{ row.dispatch.ARG if row.dispatch.ARG != 0 else '' }}</td>
+            <td>{{ row.dispatch.CO2 if row.dispatch.CO2 != 0 else '' }}</td>
+            <td>{{ row.dispatch.N2 if row.dispatch.N2 != 0 else '' }}</td>
+            <td>{{ row.dispatch.Oxy if row.dispatch.Oxy != 0 else '' }}</td>
+            <td>{{ row.dispatch.Helium if row.dispatch.Helium != 0 else '' }}</td>
+            <td>{{ row.dispatch.DA if row.dispatch.DA != 0 else '' }}</td>
+            <td class="dura-cell border-right-thick">{{ row.dispatch.Dura }}</td>
+            <!-- Collection values -->
+            <td>{{ row.collection.ACM if row.collection.ACM != 0 else '' }}</td>
+            <td>{{ row.collection.ARG if row.collection.ARG != 0 else '' }}</td>
+            <td>{{ row.collection.CO2 if row.collection.CO2 != 0 else '' }}</td>
+            <td>{{ row.collection.N2 if row.collection.N2 != 0 else '' }}</td>
+            <td>{{ row.collection.Oxy if row.collection.Oxy != 0 else '' }}</td>
+            <td>{{ row.collection.Helium if row.collection.Helium != 0 else '' }}</td>
+            <td>{{ row.collection.DA if row.collection.DA != 0 else '' }}</td>
+            <td class="dura-cell">{{ row.collection.Dura }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="border-right-thick" style="color:var(--gray-text); font-style:italic;">No company-owned cylinders dispatched/collected today.</td>
+            <!-- Empty cells for dispatch -->
+            <td colspan="7"></td>
+            <td class="border-right-thick"></td>
+            <!-- Empty cells for collection -->
+            <td colspan="8"></td>
+          </tr>
+        {% endif %}
+
+        <!-- Company Totals Row -->
+        <tr class="total-row-sub">
+          <td class="border-right-thick">Dispatch Cyld</td>
+          <!-- Dispatch totals -->
+          <td>{{ dispatch_report.company_totals.dispatch.ACM if dispatch_report.company_totals.dispatch.ACM != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.ARG if dispatch_report.company_totals.dispatch.ARG != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.CO2 if dispatch_report.company_totals.dispatch.CO2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.N2 if dispatch_report.company_totals.dispatch.N2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.Oxy if dispatch_report.company_totals.dispatch.Oxy != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.Helium if dispatch_report.company_totals.dispatch.Helium != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.dispatch.DA if dispatch_report.company_totals.dispatch.DA != 0 else '' }}</td>
+          <td class="border-right-thick">
+            {{ dispatch_report.company_totals.dispatch.Dura if dispatch_report.company_totals.dispatch.Dura != 0 else '' }}
+          </td>
+          <!-- Collection totals -->
+          <td>{{ dispatch_report.company_totals.collection.ACM if dispatch_report.company_totals.collection.ACM != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.ARG if dispatch_report.company_totals.collection.ARG != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.CO2 if dispatch_report.company_totals.collection.CO2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.N2 if dispatch_report.company_totals.collection.N2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.Oxy if dispatch_report.company_totals.collection.Oxy != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.Helium if dispatch_report.company_totals.collection.Helium != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.DA if dispatch_report.company_totals.collection.DA != 0 else '' }}</td>
+          <td>{{ dispatch_report.company_totals.collection.Dura if dispatch_report.company_totals.collection.Dura != 0 else '' }}</td>
+        </tr>
+
+        <!-- Today Dispatch / Collection summaries -->
+        <tr class="total-row-summary">
+          <td colspan="9" class="border-right-thick" style="text-align:center;">
+            Today Dispatch Cyld: <span style="font-size:14px; font-weight:800; color:var(--green-700);">{{ dispatch_report.company_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="8" style="text-align:center;">
+            Today Empty Collection Cyld: <span style="font-size:14px; font-weight:800; color:#8c764b;">{{ dispatch_report.company_totals.collection_total }}</span>
+          </td>
+        </tr>
+
+        <!-- 2. Customer-Owned Cylinders (Party Cylinders) -->
+        <tr class="section-divider-row">
+          <td colspan="9" class="border-right-thick">
+            Party Name &amp; Today Dispatch Party Cyld
+          </td>
+          <td colspan="8"></td>
+        </tr>
+
+        {% if dispatch_report.party_rows %}
+          {% for row in dispatch_report.party_rows %}
+          <tr>
+            <td class="border-right-thick">
+              {{ row.customer }}
+            </td>
+            <!-- Dispatch values -->
+            <td>{{ row.dispatch.ACM if row.dispatch.ACM != 0 else '' }}</td>
+            <td>{{ row.dispatch.ARG if row.dispatch.ARG != 0 else '' }}</td>
+            <td>{{ row.dispatch.CO2 if row.dispatch.CO2 != 0 else '' }}</td>
+            <td>{{ row.dispatch.N2 if row.dispatch.N2 != 0 else '' }}</td>
+            <td>{{ row.dispatch.Oxy if row.dispatch.Oxy != 0 else '' }}</td>
+            <td>{{ row.dispatch.Helium if row.dispatch.Helium != 0 else '' }}</td>
+            <td>{{ row.dispatch.DA if row.dispatch.DA != 0 else '' }}</td>
+            <td class="dura-cell border-right-thick">{{ row.dispatch.Dura }}</td>
+            <!-- Collection values -->
+            <td>{{ row.collection.ACM if row.collection.ACM != 0 else '' }}</td>
+            <td>{{ row.collection.ARG if row.collection.ARG != 0 else '' }}</td>
+            <td>{{ row.collection.CO2 if row.collection.CO2 != 0 else '' }}</td>
+            <td>{{ row.collection.N2 if row.collection.N2 != 0 else '' }}</td>
+            <td>{{ row.collection.Oxy if row.collection.Oxy != 0 else '' }}</td>
+            <td>{{ row.collection.Helium if row.collection.Helium != 0 else '' }}</td>
+            <td>{{ row.collection.DA if row.collection.DA != 0 else '' }}</td>
+            <td class="dura-cell">{{ row.collection.Dura }}</td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="border-right-thick" style="color:var(--gray-text); font-style:italic;">No customer-owned (party) cylinders dispatched/collected today.</td>
+            <!-- Empty cells for dispatch -->
+            <td colspan="7"></td>
+            <td class="border-right-thick"></td>
+            <!-- Empty cells for collection -->
+            <td colspan="8"></td>
+          </tr>
+        {% endif %}
+
+        <!-- Party Totals Row -->
+        <tr class="total-row-sub">
+          <td class="border-right-thick">Total</td>
+          <!-- Dispatch totals -->
+          <td>{{ dispatch_report.party_totals.dispatch.ACM if dispatch_report.party_totals.dispatch.ACM != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.ARG if dispatch_report.party_totals.dispatch.ARG != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.CO2 if dispatch_report.party_totals.dispatch.CO2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.N2 if dispatch_report.party_totals.dispatch.N2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.Oxy if dispatch_report.party_totals.dispatch.Oxy != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.Helium if dispatch_report.party_totals.dispatch.Helium != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.dispatch.DA if dispatch_report.party_totals.dispatch.DA != 0 else '' }}</td>
+          <td class="border-right-thick">
+            {{ dispatch_report.party_totals.dispatch.Dura if dispatch_report.party_totals.dispatch.Dura != 0 else '' }}
+          </td>
+          <!-- Collection totals -->
+          <td>{{ dispatch_report.party_totals.collection.ACM if dispatch_report.party_totals.collection.ACM != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.ARG if dispatch_report.party_totals.collection.ARG != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.CO2 if dispatch_report.party_totals.collection.CO2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.N2 if dispatch_report.party_totals.collection.N2 != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.Oxy if dispatch_report.party_totals.collection.Oxy != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.Helium if dispatch_report.party_totals.collection.Helium != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.DA if dispatch_report.party_totals.collection.DA != 0 else '' }}</td>
+          <td>{{ dispatch_report.party_totals.collection.Dura if dispatch_report.party_totals.collection.Dura != 0 else '' }}</td>
+        </tr>
+
+        <!-- Party Today Dispatch / Collection summaries -->
+        <tr class="total-row-summary">
+          <td colspan="9" class="border-right-thick" style="text-align:center;">
+            Today Party Cyld Dispatch Total: <span style="font-size:14px; font-weight:800; color:var(--green-700);">{{ dispatch_report.party_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="8" style="text-align:center;">
+            Today Party Cyld Collection Total: <span style="font-size:14px; font-weight:800; color:#8c764b;">{{ dispatch_report.party_totals.collection_total }}</span>
+          </td>
+        </tr>
+
+        <!-- Bottom Grand Summary Row -->
+        <tr class="grand-total-row">
+          <td colspan="9" class="border-right-thick" style="text-align:center; padding: 12px;">
+            Today Total Dispatch Cylinders: <span style="font-size:15px; font-weight:900;">{{ dispatch_report.grand_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="8" style="text-align:center; padding: 12px;">
+            Today Total Collection Cylinders: <span style="font-size:15px; font-weight:900;">{{ dispatch_report.grand_totals.collection_total }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
 </div>
 
 <!-- Main Tables Section -->
