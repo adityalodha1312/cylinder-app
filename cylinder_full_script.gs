@@ -1190,6 +1190,51 @@ function resetEmailCounter() {
 //  CUSTOMER EMAIL RECEIPTS
 // ============================================================
 
+function getCustomerDailyTotals(customerName, dateStr) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const scanSheet = ss.getSheetByName(SCAN_SHEET_NAME);
+  const mapSheet = ss.getSheetByName(MAP_SHEET_NAME);
+  if (!scanSheet || !mapSheet) return { delivered: 0, collected: 0 };
+
+  const mapData = mapSheet.getDataRange().getValues();
+  const batchToCustomer = {};
+  for (let i = 1; i < mapData.length; i++) {
+    const r = mapData[i];
+    const customer = String(r[6]).trim();
+    if (!customer) continue;
+    const key = `${formatDate(r[0])}||${formatTime(r[1])}||${String(r[2]).trim()}||${String(r[3]).trim()}`;
+    batchToCustomer[key] = customer;
+  }
+
+  const scanData = scanSheet.getDataRange().getValues();
+  let delivered = 0;
+  let collected = 0;
+
+  for (let i = 1; i < scanData.length; i++) {
+    const row = scanData[i];
+    const date = formatDate(row[0]);
+    if (date !== dateStr) continue;
+
+    const time = formatTime(row[1]);
+    const driver = String(row[2]).trim();
+    const action = String(row[3]).trim();
+    const uid = String(row[4]).trim();
+    if (!uid) continue;
+
+    const key = `${date}||${time}||${driver}||${action}`;
+    const customer = batchToCustomer[key];
+    if (customer && customer.toLowerCase() === customerName.toLowerCase()) {
+      if (action === 'Delivery') {
+        delivered++;
+      } else if (action === 'Collection') {
+        collected++;
+      }
+    }
+  }
+
+  return { delivered: delivered, collected: collected };
+}
+
 function sendCustomerReceipt(rowNum) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const mapSheet = ss.getSheetByName(MAP_SHEET_NAME);
@@ -1229,6 +1274,11 @@ function sendCustomerReceipt(rowNum) {
     mapSheet.getRange(rowNum, 9).setValue("Missing Email");
     return;
   }
+
+  // Get daily totals for this customer
+  const dailyTotals = getCustomerDailyTotals(customerName, dateVal);
+  const deliveredToday = dailyTotals.delivered;
+  const collectedToday = dailyTotals.collected;
 
   // Get live outstanding count and outstanding UIDs
   const outstandingData = getCustomerOutstandingData(customerName);
@@ -1287,11 +1337,24 @@ function sendCustomerReceipt(rowNum) {
           </tbody>
         </table>
 
-        <!-- Outstanding Summary Card -->
-        <div style="background:#E1F5EE;border:1.5px solid #1D9E75;border-radius:10px;padding:16px 20px;text-align:center;margin-bottom:28px;">
-          <div style="font-size:12px;text-transform:uppercase;letter-spacing:0.8px;color:#0F6E56;font-weight:600;">Live Outstanding Balance</div>
-          <div style="font-size:36px;font-weight:700;color:#04342C;margin:6px 0 2px;line-height:1;">${outstandingCount}</div>
-          <div style="font-size:12px;color:#5F5E5A;">cylinders currently in your custody</div>
+        <!-- Daily Summary & Outstanding Card -->
+        <div style="background:#ffffff;border:1.5px solid #d8d9d4;border-radius:12px;padding:16px 14px;margin-bottom:28px;">
+          <table style="width:100%;border-collapse:collapse;text-align:center;">
+            <tr>
+              <td style="width:33%;padding:8px;border-right:1px solid #eeeee9;vertical-align:top;">
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#5F5E5A;font-weight:600;margin-bottom:4px;">Delivered Today</div>
+                <div style="font-size:24px;font-weight:700;color:#0F6E56;">${deliveredToday}</div>
+              </td>
+              <td style="width:33%;padding:8px;border-right:1px solid #eeeee9;vertical-align:top;">
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#5F5E5A;font-weight:600;margin-bottom:4px;">Collected Today</div>
+                <div style="font-size:24px;font-weight:700;color:#c2410c;">${collectedToday}</div>
+              </td>
+              <td style="width:34%;padding:8px;vertical-align:top;">
+                <div style="font-size:11px;text-transform:uppercase;letter-spacing:0.6px;color:#0F6E56;font-weight:600;margin-bottom:4px;">Live Outstanding</div>
+                <div style="font-size:24px;font-weight:700;color:#04342C;">${outstandingCount}</div>
+              </td>
+            </tr>
+          </table>
         </div>
 
         <!-- Outstanding UIDs List -->
