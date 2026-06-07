@@ -44,6 +44,8 @@ function onOpen() {
     .addItem('📧 Reset Scan Email Counter', 'resetEmailCounter')
     .addSeparator()
     .addItem('🔧 Fix All Dropdowns (run once)', 'fixAllDropdowns')
+    .addSeparator()
+    .addItem('🗄️ Setup Registry Sheets (Cylinders + Maintenance)', 'setupRegistrySheets')
     .addToUi();
 }
 
@@ -1326,4 +1328,160 @@ function getCustomerOutstandingData(customerName) {
     count: uids.length,
     uidsList: uids.join(', ') || 'None'
   };
+}
+
+// ============================================================
+//  CYLINDER MASTER REGISTRY
+// ============================================================
+
+const CYLINDER_SHEET_NAME = 'Cylinders';
+const CYLINDER_MAINT_SHEET = 'Cylinder Maintenance';
+
+// ── Create both registry sheets in one click ────────────────
+function setupRegistrySheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // ── 1. Cylinders sheet ────────────────────────────────────
+  let cylSheet = ss.getSheetByName(CYLINDER_SHEET_NAME);
+  if (!cylSheet) {
+    cylSheet = ss.insertSheet(CYLINDER_SHEET_NAME);
+  } else {
+    cylSheet.clearContents();
+    cylSheet.clearFormats();
+  }
+
+  const cylHeaders = [
+    'Cylinder UID', 'Gas Type', 'Cylinder Type', 'Owner',
+    'Current Status', 'Current Location', 'Last Activity Date'
+  ];
+  cylSheet.getRange(1, 1, 1, cylHeaders.length).setValues([cylHeaders])
+    .setBackground('#0F6E56')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setFontSize(11)
+    .setHorizontalAlignment('center');
+
+  cylSheet.setColumnWidth(1, 160);
+  cylSheet.setColumnWidth(2, 130);
+  cylSheet.setColumnWidth(3, 140);
+  cylSheet.setColumnWidth(4, 130);
+  cylSheet.setColumnWidth(5, 130);
+  cylSheet.setColumnWidth(6, 180);
+  cylSheet.setColumnWidth(7, 160);
+  cylSheet.setFrozenRows(1);
+
+  // Status dropdown validation for Column E
+  const statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Active', 'Retired', 'Lost'], true)
+    .setAllowInvalid(false)
+    .build();
+  cylSheet.getRange(2, 5, 500, 1).setDataValidation(statusRule);
+
+  // ── 2. Cylinder Maintenance sheet ─────────────────────────
+  let maintSheet = ss.getSheetByName(CYLINDER_MAINT_SHEET);
+  if (!maintSheet) {
+    maintSheet = ss.insertSheet(CYLINDER_MAINT_SHEET);
+  } else {
+    maintSheet.clearContents();
+    maintSheet.clearFormats();
+  }
+
+  const maintHeaders = [
+    'Cylinder UID', 'Water Capacity (L)', 'Fill Pressure (bar)',
+    'Gas Capacity', 'Unit', 'Is Mixture', 'Mix Ratio',
+    'Manufacture Date', 'Last Hydro Test Date', 'Next Hydro Test Due',
+    'Hydro Test Status', 'Test Certificate No.'
+  ];
+  maintSheet.getRange(1, 1, 1, maintHeaders.length).setValues([maintHeaders])
+    .setBackground('#0F6E56')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setFontSize(11)
+    .setHorizontalAlignment('center');
+
+  maintSheet.setColumnWidth(1, 160);
+  maintSheet.setColumnWidth(2, 160);
+  maintSheet.setColumnWidth(3, 160);
+  maintSheet.setColumnWidth(4, 130);
+  maintSheet.setColumnWidth(5, 100);
+  maintSheet.setColumnWidth(6, 110);
+  maintSheet.setColumnWidth(7, 200);
+  maintSheet.setColumnWidth(8, 150);
+  maintSheet.setColumnWidth(9, 175);
+  maintSheet.setColumnWidth(10, 175);
+  maintSheet.setColumnWidth(11, 160);
+  maintSheet.setColumnWidth(12, 180);
+  maintSheet.setFrozenRows(1);
+
+  // Is Mixture dropdown for Column F
+  const mixtureRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Yes', 'No'], true)
+    .setAllowInvalid(false)
+    .build();
+  maintSheet.getRange(2, 6, 500, 1).setDataValidation(mixtureRule);
+
+  // Date format for date columns (H, I, J)
+  maintSheet.getRange(2, 8, 500, 3).setNumberFormat('dd-mm-yyyy');
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Registry Sheets Created!\n\n' +
+    '• "Cylinders" sheet — 7 tracking fields\n' +
+    '• "Cylinder Maintenance" sheet — 12 specification fields\n\n' +
+    'You can now add cylinders from the Admin Portal at /admin/cylinders\n' +
+    'or manually enter them directly in the sheets.'
+  );
+}
+
+// ── Auto-update Cylinders sheet when a scan is submitted ─────
+// Called from autoRefreshHandler after refreshBatches()
+// Updates Status, Current Location, and Last Activity Date for each scanned UID.
+function updateCylinderRegistryFromScans(scannedBatches) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const cylSheet = ss.getSheetByName(CYLINDER_SHEET_NAME);
+  if (!cylSheet) return; // Registry not set up yet — silently skip
+
+  const lastRow = cylSheet.getLastRow();
+  if (lastRow < 2) return;
+
+  // Build a map of UID → row number from the Cylinders sheet
+  const uidData = cylSheet.getRange(2, 1, lastRow - 1, 7).getValues();
+  const uidRowMap = {};
+  for (let i = 0; i < uidData.length; i++) {
+    const uid = String(uidData[i][0]).trim().toUpperCase();
+    if (uid) uidRowMap[uid] = i + 2; // 1-indexed row
+  }
+
+  const today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'dd-MM-yyyy');
+
+  for (const batch of scannedBatches) {
+    const action = String(batch.action || '').trim();
+    const customer = String(batch.customer || '').trim();
+
+    for (const uid of (batch.cylinders || [])) {
+      const uidUpper = String(uid).trim().toUpperCase();
+      const rowNum = uidRowMap[uidUpper];
+      if (!rowNum) continue; // UID not in registry — skip
+
+      // Col E = Current Status, Col F = Current Location, Col G = Last Activity Date
+      let newStatus = '';
+      let newLocation = '';
+
+      if (action === 'Delivery') {
+        newStatus = 'Active';
+        newLocation = customer || 'Customer';
+      } else if (action === 'Collection') {
+        newStatus = 'Active';
+        newLocation = 'Depot';
+      } else if (action === 'Filling') {
+        newStatus = 'Active';
+        newLocation = 'Depot';
+      }
+
+      if (newStatus) {
+        cylSheet.getRange(rowNum, 5).setValue(newStatus);    // Status
+        cylSheet.getRange(rowNum, 6).setValue(newLocation);  // Location
+        cylSheet.getRange(rowNum, 7).setValue(today);        // Last Activity Date
+      }
+    }
+  }
 }

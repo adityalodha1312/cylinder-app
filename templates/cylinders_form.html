@@ -1,0 +1,361 @@
+{% extends "admin_base.html" %}
+
+{% block title %}{{ 'Add Cylinder' if mode == 'add' else 'Edit Cylinder' }}{% endblock %}
+
+{% block head %}
+<style>
+  .form-page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+
+  .form-section {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .form-section.tracking-section {
+    border-top: 4px solid var(--green-700);
+  }
+  .form-section.maint-section {
+    border-top: 4px solid #64748b;
+  }
+  .form-section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 20px; padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--green-50);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .form-section.tracking-section .form-section-title { color: var(--green-700); border-bottom-color: var(--green-50); }
+  .form-section.maint-section .form-section-title { color: #475569; border-bottom-color: #e2e8f0; }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 18px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--dark-text); }
+  .form-group .req { color: #c0392b; margin-left: 2px; }
+  .form-group .auto-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    background: var(--green-50); color: var(--green-700);
+    border-radius: 4px; padding: 1px 5px; margin-left: 6px;
+    letter-spacing: 0.4px; vertical-align: middle;
+  }
+  .form-group input,
+  .form-group select {
+    padding: 9px 12px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--dark-text);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group select:focus { border-color: var(--green-500); }
+  .form-group input[readonly] { background: #f7f8f6; color: var(--gray-text); cursor: not-allowed; }
+  .form-group input.uid-input { font-family: monospace; font-size: 15px; letter-spacing: 0.5px; font-weight: 600; }
+  .form-group .hint { font-size: 11.5px; color: var(--gray-text); line-height: 1.4; }
+
+  /* Auto fields are read-only-styled even when editable */
+  .form-group input.auto-field {
+    background: #f0f7f4;
+    border-color: var(--green-50);
+    color: var(--green-900);
+  }
+
+  .form-actions {
+    display: flex; gap: 12px; margin-top: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .btn-submit {
+    padding: 11px 28px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-submit:hover { background: var(--green-500); }
+
+  .error-banner {
+    background: #f8d7da; border: 1.5px solid #f5c6cb; border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #721c24;
+    display: flex; align-items: center; gap: 10px;
+  }
+
+  #mix-ratio-group { display: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="form-page-header">
+  <a href="/admin/cylinders" class="back-btn" id="back-to-registry">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Registry
+  </a>
+  <div>
+    <h1 class="page-title" style="margin:0;">
+      {{ 'Add New Cylinder' if mode == 'add' else 'Edit — ' ~ (uid or '') }}
+    </h1>
+    <p class="page-sub" style="margin:0;">
+      {{ 'Register a new cylinder in both tracking and maintenance sheets.' if mode == 'add' else 'Update cylinder details. Auto fields are updated by scans.' }}
+    </p>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-banner">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  {{ error }}
+</div>
+{% endif %}
+
+<form method="POST" id="cylinder-form"
+  action="{{ '/admin/cylinders/add' if mode == 'add' else '/admin/cylinders/' ~ (uid or '') ~ '/edit' }}">
+
+  <!-- ═══════════════════════════════════════════════════
+       SECTION 1 — TRACKING FIELDS (highlighted / yellow)
+  ════════════════════════════════════════════════════ -->
+  <div class="form-section tracking-section">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="10" y="2" width="4" height="20" rx="2"/>
+        <ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
+      </svg>
+      Cylinder Tracking Fields
+      <span style="font-size:11px; font-weight:400; color:var(--gray-text); margin-left:4px;">(Fields 1–3, 10–13)</span>
+    </div>
+
+    <div class="form-grid">
+      <!-- 1. Cylinder UID -->
+      <div class="form-group">
+        <label for="uid">Cylinder UID <span class="req">*</span></label>
+        <input type="text" id="uid" name="uid" class="uid-input"
+          value="{{ form.uid if form else '' }}"
+          placeholder="e.g. 100582, OXYOO1"
+          {% if mode == 'edit' %}readonly{% endif %}
+          required>
+        <span class="hint">Must match the QR / barcode label on the cylinder.</span>
+      </div>
+
+      <!-- 2. Gas Type -->
+      <div class="form-group">
+        <label for="gas_type">Gas Type <span class="req">*</span></label>
+        <select id="gas_type" name="gas_type" required>
+          <option value="">— Select Gas Type —</option>
+          {% set gt = form.gas_type if form else '' %}
+          {% for g in ['ARG', 'OXY', 'N2', 'CO2', 'ACM', 'N2D'] %}
+            <option value="{{ g }}" {% if gt == g %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 3. Cylinder Type -->
+      <div class="form-group">
+        <label for="cylinder_type">Cylinder Type <span class="req">*</span></label>
+        <select id="cylinder_type" name="cylinder_type" required>
+          <option value="">— Select Type —</option>
+          {% set ct = form.cylinder_type if form else '' %}
+          {% for t in ['Standard', 'Dura'] %}
+            <option value="{{ t }}" {% if ct == t %}selected{% endif %}>{{ t }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 10. Owner -->
+      <div class="form-group">
+        <label for="owner">Owner</label>
+        <input type="text" id="owner" name="owner"
+          value="{{ form.owner if form else 'Company' }}"
+          placeholder="e.g. Company, Customer Name">
+        <span class="hint">Who owns this cylinder asset.</span>
+      </div>
+
+      <!-- 11. Current Status (Auto) -->
+      <div class="form-group">
+        <label for="status">
+          Current Status
+          <span class="auto-tag">AUTO</span>
+        </label>
+        <select id="status" name="status" class="auto-field">
+          {% set st = form.status if form else 'Empty' %}
+          {% for s in ['Empty', 'Filled', 'Delivered'] %}
+            <option value="{{ s }}" {% if st == s %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <span class="hint">Auto-updated on every scan (Filling→Filled, Delivery→Delivered, Collection→Empty).</span>
+      </div>
+
+      <!-- 12. Current Location (Auto) -->
+      <div class="form-group">
+        <label for="location">
+          Current Location
+          <span class="auto-tag">AUTO</span>
+        </label>
+        <input type="text" id="location" name="location"
+          value="{{ form.location if form else 'Depot' }}"
+          placeholder="e.g. Depot, Satish LLP"
+          class="auto-field">
+        <span class="hint">Auto-updated on every scan. Edit only to correct manually.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════════════
+       SECTION 2 — MAINTENANCE FIELDS (non-highlighted)
+  ════════════════════════════════════════════════════ -->
+  <div class="form-section maint-section">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>
+      </svg>
+      Maintenance &amp; Specification Fields
+      <span style="font-size:11px; font-weight:400; color:var(--gray-text); margin-left:4px;">(Fields 4–9, 14–18)</span>
+    </div>
+
+    <div class="form-grid">
+      <!-- 4. Water Capacity -->
+      <div class="form-group">
+        <label for="water_capacity">Water Capacity</label>
+        <input type="text" id="water_capacity" name="water_capacity"
+          value="{{ form.water_capacity if form else '' }}"
+          placeholder="e.g. 47L">
+      </div>
+
+      <!-- 5. Fill Pressure -->
+      <div class="form-group">
+        <label for="fill_pressure">Fill Pressure (bar)</label>
+        <input type="number" step="0.1" id="fill_pressure" name="fill_pressure"
+          value="{{ form.fill_pressure if form else '' }}"
+          placeholder="e.g. 150">
+      </div>
+
+      <!-- 6. Gas Capacity -->
+      <div class="form-group">
+        <label for="gas_capacity">Gas Capacity</label>
+        <input type="number" step="0.01" id="gas_capacity" name="gas_capacity"
+          value="{{ form.gas_capacity if form else '' }}"
+          placeholder="e.g. 7">
+      </div>
+
+      <!-- 7. Unit -->
+      <div class="form-group">
+        <label for="unit">Unit</label>
+        <select id="unit" name="unit">
+          <option value="">— Select Unit —</option>
+          {% set u = form.unit if form else '' %}
+          {% for opt in ['Cum', 'KG', 'L', 'm³', 'SCF'] %}
+            <option value="{{ opt }}" {% if u == opt %}selected{% endif %}>{{ opt }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- 8. Is Mixture -->
+      <div class="form-group">
+        <label for="is_mixture">Is Mixture?</label>
+        <select id="is_mixture" name="is_mixture" onchange="toggleMixRatio()">
+          {% set im = form.is_mixture if form else 'No' %}
+          <option value="No"  {% if im == 'No'  %}selected{% endif %}>No (Pure Gas)</option>
+          <option value="Yes" {% if im == 'Yes' %}selected{% endif %}>Yes (Gas Mixture)</option>
+        </select>
+      </div>
+
+      <!-- 9. Mix Ratio -->
+      <div class="form-group" id="mix-ratio-group"
+        {% if (form.is_mixture if form else 'No') == 'Yes' %}style="display:flex"{% endif %}>
+        <label for="mix_ratio">Mix Ratio</label>
+        <input type="text" id="mix_ratio" name="mix_ratio"
+          value="{{ form.mix_ratio if form else '' }}"
+          placeholder="e.g. 80% ARG / 20% CO2">
+      </div>
+
+      <!-- 14. Manufacture Date -->
+      <div class="form-group">
+        <label for="manufacture_date">Manufacture Date</label>
+        <input type="text" id="manufacture_date" name="manufacture_date"
+          value="{{ form.manufacture_date if form else '' }}"
+          placeholder="e.g. Jan 2018">
+      </div>
+
+      <!-- 15. Last Hydro Test Date -->
+      <div class="form-group">
+        <label for="last_hydro_date">Last Hydro Test Date</label>
+        <input type="text" id="last_hydro_date" name="last_hydro_date"
+          value="{{ form.last_hydro_date if form else '' }}"
+          placeholder="e.g. Mar 2021">
+      </div>
+
+      <!-- 16. Next Hydro Test Due (Auto-computed by portal) -->
+      <div class="form-group">
+        <label for="next_hydro_due">
+          Next Hydro Test Due
+          <span class="auto-tag">AUTO</span>
+        </label>
+        <input type="text" id="next_hydro_due" name="next_hydro_due"
+          value="{{ form.next_hydro_due if form else '' }}"
+          placeholder="e.g. Mar 2026 or DD-MM-YYYY"
+          class="auto-field">
+        <span class="hint">Portal computes Overdue / Due Soon badge from this date.</span>
+      </div>
+
+      <!-- 17. Hydro Test Status (Auto) -->
+      <div class="form-group">
+        <label for="hydro_test_status">
+          Hydro Test Status
+          <span class="auto-tag">AUTO</span>
+        </label>
+        <input type="text" id="hydro_test_status" name="hydro_test_status"
+          value="{{ form.hydro_test_status if form else '' }}"
+          placeholder="e.g. Valid, Due Soon, Overdue"
+          class="auto-field">
+      </div>
+
+      <!-- 18. Test Certificate No. -->
+      <div class="form-group">
+        <label for="cert_no">Test Certificate No.</label>
+        <input type="text" id="cert_no" name="cert_no"
+          value="{{ form.cert_no if form else '' }}"
+          placeholder="e.g. HT-2021-00582">
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn-submit" id="submit-cylinder-form">
+      {{ '+ Register Cylinder' if mode == 'add' else 'Save Changes' }}
+    </button>
+    <a href="/admin/cylinders" class="back-btn">Cancel</a>
+  </div>
+
+</form>
+
+<script>
+  function toggleMixRatio() {
+    const val = document.getElementById('is_mixture').value;
+    const grp = document.getElementById('mix-ratio-group');
+    grp.style.display = val === 'Yes' ? 'flex' : 'none';
+    if (val !== 'Yes') document.getElementById('mix_ratio').value = '';
+  }
+</script>
+
+{% endblock %}

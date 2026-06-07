@@ -1,0 +1,327 @@
+{% extends "admin_base.html" %}
+{% block title %}{{ customer_name }} — Customer Profile{% endblock %}
+
+{% block head %}
+<style>
+  /* ── Header ── */
+  .profile-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    gap: 16px; margin-bottom: 28px; flex-wrap: wrap;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+  .profile-name { font-size: 26px; font-weight: 700; color: var(--dark-text); }
+  .profile-meta { font-size: 14px; color: var(--gray-text); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .profile-meta span { display: flex; align-items: center; gap: 5px; }
+
+  /* ── Cards / Sections ── */
+  .section-card {
+    background: #fff; border: 1.5px solid var(--gray-bd);
+    border-radius: 12px; overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05); margin-bottom: 22px;
+  }
+  .section-header {
+    background: var(--green-50); border-bottom: 1.5px solid var(--gray-bd);
+    padding: 13px 20px; font-size: 12px; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.6px; color: var(--green-700);
+    display: flex; align-items: center; gap: 8px; justify-content: space-between;
+  }
+  .section-header.warning-header { background: #fff3cd; border-bottom-color: #ffc107; color: #856404; }
+
+  /* ── KPI row ── */
+  .profile-kpi-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 22px;
+  }
+  @media (max-width: 768px) { .profile-kpi-row { grid-template-columns: repeat(2,1fr); } }
+  @media (max-width: 480px) { .profile-kpi-row { grid-template-columns: 1fr 1fr; } }
+  .mini-kpi {
+    background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 10px;
+    padding: 14px 16px; box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .mini-kpi-val  { font-size: 26px; font-weight: 700; color: var(--dark-text); line-height: 1; }
+  .mini-kpi-lbl  { font-size: 12px; color: var(--gray-text); margin-top: 4px; }
+
+  /* ── Gas type pills ── */
+  .gas-pills { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 20px; }
+  .gas-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 600;
+    background: var(--green-50); color: var(--green-700); border: 1.5px solid var(--green-500);
+  }
+  .gas-pill .gas-count { font-size: 16px; font-weight: 700; }
+
+  /* ── Tables ── */
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th, .tbl td { padding: 11px 16px; font-size: 13.5px; border-bottom: 1px solid #eeeee9; text-align: left; }
+  .tbl th { background: #f0f4f0; font-weight: 600; border-bottom: 1.5px solid var(--gray-bd); color: var(--dark-text); white-space: nowrap; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: #f7faf8; }
+  .tbl td.uid { font-family: monospace; font-size: 13px; font-weight: 600; color: var(--green-900); }
+
+  /* Statement table */
+  .change-pos { color: #155724; font-weight: 700; }
+  .change-neg { color: #721c24; font-weight: 700; }
+  .balance-cell { font-weight: 700; color: var(--dark-text); }
+
+  /* Badges */
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-green  { background: #d4edda; color: #155724; }
+  .badge-orange { background: #ffe5d0; color: #7c2d12; }
+  .badge-yellow { background: #fff3cd; color: #856404; }
+  .badge-red    { background: #f8d7da; color: #721c24; }
+  .overdue-row td { background: #fff5f5 !important; }
+
+  /* Tab switcher */
+  .tab-bar { display: flex; gap: 2px; padding: 4px; background: #f0f4f0; border-radius: 8px; margin: 16px 20px 0; width: fit-content; }
+  .tab-btn {
+    padding: 7px 16px; border-radius: 6px; font-size: 13px; font-weight: 600;
+    border: none; background: transparent; color: var(--gray-text); cursor: pointer; transition: all 0.15s;
+  }
+  .tab-btn.active { background: #fff; color: var(--dark-text); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .tab-panel { display: none; padding: 0 0 4px; }
+  .tab-panel.active { display: block; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="profile-header">
+  <div>
+    <div style="display:flex; align-items:center; gap:12px; margin-bottom:8px;">
+      <a href="/admin/customers" class="back-btn" id="back-to-customers">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+        Customers
+      </a>
+      {% if overdue_cyls %}
+        <span style="background:#f8d7da; color:#721c24; font-size:12px; font-weight:600; padding:4px 10px; border-radius:20px;">
+          ⚠ {{ overdue_cyls|length }} Overdue Cylinder{{ 's' if overdue_cyls|length > 1 else '' }}
+        </span>
+      {% endif %}
+    </div>
+    <div class="profile-name">{{ customer_name }}</div>
+    <div class="profile-meta">
+      {% if info.id %}<span>🪪 {{ info.id }}</span>{% endif %}
+      {% if info.email %}<span>✉️ {{ info.email }}</span>{% endif %}
+      {% if info.phone %}<span>📞 {{ info.phone }}</span>{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- KPI Cards -->
+<div class="profile-kpi-row">
+  <div class="mini-kpi">
+    <div class="mini-kpi-val">{{ total_delivered }}</div>
+    <div class="mini-kpi-lbl">Total Delivered</div>
+  </div>
+  <div class="mini-kpi">
+    <div class="mini-kpi-val">{{ total_collected }}</div>
+    <div class="mini-kpi-lbl">Total Collected</div>
+  </div>
+  <div class="mini-kpi" style="{{ 'border-color:#ffc107; background:#fffdf0;' if outstanding_count > 0 else '' }}">
+    <div class="mini-kpi-val" style="{{ 'color:#856404;' if outstanding_count > 0 else '' }}">{{ outstanding_count }}</div>
+    <div class="mini-kpi-lbl">Currently Outstanding</div>
+  </div>
+  <div class="mini-kpi" style="{{ 'border-color:#dc3545; background:#fff5f5;' if overdue_cyls|length > 0 else '' }}">
+    <div class="mini-kpi-val" style="{{ 'color:#dc3545;' if overdue_cyls|length > 0 else '' }}">{{ overdue_cyls|length }}</div>
+    <div class="mini-kpi-lbl">Overdue (&gt;30 Days)</div>
+  </div>
+</div>
+
+<!-- Gas Type Breakdown -->
+{% if gas_breakdown %}
+<div class="section-card">
+  <div class="section-header">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="10" y="2" width="4" height="20" rx="2"/>
+        <ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
+      </svg>
+      Outstanding by Gas Type
+    </span>
+  </div>
+  <div class="gas-pills">
+    {% for gas, count in gas_breakdown.items() %}
+    <div class="gas-pill">
+      <span class="gas-count">{{ count }}</span>
+      {{ gas }}
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Overdue Alert -->
+{% if overdue_cyls %}
+<div class="section-card">
+  <div class="section-header warning-header">
+    <span>⚠ Overdue Cylinders (with customer &gt;30 days)</span>
+    <span>{{ overdue_cyls|length }} cylinder{{ 's' if overdue_cyls|length > 1 else '' }}</span>
+  </div>
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead>
+        <tr><th>Cylinder UID</th><th>Gas Type</th><th>Delivered On</th><th>Days Out</th></tr>
+      </thead>
+      <tbody>
+        {% for c in overdue_cyls %}
+        <tr class="overdue-row">
+          <td class="uid">{{ c.uid }}</td>
+          <td>{{ c.gas_type }}</td>
+          <td>{{ c.delivered_on }}</td>
+          <td><strong style="color:#dc3545;">{{ c.days_out }} days</strong></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Current Outstanding -->
+<div class="section-card">
+  <div class="section-header">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+      </svg>
+      Currently With Customer ({{ outstanding_count }})
+    </span>
+  </div>
+  {% if outstanding_detail %}
+  <div class="table-wrap">
+    <table class="tbl">
+      <thead>
+        <tr><th>Cylinder UID</th><th>Gas Type</th><th>Delivered On</th><th>Days Out</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for c in outstanding_detail %}
+        <tr {% if c.overdue %}class="overdue-row"{% endif %}>
+          <td class="uid">
+            <a href="/admin/search?uid={{ c.uid }}" style="color:var(--green-700); text-decoration:none; font-weight:700;">
+              {{ c.uid }}
+            </a>
+          </td>
+          <td>{{ c.gas_type }}</td>
+          <td>{{ c.delivered_on }}</td>
+          <td>{{ c.days_out if c.days_out is not none else '—' }} days</td>
+          <td>
+            {% if c.overdue %}
+              <span class="badge badge-red">Overdue</span>
+            {% elif c.days_out and c.days_out > 7 %}
+              <span class="badge badge-yellow">Warning</span>
+            {% else %}
+              <span class="badge badge-green">OK</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div style="text-align:center; padding:32px; color:var(--gray-text); font-size:14px;">
+    No cylinders currently outstanding with this customer.
+  </div>
+  {% endif %}
+</div>
+
+<!-- History + Statement (tabbed) -->
+<div class="section-card">
+  <div class="section-header" style="border-bottom:none; padding-bottom:0;">
+    <span>Transaction History</span>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-stmt-btn" onclick="switchTab('stmt')">Customer Statement</button>
+    <button class="tab-btn" id="tab-hist-btn" onclick="switchTab('hist')">Delivery / Collection Log</button>
+  </div>
+
+  <!-- Statement Tab -->
+  <div class="tab-panel active" id="tab-stmt" style="padding:0;">
+    {% if statement %}
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Date</th><th>Time</th><th>Action</th><th>Driver</th><th>Count</th><th>Change</th><th>Balance</th></tr>
+        </thead>
+        <tbody>
+          {% for s in statement %}
+          <tr>
+            <td>{{ s.date }}</td>
+            <td style="color:var(--gray-text); font-size:12px;">{{ s.time }}</td>
+            <td>
+              {% if s.action == 'Delivery' %}
+                <span class="badge badge-green">Delivery</span>
+              {% else %}
+                <span class="badge badge-orange">Collection</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ s.driver }}</strong></td>
+            <td>{{ s.count }}</td>
+            <td class="{{ 'change-pos' if s.change > 0 else 'change-neg' }}">
+              {{ '+' if s.change > 0 else '' }}{{ s.change }}
+            </td>
+            <td class="balance-cell">{{ s.balance }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center; padding:32px; color:var(--gray-text); font-size:14px; font-style:italic;">No transactions yet.</div>
+    {% endif %}
+  </div>
+
+  <!-- History Tab -->
+  <div class="tab-panel" id="tab-hist" style="padding:0;">
+    {% if history %}
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead>
+          <tr><th>Date</th><th>Time</th><th>Action</th><th>Driver</th><th>Cylinders</th><th>UIDs</th></tr>
+        </thead>
+        <tbody>
+          {% for h in history %}
+          <tr>
+            <td>{{ h.date }}</td>
+            <td style="color:var(--gray-text); font-size:12px;">{{ h.time }}</td>
+            <td>
+              {% if h.action == 'Delivery' %}
+                <span class="badge badge-green">Delivery</span>
+              {% else %}
+                <span class="badge badge-orange">Collection</span>
+              {% endif %}
+            </td>
+            <td><strong>{{ h.driver }}</strong></td>
+            <td>{{ h.count }}</td>
+            <td style="font-family:monospace; font-size:12px; color:var(--gray-text); max-width:220px; word-break:break-all;">
+              {{ h.uids_str }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div style="text-align:center; padding:32px; color:var(--gray-text); font-size:14px; font-style:italic;">No history found.</div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+  function switchTab(tab) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + tab).classList.add('active');
+    document.getElementById('tab-' + tab + '-btn').classList.add('active');
+  }
+</script>
+
+{% endblock %}

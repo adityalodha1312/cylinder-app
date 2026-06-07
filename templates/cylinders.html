@@ -1,0 +1,376 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Cylinder Registry{% endblock %}
+
+{% block head %}
+<style>
+  .registry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+
+  .filter-row {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .filter-select {
+    padding: 8px 12px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    background: #fff;
+    color: var(--dark-text);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .filter-select:focus { border-color: var(--green-500); }
+
+  .reg-table th, .reg-table td {
+    padding: 12px 14px;
+    text-align: left;
+    font-size: 13.5px;
+  }
+  .reg-table th {
+    background: #f0f4f0;
+    font-weight: 600;
+    color: var(--dark-text);
+    border-bottom: 1.5px solid var(--gray-bd);
+    white-space: nowrap;
+  }
+  .reg-table tr:hover td { background: #f7faf8; }
+  .reg-table td { border-bottom: 1px solid #eeeee9; }
+  .reg-table tr:last-child td { border-bottom: none; }
+
+  .uid-cell {
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--green-900);
+    letter-spacing: 0.3px;
+  }
+
+  /* Hydro badges */
+  .hydro-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .hydro-ok       { background: #d4edda; color: #155724; }
+  .hydro-due-soon { background: #fff3cd; color: #856404; }
+  .hydro-overdue  { background: #f8d7da; color: #721c24; }
+  .hydro-not-set  { background: #e2e3e5; color: #383d41; }
+
+  /* Status badges */
+  .status-active  { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-retired { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-lost    { background: #f8d7da; color: #721c24; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+  .action-btns {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .btn-view {
+    padding: 5px 12px;
+    background: var(--green-50);
+    color: var(--green-700);
+    border: 1.5px solid var(--green-500);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-view:hover { background: var(--green-500); color: #fff; }
+  .btn-edit {
+    padding: 5px 12px;
+    background: #f1efe8;
+    color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 7px;
+    font-size: 12px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .btn-edit:hover { background: var(--gray-bd); color: var(--dark-text); }
+
+  .btn-add-cyl {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 10px 18px;
+    background: var(--green-700);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-add-cyl:hover { background: var(--green-500); color: #fff; }
+
+  .empty-state {
+    text-align: center;
+    padding: 48px 32px;
+    color: var(--gray-text);
+  }
+  .empty-state svg { opacity: 0.3; margin-bottom: 12px; }
+  .empty-state h3 { font-size: 16px; margin-bottom: 8px; color: var(--dark-text); }
+  .empty-state p  { font-size: 14px; }
+
+  /* Alert for no registry */
+  .setup-alert {
+    background: #fff3cd;
+    border: 1.5px solid #ffc107;
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .setup-alert p { margin: 0; font-size: 14px; line-height: 1.5; color: #856404; }
+  .setup-alert strong { color: #533f03; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="registry-header">
+  <div>
+    <h1 class="page-title">Cylinder Registry</h1>
+    <p class="page-sub">Master asset list of all cylinders with hydro-test tracking</p>
+  </div>
+  <a href="/admin/cylinders/add" class="btn-add-cyl" id="add-cylinder-btn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Add Cylinder
+  </a>
+</div>
+
+{% if cylinders|length == 0 %}
+<div class="setup-alert">
+  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#856404" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px">
+    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+  </svg>
+  <p>
+    <strong>Registry sheets not set up yet.</strong><br>
+    Open your Google Sheet → click <strong>🛢 Cylinder Tracker → 🗄️ Setup Registry Sheets</strong> to create the Cylinders and Cylinder Maintenance tabs, then add cylinders using the button above.
+  </p>
+</div>
+{% endif %}
+
+<!-- KPI Cards -->
+<div class="kpi-grid" style="margin-bottom: 24px;">
+  <div class="kpi-card">
+    <div class="kpi-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+        <rect x="10" y="2" width="4" height="20" rx="2"/><ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-total">{{ total }}</div>
+    <div class="kpi-label">Total Cylinders</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-active">{{ active }}</div>
+    <div class="kpi-label">Active</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon red">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-overdue">{{ overdue }}</div>
+    <div class="kpi-label">Hydro Overdue</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon orange">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </div>
+    <div class="kpi-value" id="kpi-due-soon">{{ due_soon }}</div>
+    <div class="kpi-label">Hydro Due Soon</div>
+  </div>
+</div>
+
+<!-- Filter Bar -->
+<div class="card card-pad" style="margin-bottom: 24px;">
+  <div class="filter-row">
+    <div class="search-bar" style="flex: 1; min-width: 220px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="reg-search" placeholder="Search by UID, Gas Type, Owner..." oninput="filterRegistry()">
+    </div>
+
+    <select id="filter-gas" class="filter-select" onchange="filterRegistry()">
+      <option value="">All Gas Types</option>
+      {% for g in gas_types %}
+        <option value="{{ g }}">{{ g }}</option>
+      {% endfor %}
+    </select>
+
+    <select id="filter-status" class="filter-select" onchange="filterRegistry()">
+      <option value="">All Statuses</option>
+      {% for s in statuses %}
+        <option value="{{ s }}">{{ s }}</option>
+      {% endfor %}
+    </select>
+
+    <select id="filter-hydro" class="filter-select" onchange="filterRegistry()">
+      <option value="">All Hydro</option>
+      <option value="OK">✅ OK</option>
+      <option value="Due Soon">⚠️ Due Soon</option>
+      <option value="Overdue">🔴 Overdue</option>
+      <option value="Not Set">— Not Set</option>
+    </select>
+  </div>
+
+  <!-- Table -->
+  <div class="table-wrap">
+    <table class="reg-table" style="width:100%; border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th>Cylinder UID</th>
+          <th>Gas Type</th>
+          <th>Type / Size</th>
+          <th>Owner</th>
+          <th>Status</th>
+          <th>Location</th>
+          <th>Last Activity</th>
+          <th>Hydro Test</th>
+          <th style="text-align:center;">Actions</th>
+        </tr>
+      </thead>
+      <tbody id="cyl-tbody">
+        {% for c in cylinders %}
+        <tr
+          data-uid="{{ c.uid|lower }}"
+          data-gas="{{ c.gas_type|lower }}"
+          data-owner="{{ c.owner|lower }}"
+          data-status="{{ c.status }}"
+          data-hydro="{{ c.hydro_badge }}"
+        >
+          <td class="uid-cell">{{ c.uid }}</td>
+          <td>{{ c.gas_type or '—' }}</td>
+          <td>{{ c.cylinder_type or '—' }}</td>
+          <td>{{ c.owner or '—' }}</td>
+          <td>
+            {% if c.status == 'Active' %}
+              <span class="status-active">Active</span>
+            {% elif c.status == 'Retired' %}
+              <span class="status-retired">Retired</span>
+            {% elif c.status == 'Lost' %}
+              <span class="status-lost">Lost</span>
+            {% else %}
+              <span>{{ c.status or '—' }}</span>
+            {% endif %}
+          </td>
+          <td>{{ c.location or 'Depot' }}</td>
+          <td style="color: var(--gray-text); font-size: 13px;">{{ c.last_activity or '—' }}</td>
+          <td>
+            {% if c.hydro_badge == 'OK' %}
+              <span class="hydro-badge hydro-ok">✅ OK</span>
+            {% elif c.hydro_badge == 'Due Soon' %}
+              <span class="hydro-badge hydro-due-soon">⚠️ Due Soon</span>
+            {% elif c.hydro_badge == 'Overdue' %}
+              <span class="hydro-badge hydro-overdue">🔴 Overdue</span>
+            {% else %}
+              <span class="hydro-badge hydro-not-set">— Not Set</span>
+            {% endif %}
+          </td>
+          <td style="text-align:center;">
+            <div class="action-btns" style="justify-content:center;">
+              <a href="/admin/cylinders/{{ c.uid }}" class="btn-view" id="view-{{ loop.index }}">View</a>
+              <a href="/admin/cylinders/{{ c.uid }}/edit" class="btn-edit" id="edit-{{ loop.index }}">Edit</a>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr id="empty-row">
+          <td colspan="9">
+            <div class="empty-state">
+              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="10" y="2" width="4" height="20" rx="2"/>
+                <ellipse cx="12" cy="2" rx="6" ry="2.5"/>
+                <ellipse cx="12" cy="22" rx="6" ry="2.5"/>
+              </svg>
+              <h3>No cylinders registered yet</h3>
+              <p>Click <strong>Add Cylinder</strong> above to register your first cylinder.</p>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="margin-top: 12px; font-size: 13px; color: var(--gray-text);">
+    Showing <span id="visible-count">{{ cylinders|length }}</span> of {{ total }} cylinders
+  </div>
+</div>
+
+<script>
+  function filterRegistry() {
+    const query      = document.getElementById('reg-search').value.toLowerCase();
+    const gasFilter  = document.getElementById('filter-gas').value;
+    const statFilter = document.getElementById('filter-status').value;
+    const hydroFilter= document.getElementById('filter-hydro').value;
+
+    const rows = document.querySelectorAll('#cyl-tbody tr[data-uid]');
+    let visible = 0;
+
+    rows.forEach(row => {
+      const uid    = row.dataset.uid || '';
+      const gas    = row.dataset.gas || '';
+      const owner  = row.dataset.owner || '';
+      const status = row.dataset.status || '';
+      const hydro  = row.dataset.hydro || '';
+
+      const matchSearch = !query || uid.includes(query) || gas.includes(query) || owner.includes(query);
+      const matchGas    = !gasFilter  || row.dataset.gas === gasFilter.toLowerCase();
+      const matchStatus = !statFilter || status === statFilter;
+      const matchHydro  = !hydroFilter|| hydro === hydroFilter;
+
+      if (matchSearch && matchGas && matchStatus && matchHydro) {
+        row.style.display = '';
+        visible++;
+      } else {
+        row.style.display = 'none';
+      }
+    });
+
+    const countEl = document.getElementById('visible-count');
+    if (countEl) countEl.textContent = visible;
+  }
+</script>
+
+{% endblock %}

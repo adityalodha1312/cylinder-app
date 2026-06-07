@@ -1,0 +1,223 @@
+{% extends "admin_base.html" %}
+{% block title %}Customers{% endblock %}
+
+{% block head %}
+<style>
+  .page-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 14px;
+  }
+  .search-wrap { position: relative; flex: 1; max-width: 380px; }
+  .search-wrap svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--gray-text); pointer-events: none; }
+  .search-wrap input {
+    width: 100%; padding: 9px 12px 9px 38px;
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-family: 'DM Sans', sans-serif; font-size: 14px;
+    outline: none; transition: border-color 0.15s;
+  }
+  .search-wrap input:focus { border-color: var(--green-500); }
+
+  .cust-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(310px, 1fr));
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .cust-card {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: box-shadow 0.15s, border-color 0.15s;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .cust-card:hover { box-shadow: 0 4px 14px rgba(15,110,86,0.12); border-color: var(--green-500); }
+  .cust-card.has-overdue { border-left: 4px solid #dc3545; }
+
+  .cust-card-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+  .cust-name { font-size: 15px; font-weight: 600; color: var(--dark-text); }
+  .cust-id   { font-size: 11px; color: var(--gray-text); margin-top: 2px; font-family: monospace; }
+
+  .badge-outstanding {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 32px; height: 28px; padding: 0 10px;
+    border-radius: 20px; font-size: 13px; font-weight: 700;
+    flex-shrink: 0;
+  }
+  .badge-outstanding.zero  { background: #d4edda; color: #155724; }
+  .badge-outstanding.low   { background: #fff3cd; color: #856404; }
+  .badge-outstanding.high  { background: #f8d7da; color: #721c24; }
+
+  .cust-contact { font-size: 12.5px; color: var(--gray-text); display: flex; flex-direction: column; gap: 3px; }
+  .cust-contact span { display: flex; align-items: center; gap: 6px; }
+
+  .cust-stats {
+    display: flex; gap: 14px; padding-top: 10px;
+    border-top: 1px solid #eeeee9; font-size: 12px;
+    color: var(--gray-text);
+  }
+  .cust-stat strong { color: var(--dark-text); font-size: 15px; font-weight: 600; display: block; }
+
+  .overdue-tag {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; color: #721c24;
+    background: #f8d7da; border-radius: 6px; padding: 2px 7px;
+  }
+
+  .empty-state { text-align: center; padding: 60px 32px; color: var(--gray-text); }
+  .empty-state svg { opacity: 0.25; margin-bottom: 16px; }
+  .empty-state h3 { font-size: 16px; color: var(--dark-text); margin-bottom: 6px; }
+
+  #visible-cust-count { font-size: 13px; color: var(--gray-text); margin-top: 12px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-hdr">
+  <div>
+    <h1 class="page-title">Customers</h1>
+    <p class="page-sub">{{ total }} customers · {{ with_outstanding }} with outstanding cylinders
+      {% if overdue_count > 0 %}&nbsp;·&nbsp;<span style="color:#dc3545;font-weight:600;">{{ overdue_count }} with overdue</span>{% endif %}
+    </p>
+  </div>
+  <div class="search-wrap">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <input type="text" id="cust-search" placeholder="Search by name, email or phone…" oninput="filterCustomers()">
+  </div>
+</div>
+
+<!-- KPI cards -->
+<div class="kpi-grid" style="margin-bottom: 24px;">
+  <div class="kpi-card">
+    <div class="kpi-icon blue">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ total }}</div>
+    <div class="kpi-label">Total Customers</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon green">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+    </div>
+    <div class="kpi-value">{{ with_outstanding }}</div>
+    <div class="kpi-label">With Outstanding</div>
+  </div>
+  <div class="kpi-card">
+    <div class="kpi-icon red">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/>
+        <polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </div>
+    <div class="kpi-value" style="{{ 'color:#dc3545' if overdue_count > 0 else '' }}">{{ overdue_count }}</div>
+    <div class="kpi-label">With Overdue (&gt;30d)</div>
+  </div>
+</div>
+
+{% if customers %}
+<div class="cust-grid" id="cust-grid">
+  {% for c in customers %}
+  <a href="/admin/customers/{{ c.name | urlencode }}"
+     class="cust-card {{ 'has-overdue' if c.has_overdue else '' }}"
+     id="cust-card-{{ loop.index }}"
+     data-search="{{ (c.name ~ ' ' ~ c.email ~ ' ' ~ c.phone) | lower }}">
+
+    <div class="cust-card-top">
+      <div>
+        <div class="cust-name">{{ c.name }}</div>
+        {% if c.id %}<div class="cust-id">{{ c.id }}</div>{% endif %}
+        {% if c.has_overdue %}
+          <span class="overdue-tag" style="margin-top:5px; display:inline-flex">⚠ Overdue cylinders</span>
+        {% endif %}
+      </div>
+      <span class="badge-outstanding {{ 'zero' if c.outstanding == 0 else ('high' if c.outstanding > 10 else 'low') }}">
+        {{ c.outstanding }}
+      </span>
+    </div>
+
+    {% if c.email or c.phone %}
+    <div class="cust-contact">
+      {% if c.email %}
+      <span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+          <polyline points="22,6 12,13 2,6"/>
+        </svg>
+        {{ c.email }}
+      </span>
+      {% endif %}
+      {% if c.phone %}
+      <span>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12 19.79 19.79 0 0 1 1.61 3.38 2 2 0 0 1 3.6 1.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.27a16 16 0 0 0 6 6l.84-.84a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16z"/>
+        </svg>
+        {{ c.phone }}
+      </span>
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <div class="cust-stats">
+      <div class="cust-stat">
+        <strong>{{ c.total_delivered }}</strong>
+        Delivered
+      </div>
+      <div class="cust-stat">
+        <strong>{{ c.total_collected }}</strong>
+        Collected
+      </div>
+      <div class="cust-stat">
+        <strong>{{ c.outstanding }}</strong>
+        Outstanding
+      </div>
+      <div class="cust-stat" style="margin-left:auto; text-align:right;">
+        <strong style="font-size:12px;">{{ c.last_activity }}</strong>
+        Last activity
+      </div>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<p id="visible-cust-count">Showing {{ customers|length }} customers</p>
+
+{% else %}
+<div class="empty-state">
+  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+    <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+  </svg>
+  <h3>No customers found</h3>
+  <p>Add customers from the Customers sheet in Google Sheets.</p>
+</div>
+{% endif %}
+
+<script>
+  function filterCustomers() {
+    const q = document.getElementById('cust-search').value.toLowerCase();
+    const cards = document.querySelectorAll('#cust-grid .cust-card');
+    let visible = 0;
+    cards.forEach(card => {
+      const match = !q || card.dataset.search.includes(q);
+      card.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    const countEl = document.getElementById('visible-cust-count');
+    if (countEl) countEl.textContent = 'Showing ' + visible + ' customer' + (visible !== 1 ? 's' : '');
+  }
+</script>
+
+{% endblock %}
