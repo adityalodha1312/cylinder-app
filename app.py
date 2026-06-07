@@ -1270,16 +1270,38 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
 def calculate_daily_dispatch_report(target_date_str):
     """Calculates customer-wise dispatches (deliveries) and collections on target_date_str"""
     global scan_ws
+    empty_report = {
+        'company_rows': [],
+        'party_rows': [],
+        'company_totals': {
+            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'dispatch_total': 0,
+            'collection_total': 0
+        },
+        'party_totals': {
+            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'dispatch_total': 0,
+            'collection_total': 0
+        },
+        'grand_totals': {
+            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
+            'dispatch_total': 0,
+            'collection_total': 0
+        }
+    }
     try:
         if scan_ws is None and doc:
             try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
             except Exception: pass
         if scan_ws is None:
-            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            return empty_report
             
         rows = scan_ws.get_all_values()
         if len(rows) < 2:
-            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            return empty_report
             
         day_scans = []
         for r in rows[1:]:
@@ -1292,7 +1314,7 @@ def calculate_daily_dispatch_report(target_date_str):
                     })
                     
         if not day_scans:
-            return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+            return empty_report
             
         cylinders = get_all_cylinders()
         maint_data = get_all_maintenance()
@@ -1431,7 +1453,7 @@ def calculate_daily_dispatch_report(target_date_str):
         }
     except Exception as e:
         print("Error calculating daily dispatch report:", e)
-        return {'company_rows': [], 'party_rows': [], 'company_totals': {}, 'party_totals': {}, 'grand_totals': {}}
+        return empty_report
 
 
 
