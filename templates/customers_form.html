@@ -1,0 +1,179 @@
+{% extends "admin_base.html" %}
+
+{% block title %}{{ 'Add Customer' if mode == 'add' else 'Edit Customer' }}{% endblock %}
+
+{% block head %}
+<style>
+  .form-page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+
+  .form-section {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    border-top: 4px solid var(--green-700);
+  }
+  .form-section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 20px; padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--green-50);
+    display: flex; align-items: center; gap: 8px;
+    color: var(--green-700);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 18px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--dark-text); }
+  .form-group .req { color: #c0392b; margin-left: 2px; }
+  .form-group .auto-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    background: var(--green-50); color: var(--green-700);
+    border-radius: 4px; padding: 1px 5px; margin-left: 6px;
+    letter-spacing: 0.4px; vertical-align: middle;
+  }
+  .form-group input {
+    padding: 9px 12px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--dark-text);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus { border-color: var(--green-500); }
+  .form-group input[readonly] { background: #f7f8f6; color: var(--gray-text); cursor: not-allowed; }
+  .form-group .hint { font-size: 11.5px; color: var(--gray-text); line-height: 1.4; }
+
+  .form-actions {
+    display: flex; gap: 12px; margin-top: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .btn-submit {
+    padding: 11px 28px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-submit:hover { background: var(--green-500); }
+
+  .error-banner {
+    background: #f8d7da; border: 1.5px solid #f5c6cb; border-radius: 10px;
+    padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: #721c24;
+    display: flex; align-items: center; gap: 10px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="form-page-header">
+  <a href="/admin/customers" class="back-btn" id="back-to-customers">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Customers
+  </a>
+  <div>
+    <h1 class="page-title" style="margin:0;">
+      {{ 'Add New Customer' if mode == 'add' else 'Edit Customer Profile' }}
+    </h1>
+    <p class="page-sub" style="margin:0;">
+      {{ 'Register a new customer for cylinder deliveries and receipts.' if mode == 'add' else 'Update customer details. Changes to name cascade automatically across logs.' }}
+    </p>
+  </div>
+</div>
+
+{% if error %}
+<div class="error-banner">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+  </svg>
+  {{ error }}
+</div>
+{% endif %}
+
+<form method="POST" id="customer-form"
+  action="{{ '/admin/customers/add' if mode == 'add' else '/admin/customers/' ~ (uid or '') ~ '/edit' }}">
+
+  <div class="form-section">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      </svg>
+      Customer Information
+    </div>
+
+    <div class="form-grid">
+      <!-- Customer ID (Auto/Readonly) -->
+      {% if mode == 'edit' %}
+      <div class="form-group">
+        <label for="cust_id">
+          Customer ID
+          <span class="auto-tag">READ ONLY</span>
+        </label>
+        <input type="text" id="cust_id" name="cust_id"
+          value="{{ form.id if form else '' }}"
+          readonly>
+      </div>
+      {% endif %}
+
+      <!-- Customer Name -->
+      <div class="form-group">
+        <label for="name">Customer Name <span class="req">*</span></label>
+        <input type="text" id="name" name="name"
+          value="{{ form.name if form else '' }}"
+          placeholder="e.g. Som Autotech, Sushil Gas"
+          required>
+        <span class="hint">Must match driver selection names. Avoid duplicate names.</span>
+      </div>
+
+      <!-- Customer Email -->
+      <div class="form-group">
+        <label for="email">Customer Email</label>
+        <input type="email" id="email" name="email"
+          value="{{ form.email if form else '' }}"
+          placeholder="e.g. accounts@sushilgas.com">
+        <span class="hint">Used to send automated cylinder delivery receipts.</span>
+      </div>
+
+      <!-- Customer Phone -->
+      <div class="form-group">
+        <label for="phone">Customer Phone</label>
+        <input type="text" id="phone" name="phone"
+          value="{{ form.phone if form else '' }}"
+          placeholder="e.g. +91 98765 43210">
+        <span class="hint">Contact phone number for communication.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-actions">
+    <button type="submit" class="btn-submit" id="submit-customer-form">
+      {{ '+ Add Customer' if mode == 'add' else 'Save Changes' }}
+    </button>
+    <a href="{{ '/admin/customers' if mode == 'add' else '/admin/customers/' ~ (uid or '') }}" class="back-btn">Cancel</a>
+  </div>
+
+</form>
+
+{% endblock %}

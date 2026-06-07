@@ -102,6 +102,73 @@ def get_customer_emails():
         print("Error getting customer emails from sheet:", e)
         return {}
 
+# Helper to ensure customers sheet has phone column D
+def ensure_phone_column():
+    """Ensures that the Customers sheet contains at least 4 columns (with Phone in Column D)"""
+    global customer_ws
+    try:
+        if customer_ws is None:
+            if doc:
+                try: customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                except Exception: return
+            else:
+                return
+        if customer_ws:
+            rows = customer_ws.get_all_values()
+            if len(rows) > 0:
+                if len(rows[0]) < 4:
+                    customer_ws.update_cell(1, 4, "Phone")
+    except Exception as e:
+        print("Error ensuring phone column:", e)
+
+def rename_customer_in_sheets(old_name, new_name):
+    """Cascades a customer name change across registry, log, and map sheets"""
+    global cyl_ws, map_ws, scan_ws
+    old_u = old_name.strip().upper()
+    new_n = new_name.strip()
+    
+    # 1. Update Cylinders Registry (Column F: Current Location)
+    try:
+        if cyl_ws is None and doc:
+            try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+            except Exception: pass
+        if cyl_ws:
+            rows = cyl_ws.get_all_values()
+            for idx, r in enumerate(rows):
+                if idx == 0: continue
+                if len(r) >= 6 and r[5].strip().upper() == old_u:
+                    cyl_ws.update_cell(idx + 1, 6, new_n)
+    except Exception as e:
+        print("Error renaming customer in Cylinders registry:", e)
+        
+    # 2. Update Customer Map (Column G: Customer Name)
+    try:
+        if map_ws is None and doc:
+            try: map_ws = doc.worksheet(MAP_SHEET_NAME)
+            except Exception: pass
+        if map_ws:
+            rows = map_ws.get_all_values()
+            for idx, r in enumerate(rows):
+                if idx == 0: continue
+                if len(r) >= 7 and r[6].strip().upper() == old_u:
+                    map_ws.update_cell(idx + 1, 7, new_n)
+    except Exception as e:
+        print("Error renaming customer in Customer Map:", e)
+        
+    # 3. Update Scan Log Sheet1 (Column F: Customer)
+    try:
+        if scan_ws is None and doc:
+            try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
+            except Exception: pass
+        if scan_ws:
+            rows = scan_ws.get_all_values()
+            for idx, r in enumerate(rows):
+                if idx == 0: continue
+                if len(r) >= 6 and r[5].strip().upper() == old_u:
+                    scan_ws.update_cell(idx + 1, 6, new_n)
+    except Exception as e:
+        print("Error renaming customer in Scan Log:", e)
+
 
 # ── Cylinder Registry helpers ──────────────────────────────────────────────
 def get_all_cylinders():
@@ -1866,6 +1933,390 @@ def admin_customer_profile(customer_name):
         total_delivered    = total_delivered,
         total_collected    = total_collected,
     )
+
+
+# ================================================================
+#  CUSTOMER ADD / EDIT ROUTES
+# ================================================================
+
+@app.route('/admin/customers/add', methods=['GET', 'POST'])
+@admin_required
+def admin_customers_add():
+    global customer_ws
+    ensure_phone_column()
+    
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        
+        if not name:
+            return render_template('customers_form.html',
+                user=session['user'], mode='add',
+                error='Customer Name is required.', form=request.form)
+                
+        # Check duplicate
+        existing = get_customer_names()
+        if any(x.lower() == name.lower() for x in existing):
+            return render_template('customers_form.html',
+                user=session['user'], mode='add',
+                error=f'Customer "{name}" already exists.', form=request.form)
+                
+        try:
+            if customer_ws is None and doc:
+                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                
+            if customer_ws is None:
+                return render_template('customers_form.html',
+                    user=session['user'], mode='add',
+                    error='Customers worksheet not found.', form=request.form)
+                    
+            # Generate next Customer ID
+            all_info = get_all_customer_info()
+            max_id = 0
+            for c in all_info:
+                id_str = c.get('id', '')
+                if id_str.startswith('C'):
+                    try:
+                        val = int(id_str[1:])
+                        if val > max_id: max_id = val
+                    except ValueError: pass
+            new_id = f"C{str(max_id + 1).zfill(3)}"
+            
+            customer_ws.append_row([new_id, name, email, phone])
+            clear_cache()
+            return redirect('/admin/customers')
+        except Exception as e:
+            return render_template('customers_form.html',
+                user=session['user'], mode='add',
+                error=str(e), form=request.form)
+                
+    return render_template('customers_form.html',
+        user=session['user'], mode='add', error=None, form={})
+
+@app.route('/admin/customers/<path:customer_name>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_customers_edit(customer_name):
+    from urllib.parse import unquote
+    customer_name = unquote(customer_name).strip()
+    global customer_ws
+    ensure_phone_column()
+    
+    all_info = get_all_customer_info()
+    cust = next((c for c in all_info if c['name'].lower() == customer_name.lower()), None)
+    if not cust:
+        return redirect('/admin/customers')
+        
+    if request.method == 'POST':
+        name = request.form.get('name', '').strip()
+        email = request.form.get('email', '').strip()
+        phone = request.form.get('phone', '').strip()
+        
+        if not name:
+            return render_template('customers_form.html',
+                user=session['user'], mode='edit', uid=customer_name,
+                error='Customer Name is required.', form=request.form)
+                
+        # Check duplicate if name is changing
+        if name.lower() != customer_name.lower():
+            existing = get_customer_names()
+            if any(x.lower() == name.lower() for x in existing):
+                return render_template('customers_form.html',
+                    user=session['user'], mode='edit', uid=customer_name,
+                    error=f'Customer Name "{name}" is already taken.', form=request.form)
+                    
+        try:
+            if customer_ws is None and doc:
+                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                
+            if customer_ws is None:
+                return render_template('customers_form.html',
+                    user=session['user'], mode='edit', uid=customer_name,
+                    error='Customers worksheet not found.', form=request.form)
+                    
+            rows = customer_ws.get_all_values()
+            row_num = None
+            for idx, r in enumerate(rows):
+                if idx == 0: continue
+                if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                    row_num = idx + 1
+                    break
+                    
+            if not row_num:
+                return render_template('customers_form.html',
+                    user=session['user'], mode='edit', uid=customer_name,
+                    error=f'Customer "{customer_name}" not found in sheet.', form=request.form)
+                    
+            # If name changed, cascade
+            if name.lower() != customer_name.lower():
+                rename_customer_in_sheets(customer_name, name)
+                
+            customer_ws.update(f'A{row_num}:D{row_num}', [[cust.get('id', ''), name, email, phone]])
+            clear_cache()
+            return redirect(f'/admin/customers/{name}')
+        except Exception as e:
+            return render_template('customers_form.html',
+                user=session['user'], mode='edit', uid=customer_name,
+                error=str(e), form=request.form)
+                
+    return render_template('customers_form.html',
+        user=session['user'], mode='edit', uid=customer_name, error=None, form=cust)
+
+
+@app.route('/admin/customers/<path:customer_name>/offer')
+@admin_required
+def admin_customer_offer_form(customer_name):
+    from urllib.parse import unquote
+    customer_name = unquote(customer_name).strip()
+    global customer_ws
+    ensure_phone_column()
+    
+    # Get customer details
+    all_info = get_all_customer_info()
+    cust = next((c for c in all_info if c['name'].lower() == customer_name.lower()), None)
+    if not cust:
+        return redirect('/admin/customers')
+        
+    # Generate default Quotation Number: NAG/26-27/XXXX
+    import random
+    q_no = f"NAG/26-27/{random.randint(3000, 9999)}"
+    
+    # Format today's date with suffix (e.g. 25th May 2026)
+    today = date.today()
+    day = today.day
+    if 4 <= day <= 20 or 24 <= day <= 30:
+        suffix = "th"
+    else:
+        suffix = ["st", "nd", "rd"][day % 10 - 1]
+    date_str = f"{day}{suffix} {today.strftime('%B %Y')}"
+    
+    # Default products matching the sample exactly
+    default_products = [
+        {"name": "Argon (5.5 Grade)", "capacity": "07 Cum", "price": "630", "unit": "Per Cum"},
+        {"name": "Argon (5.0 Grade)", "capacity": "07 Cum", "price": "390", "unit": "Per Cum"},
+        {"name": "Helium (5.0 Grade)", "capacity": "07 Cum", "price": "5700", "unit": "Per Cum"},
+        {"name": "Nitrogen (5.0 Grade)", "capacity": "07 Cum", "price": "135", "unit": "Per Cum"},
+        {"name": "Hydrogen (5.0 Grade)", "capacity": "07 Cum", "price": "250", "unit": "Per Cum"},
+        {"name": "SF6 Gas", "capacity": "50 Kg", "price": "1050", "unit": "Per Kg"},
+    ]
+    
+    # Default terms matching the sample exactly
+    default_terms = {
+        "prices": "As Quoted",
+        "gst": "@18% Extra.",
+        "transport": "Inclusive Delivery.",
+        "payment": "30 Days",
+        "valve_damage": "Rs. 1000/- per Valve",
+        "cyl_damage": "Rs.10,000/- Per Cylinder"
+    }
+    
+    return render_template('offer_form.html',
+        user=session['user'],
+        customer=cust,
+        customer_name=customer_name,
+        q_no=q_no,
+        date_str=date_str,
+        products=default_products,
+        terms=default_terms
+    )
+
+@app.route('/admin/customers/<path:customer_name>/offer/generate', methods=['POST'])
+@admin_required
+def admin_generate_offer_pdf(customer_name):
+    from urllib.parse import unquote
+    customer_name = unquote(customer_name).strip()
+    
+    # Extract form values
+    attn = request.form.get('attn', '').strip()
+    tel = request.form.get('tel', '').strip()
+    q_date = request.form.get('date', '').strip()
+    q_no = request.form.get('q_no', '').strip()
+    ref = request.form.get('ref', '').strip()
+    
+    # Product lists from dynamic fields
+    product_names = request.form.getlist('product_name[]')
+    product_contents = request.form.getlist('product_content[]')
+    product_prices = request.form.getlist('product_price[]')
+    product_units = request.form.getlist('product_unit[]')
+    
+    # T&C fields
+    prices_term = request.form.get('prices_term', '').strip()
+    gst_term = request.form.get('gst_term', '').strip()
+    transport_term = request.form.get('transport_term', '').strip()
+    payment_term = request.form.get('payment_term', '').strip()
+    valve_damage_term = request.form.get('valve_damage_term', '').strip()
+    cyl_damage_term = request.form.get('cyl_damage_term', '').strip()
+    
+    # Generate PDF using ReportLab
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+    
+    # ReportLab Styles
+    styles = getSampleStyleSheet()
+    
+    # Brand Typography & Colors
+    blue_brand = colors.HexColor('#0c5ca8')
+    green_brand = colors.HexColor('#3fb549')
+    dark_gray = colors.HexColor('#2c2c2a')
+    
+    # Custom Styles
+    brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
+    brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
+    
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=8)
+    
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=8)
+    
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11, textColor=colors.black, alignment=1)
+    
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11, textColor=colors.black, alignment=0)
+    
+    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, spaceBefore=10, spaceAfter=6)
+    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black)
+    
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
+    
+    # 1. Noble Air Gases Header Layout
+    story.append(Paragraph("NOBLE", brand_style1))
+    story.append(Paragraph("air gases", brand_style2))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("✉ sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📞 +91 9225309555", header_contact_style))
+    story.append(Spacer(1, 6))
+    
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
+    
+    # 2. Document Title
+    story.append(Paragraph("COMMERCIAL OFFER", title_style))
+    
+    # 3. Metadata block table
+    meta_data = [
+        [
+            Paragraph(f"<b>To</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: M/s {customer_name}", left_cell_style),
+            Paragraph(f"<b>K.Attn</b> : {attn}", left_cell_style)
+        ],
+        [
+            Paragraph(f"<b>Tel</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {tel}", left_cell_style),
+            Paragraph(f"<b>Date</b> &nbsp;&nbsp;&nbsp;: {q_date}", left_cell_style)
+        ],
+        [
+            Paragraph(f"<b>Q. No.</b> : {q_no}", left_cell_style),
+            Paragraph(f"<b>Ref</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {ref}", left_cell_style)
+        ]
+    ]
+    meta_table = Table(meta_data, colWidths=[270, 270])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
+        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+    
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceBefore=4, spaceAfter=4))
+    story.append(meta_table)
+    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceBefore=4, spaceAfter=8))
+    
+    # 4. Intro text
+    story.append(Paragraph("Thank you for your interest in our products & services. We are pleased to offer our most Competitive quote for your consideration with regards to your requirements", intro_style))
+    
+    # 5. Quote product table
+    table_data = [
+        [
+            Paragraph("<b>No.</b>", cell_bold_style),
+            Paragraph("<b>Product</b>", cell_bold_style),
+            Paragraph("<b>Content per Cylinder</b>", cell_bold_style),
+            Paragraph("<b>Price<br/>(Rs/unit)</b>", cell_bold_style),
+            Paragraph("<b>Unit</b>", cell_bold_style)
+        ]
+    ]
+    
+    idx_no = 1
+    for name, content, price, unit in zip(product_names, product_contents, product_prices, product_units):
+        if not name.strip(): continue
+        table_data.append([
+            Paragraph(f"{idx_no:02d}", cell_style),
+            Paragraph(f"<b>{name.strip()}</b>", left_cell_bold_style),
+            Paragraph(content.strip(), cell_style),
+            Paragraph(f"{price.strip()}/-", cell_style),
+            Paragraph(unit.strip(), cell_style)
+        ])
+        idx_no += 1
+        
+    prod_table = Table(table_data, colWidths=[40, 200, 120, 90, 90])
+    prod_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 6),
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('BACKGROUND', (0,0), (-1,0), colors.white),
+    ]))
+    story.append(prod_table)
+    story.append(Spacer(1, 10))
+    
+    # 6. Terms and conditions section
+    story.append(Paragraph("<b>TERMS & CONDITIONS:</b>", terms_title_style))
+    
+    terms = [
+        f"<b>1. Prices</b> : {prices_term}",
+        f"<b>2. GST</b> : {gst_term}",
+        f"<b>3. Transportation</b> : <b>{transport_term}</b>", # Bold transportation
+        f"<b>4. Payment</b> : {payment_term}",
+        f"<b>5. Valve Damage</b> : {valve_damage_term}",
+        f"<b>6. Cylinder Lost/Damage</b> : {cyl_damage_term}"
+    ]
+    
+    for t in terms:
+        story.append(Paragraph(t, terms_item_style))
+        story.append(Spacer(1, 2))
+        
+    story.append(Spacer(1, 10))
+    
+    # 7. Footer text
+    story.append(Paragraph("For any further queries, please feel free to contact us. We value your business association.", footer_text_style))
+    story.append(Spacer(1, 8))
+    story.append(Paragraph("Thanking you,", footer_text_style))
+    story.append(Spacer(1, 15))
+    
+    # Signature line
+    sig_data = [
+        [
+            Paragraph("<b>For Noble Air Gases</b>", left_cell_bold_style),
+            Paragraph("", cell_style)
+        ],
+        [
+            Paragraph("<br/><br/>Authorized Signatory", left_cell_style),
+            Paragraph("", cell_style)
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[270, 270])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(sig_table)
+    
+    doc.build(story)
+    buffer.seek(0)
+    
+    filename = f"Commercial_Offer_{customer_name.replace(' ', '_')}_{q_no.replace('/', '_')}.pdf"
+    from flask import send_file
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
 
 
 @app.route('/')

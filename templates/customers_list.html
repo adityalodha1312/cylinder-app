@@ -74,6 +74,14 @@
   .empty-state h3 { font-size: 16px; color: var(--dark-text); margin-bottom: 6px; }
 
   #visible-cust-count { font-size: 13px; color: var(--gray-text); margin-top: 12px; }
+  .btn-add-cust {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 9px; font-size: 13.5px; font-weight: 600;
+    text-decoration: none; transition: background 0.15s; height: 38px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+  .btn-add-cust:hover { background: var(--green-500); color: #fff; }
 </style>
 {% endblock %}
 
@@ -81,16 +89,21 @@
 
 <div class="page-hdr">
   <div>
-    <h1 class="page-title">Customers</h1>
-    <p class="page-sub">{{ total }} customers · {{ with_outstanding }} with outstanding cylinders
+    <h1 class="page-title" style="margin:0;">Customers</h1>
+    <p class="page-sub" style="margin:0;">{{ total }} customers · {{ with_outstanding }} with outstanding cylinders
       {% if overdue_count > 0 %}&nbsp;·&nbsp;<span style="color:#dc3545;font-weight:600;">{{ overdue_count }} with overdue</span>{% endif %}
     </p>
   </div>
-  <div class="search-wrap">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-    </svg>
-    <input type="text" id="cust-search" placeholder="Search by name, email or phone…" oninput="filterCustomers()">
+  <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap; width: 100%; max-width: 500px; justify-content: flex-end;">
+    <div class="search-wrap" style="flex: 1; max-width: 300px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="cust-search" placeholder="Search by name, email or phone…" oninput="filterCustomers()">
+    </div>
+    <a href="/admin/customers/add" class="btn-add-cust" id="btn-add-customer">
+      ➕ Add Customer
+    </a>
   </div>
 </div>
 

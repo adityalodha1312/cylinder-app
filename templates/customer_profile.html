@@ -113,6 +113,15 @@
       {% if info.phone %}<span>📞 {{ info.phone }}</span>{% endif %}
     </div>
   </div>
+
+  <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-top:20px;">
+    <a href="/admin/customers/{{ customer_name | urlencode }}/edit" class="back-btn" id="edit-customer-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text);">
+      ✏️ Edit Profile
+    </a>
+    <a href="/admin/customers/{{ customer_name | urlencode }}/offer" class="back-btn" id="create-offer-btn" style="background:var(--green-700); border-color:var(--green-700); color:#fff;">
+      📄 Commercial Offer
+    </a>
+  </div>
 </div>
 
 <!-- KPI Cards -->
