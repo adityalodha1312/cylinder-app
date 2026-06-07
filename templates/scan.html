@@ -293,6 +293,42 @@
   .status-badge.filled { background: #d4edda; color: #155724; }
   .status-badge.delivered { background: #fff3cd; color: #856404; }
   .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
+
+  /* ── CUSTOM SEARCHABLE DROPDOWN ── */
+  .autocomplete-container {
+    position: relative;
+  }
+  .custom-dropdown-list {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 1.5px solid #d8d9d4;
+    border-radius: 10px;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .dropdown-item {
+    padding: 12px 14px;
+    font-size: 15px;
+    color: var(--gray-900);
+    cursor: pointer;
+    transition: background 0.15s;
+    border-bottom: 1px solid #f0f1ed;
+    text-align: left;
+  }
+  .dropdown-item:last-child {
+    border-bottom: none;
+  }
+  .dropdown-item:hover {
+    background: var(--green-50);
+    color: var(--green-700);
+    font-weight: 500;
+  }
 </style>
 </head>
 <body>
@@ -349,12 +385,14 @@
 
   <div class="field" id="customer-field" style="display: none;">
     <label>Customer Name</label>
-    <select id="customer-select">
-      <option value="">-- Select Customer --</option>
-      {% for name in customers %}
-        <option value="{{ name }}">{{ name }}</option>
-      {% endfor %}
-    </select>
+    <div class="autocomplete-container">
+      <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+      <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
+        {% for name in customers %}
+          <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
+        {% endfor %}
+      </div>
+    </div>
   </div>
 
   <div class="scanner-card">
@@ -406,7 +444,49 @@
 </div>
 
 <script>
+const validCustomers = {{ customers | tojson }};
 let invalidRows = new Set();
+
+function showCustomerDropdown() {
+  let dropdown = document.getElementById("customer-dropdown");
+  if (dropdown) {
+    dropdown.style.display = "block";
+    filterCustomerDropdown();
+  }
+}
+
+function filterCustomerDropdown() {
+  let input = document.getElementById("customer-select").value.toLowerCase().trim();
+  let dropdown = document.getElementById("customer-dropdown");
+  if (!dropdown) return;
+  let items = dropdown.getElementsByClassName("dropdown-item");
+  let hasVisible = false;
+  for (let item of items) {
+    let text = item.textContent.toLowerCase();
+    if (text.includes(input)) {
+      item.style.display = "block";
+      hasVisible = true;
+    } else {
+      item.style.display = "none";
+    }
+  }
+  dropdown.style.display = hasVisible ? "block" : "none";
+}
+
+function selectCustomer(name) {
+  document.getElementById("customer-select").value = name;
+  let dropdown = document.getElementById("customer-dropdown");
+  if (dropdown) dropdown.style.display = "none";
+}
+
+// Close dropdown when clicking outside
+document.addEventListener("click", function(e) {
+  let container = document.getElementById("customer-field");
+  let dropdown = document.getElementById("customer-dropdown");
+  if (container && dropdown && !container.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
 
 function toggleCustomerField() {
   let action = document.getElementById("action-select").value;
@@ -629,6 +709,15 @@ async function submitForm() {
   if (globalAction === "Delivery" || globalAction === "Collection") {
     customer = document.getElementById("customer-select").value.trim();
     if (!customer) { alert("Please select a Customer Name"); return; }
+    
+    // Case-insensitive match check and auto-correct to matching database name
+    let matchedCustomer = validCustomers.find(c => c.toLowerCase() === customer.toLowerCase());
+    if (!matchedCustomer) {
+      alert("Please select a valid customer from the suggestions list.");
+      return;
+    }
+    customer = matchedCustomer;
+    document.getElementById("customer-select").value = customer;
   }
 
   for (let i = 0; i < inputs.length; i++) {
