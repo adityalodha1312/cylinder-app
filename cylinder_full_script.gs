@@ -50,6 +50,7 @@ function onOpen() {
     .addSeparator()
     .addItem('🗄️ Setup Registry Sheets (Cylinders + Maintenance)', 'setupRegistrySheets')
     .addItem('📊 Setup Bulk Tanks Sheet', 'setupBulkTanksSheet')
+    .addItem('🔄 Rebuild Cylinder Statuses from Log', 'rebuildCylinderRegistry')
     .addToUi();
 }
 
@@ -1601,5 +1602,85 @@ function setupBulkTanksSheet() {
     '• Date, Gas, Opening Stock, Dead Volume, Tank Capacity, and Unit columns are set up.\n' +
     '• Manager can update opening stocks via "/admin/inventory" on the Admin Portal.'
   );
+}
+
+// ── Rebuild Cylinder statuses and locations from raw Scan Log history ──
+function rebuildCylinderRegistry() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const scanSheet = ss.getSheetByName(SCAN_SHEET_NAME);
+  const cylSheet = ss.getSheetByName(CYLINDER_SHEET_NAME);
+  if (!scanSheet || !cylSheet) {
+    SpreadsheetApp.getUi().alert('❌ Sheets not found.');
+    return;
+  }
+  
+  const scanRows = scanSheet.getDataRange().getValues();
+  const cylRows = cylSheet.getDataRange().getValues();
+  if (cylRows.length < 2) {
+    SpreadsheetApp.getUi().alert('ℹ️ No cylinders found in the registry sheet.');
+    return;
+  }
+  
+  // Build a map of cylinder UID -> row index (1-based) in Cylinders sheet
+  const uidRowMap = {};
+  for (let i = 1; i < cylRows.length; i++) {
+    const uid = String(cylRows[i][0]).trim().toUpperCase();
+    if (uid) uidRowMap[uid] = i + 1;
+  }
+  
+  // Scan log columns: Date(0), Time(1), Driver(2), Action(3), UID(4), Customer(5)
+  // Scan from top to bottom (oldest to newest) to get the latest status
+  const latestCylState = {};
+  for (let i = 1; i < scanRows.length; i++) {
+    const row = scanRows[i];
+    if (row.length < 5) continue;
+    const date = formatDate(row[0]);
+    const action = String(row[3]).trim();
+    const uid = String(row[4]).trim().toUpperCase();
+    const customer = row.length > 5 ? String(row[5]).trim() : '';
+    
+    if (!uid) continue;
+    
+    let status = '';
+    let location = '';
+    
+    if (action === 'Delivery') {
+      status = 'Delivered';
+      location = customer || 'Customer';
+    } else if (action === 'Collection') {
+      status = 'Empty';
+      location = 'Depot';
+    } else if (action === 'Filling') {
+      status = 'Filled';
+      location = 'Depot';
+    }
+    
+    if (status) {
+      latestCylState[uid] = {
+        status: status,
+        location: location,
+        date: date
+      };
+    }
+  }
+  
+  // Write states back to Cylinders registry sheet
+  for (const uid in uidRowMap) {
+    const rowNum = uidRowMap[uid];
+    const state = latestCylState[uid];
+    
+    if (state) {
+      cylSheet.getRange(rowNum, 5).setValue(state.status);
+      cylSheet.getRange(rowNum, 6).setValue(state.location);
+      cylSheet.getRange(rowNum, 7).setValue(state.date);
+    } else {
+      // Revert to default empty depot status if never scanned
+      cylSheet.getRange(rowNum, 5).setValue('Empty');
+      cylSheet.getRange(rowNum, 6).setValue('Depot');
+      cylSheet.getRange(rowNum, 7).setValue('—');
+    }
+  }
+  
+  SpreadsheetApp.getUi().alert('✅ Cylinder registry successfully rebuilt from scan log history!');
 }
 
