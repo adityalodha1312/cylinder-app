@@ -40,6 +40,9 @@ function onOpen() {
     .addItem('🔑 Enable Send Receipt Checkbox Trigger', 'setupEditTrigger')
     .addItem('🚫 Disable Send Receipt Checkbox Trigger', 'removeEditTrigger')
     .addSeparator()
+    .addItem('🔑 Enable Background Receipt Trigger', 'setupBackgroundReceiptTrigger')
+    .addItem('🚫 Disable Background Receipt Trigger', 'removeBackgroundReceiptTrigger')
+    .addSeparator()
     .addItem('📧 Send Pending Scan Emails Now', 'onNewRow')
     .addItem('📧 Reset Scan Email Counter', 'resetEmailCounter')
     .addSeparator()
@@ -114,6 +117,65 @@ function removeEditTrigger(silent = false) {
         ? '✅ Installable edit trigger removed successfully.'
         : 'ℹ️ No installable edit trigger was active.'
     );
+  }
+}
+
+// ── BACKGROUND RECEIPT TRIGGER (Scans and sends pending receipts) ──
+
+function setupBackgroundReceiptTrigger() {
+  removeBackgroundReceiptTrigger(true);
+  
+  ScriptApp.newTrigger('processPendingReceipts')
+    .timeBased()
+    .everyMinutes(1)
+    .create();
+    
+  SpreadsheetApp.getUi().alert(
+    '⏰ Background Receipt Process Enabled!\n\n' +
+    'The portal will now check for and send pending receipts every minute.'
+  );
+}
+
+function removeBackgroundReceiptTrigger(silent = false) {
+  const triggers = ScriptApp.getProjectTriggers();
+  let removed = 0;
+  for (const trigger of triggers) {
+    if (trigger.getHandlerFunction() === 'processPendingReceipts') {
+      ScriptApp.deleteTrigger(trigger);
+      removed++;
+    }
+  }
+  if (!silent) {
+    SpreadsheetApp.getUi().alert(
+      removed > 0
+        ? '✅ Background receipt trigger removed.'
+        : 'ℹ️ No background receipt trigger was active.'
+    );
+  }
+}
+
+function processPendingReceipts() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const mapSheet = ss.getSheetByName(MAP_SHEET_NAME);
+  if (!mapSheet) return;
+  
+  const lastRow = mapSheet.getLastRow();
+  if (lastRow < 2) return;
+  
+  const data = mapSheet.getRange(2, 8, lastRow - 1, 2).getValues(); // Read columns H (checkbox) and I (status)
+  for (let i = 0; i < data.length; i++) {
+    const rowNum = i + 2;
+    const sendReceipt = String(data[i][0]).toUpperCase();
+    const status = String(data[i][1]).trim();
+    
+    if (sendReceipt === 'TRUE' && (status === 'Sending...' || status === 'Pending')) {
+      try {
+        sendCustomerReceipt(rowNum);
+      } catch (err) {
+        console.error("Error sending receipt for row " + rowNum + ": " + err);
+        mapSheet.getRange(rowNum, 9).setValue("Error: " + err.message);
+      }
+    }
   }
 }
 
