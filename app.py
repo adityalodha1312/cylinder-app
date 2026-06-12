@@ -69,6 +69,9 @@ except Exception as e:
 
 # Helper functions to fetch customer details from Google Sheets
 def get_customer_names():
+    now = time.time()
+    if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
+        return _data_cache['customer_names']
     try:
         if customer_ws is None:
             return []
@@ -77,13 +80,22 @@ def get_customer_names():
             return []
         # Column B is "Name" (index 1)
         names = [row[1].strip() for row in values[1:] if len(row) > 1 and row[1].strip()]
-        return sorted(list(set(names)))
+        result = sorted(list(set(names)))
+        _data_cache['customer_names']      = result
+        _data_cache['customer_names_time'] = now
+        return result
     except Exception as e:
         print("Error getting customer names from sheet:", e)
+        # Return stale data if available rather than an empty list
+        if _data_cache['customer_names'] is not None:
+            return _data_cache['customer_names']
         return []
 
 def get_customer_emails():
     """Returns a dict of {customer_name: email}"""
+    now = time.time()
+    if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
+        return _data_cache['customer_emails']
     try:
         if customer_ws is None:
             return {}
@@ -97,9 +109,14 @@ def get_customer_emails():
                 name = row[1].strip()
                 email = row[2].strip() if len(row) > 2 else ''
                 out[name] = email
+        _data_cache['customer_emails']      = out
+        _data_cache['customer_emails_time'] = now
         return out
     except Exception as e:
         print("Error getting customer emails from sheet:", e)
+        # Return stale data if available rather than an empty dict
+        if _data_cache['customer_emails'] is not None:
+            return _data_cache['customer_emails']
         return {}
 
 # Helper to ensure customers sheet has phone column D
@@ -174,6 +191,9 @@ def rename_customer_in_sheets(old_name, new_name):
 def get_all_cylinders():
     """Returns list of dicts from Cylinders sheet."""
     global cyl_ws
+    now = time.time()
+    if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
+        return _data_cache['cylinders']
     try:
         if cyl_ws is None:
             if doc:
@@ -198,14 +218,22 @@ def get_all_cylinders():
                     'location'      : r[5].strip() if len(r) > 5 else 'Depot',
                     'last_activity' : r[6].strip() if len(r) > 6 else '',
                 })
+        _data_cache['cylinders']      = out
+        _data_cache['cylinders_time'] = now
         return out
     except Exception as e:
         print("Error getting cylinders:", e)
+        # Return stale data if available
+        if _data_cache['cylinders'] is not None:
+            return _data_cache['cylinders']
         return []
 
 def get_all_maintenance():
     """Returns dict of {uid: maintenance_dict} from Cylinder Maintenance sheet."""
     global cyl_maint_ws
+    now = time.time()
+    if _data_cache['maintenance'] is not None and (now - _data_cache['maintenance_time']) < CACHE_TTL:
+        return _data_cache['maintenance']
     try:
         if cyl_maint_ws is None:
             if doc:
@@ -237,9 +265,14 @@ def get_all_maintenance():
                 'hydro_test_status': r[10].strip() if len(r) > 10 else '',
                 'cert_no'          : r[11].strip() if len(r) > 11 else '',
             }
+        _data_cache['maintenance']      = out
+        _data_cache['maintenance_time'] = now
         return out
     except Exception as e:
         print("Error getting maintenance data:", e)
+        # Return stale data if available
+        if _data_cache['maintenance'] is not None:
+            return _data_cache['maintenance']
         return {}
 
 def compute_hydro_badge(next_hydro_due_str):
@@ -300,19 +333,41 @@ def find_cylinder_rows(uid):
 
 
 # In-memory TTL data cache configurations
+# TTL is 60 s — all write routes call clear_cache() immediately after mutating
+# data, so the dashboard is never stale after an intentional change.
 _data_cache = {
-    'scans': None,
-    'scans_time': 0,
-    'map': None,
-    'map_time': 0
+    'scans'              : None, 'scans_time'          : 0,
+    'map'                : None, 'map_time'            : 0,
+    'cylinders'          : None, 'cylinders_time'      : 0,
+    'maintenance'        : None, 'maintenance_time'    : 0,
+    'customer_names'     : None, 'customer_names_time' : 0,
+    'customer_emails'    : None, 'customer_emails_time': 0,
 }
-CACHE_TTL = 10  # Duration in seconds
+CACHE_TTL = 60  # seconds (was 10 — safe to raise because writes always clear the cache)
 
 def clear_cache():
-    _data_cache['scans'] = None
-    _data_cache['scans_time'] = 0
-    _data_cache['map'] = None
-    _data_cache['map_time'] = 0
+    """Wipes every cached value so the next read fetches fresh data from Sheets."""
+    for key in list(_data_cache.keys()):
+        _data_cache[key] = 0 if key.endswith('_time') else None
+
+def sheets_write_with_retry(fn, *args, retries=3, **kwargs):
+    """Call a gspread write function with exponential-backoff retry.
+
+    Usage:  sheets_write_with_retry(ws.append_row, row_data)
+    Catches rate-limit / transient errors (HTTP 429 / 503) and retries
+    up to `retries` times with 1 s, 2 s, 4 s waits between attempts.
+    """
+    for attempt in range(retries):
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            if attempt < retries - 1:
+                wait = 2 ** attempt  # 1 s → 2 s → 4 s
+                print(f"[sheets_write] error on attempt {attempt + 1}/{retries}, "
+                      f"retrying in {wait}s: {e}")
+                time.sleep(wait)
+            else:
+                raise
 
 
 
@@ -2385,7 +2440,7 @@ def submit():
                 ])
     
     if rows_to_append:
-        sheet.append_rows(rows_to_append)
+        sheets_write_with_retry(sheet.append_rows, rows_to_append)
 
     # Auto-update Cylinders registry sheet for each scanned UID
     try:
