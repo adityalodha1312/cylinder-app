@@ -77,11 +77,23 @@
       font-weight: 500;
       color: rgba(255,255,255,0.78);
       margin-bottom: 3px;
-      transition: background 0.15s, color 0.15s;
+      transition: background 0.2s, color 0.2s, padding-left 0.2s;
     }
-    .sidebar-nav a:hover { background: rgba(255,255,255,0.1); color: #fff; }
-    .sidebar-nav a.active { background: var(--green-500); color: #fff; }
-    .sidebar-nav a svg { flex-shrink: 0; opacity: 0.85; }
+    .sidebar-nav a:hover {
+      background: rgba(255,255,255,0.08);
+      color: #fff;
+      padding-left: 16px;
+    }
+    .sidebar-nav a.active {
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-weight: 600;
+      border-left: 4px solid var(--green-500);
+      padding-left: 12px;
+      border-top-left-radius: 4px;
+      border-bottom-left-radius: 4px;
+    }
+    .sidebar-nav a svg { flex-shrink: 0; opacity: 0.85; transition: opacity 0.2s; }
     .sidebar-nav a.active svg { opacity: 1; }
 
     /* User area at bottom */
@@ -211,37 +223,101 @@
     /* ══════════════════════════════
        BOTTOM NAV (mobile)
     ══════════════════════════════ */
+    /* ── Floating Glow Bottom Nav ── */
     .bottom-nav {
       display: none;
       position: fixed;
-      bottom: 0; left: 0; right: 0;
-      background: #fff;
-      border-top: 1.5px solid var(--gray-bd);
+      bottom: 14px; left: 14px; right: 14px;
+      background: rgba(255, 255, 255, 0.82);
+      backdrop-filter: blur(14px) saturate(160%);
+      -webkit-backdrop-filter: blur(14px) saturate(160%);
+      border: 1px solid rgba(216, 217, 212, 0.5);
+      border-radius: 20px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.08);
       z-index: 150;
-      padding-bottom: env(safe-area-inset-bottom, 0);
+      padding: 3px;
     }
     .bottom-nav-inner {
       display: flex;
       justify-content: space-around;
-      align-items: stretch;
+      align-items: center;
+      position: relative;
     }
     .bn-item {
+      position: relative;
       flex: 1;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 3px;
-      padding: 8px 4px;
+      padding: 10px 4px 8px;
       text-decoration: none;
       color: var(--gray-text);
-      font-size: 10px;
-      font-weight: 500;
-      transition: color 0.15s;
+      transition: color 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+      overflow: visible;
+      border-radius: 16px;
     }
-    .bn-item svg { opacity: 0.6; }
-    .bn-item.active { color: var(--green-700); }
-    .bn-item.active svg { opacity: 1; }
+    .bn-glow {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%) scale(0.6);
+      opacity: 0;
+      pointer-events: none;
+      z-index: 0;
+      border-radius: 50%;
+      transition: opacity 0.35s cubic-bezier(0.4, 0, 0.2, 1), transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bn-item:hover .bn-glow,
+    .bn-item.active .bn-glow {
+      opacity: 1;
+      transform: translate(-50%, -50%) scale(1.1);
+    }
+    .bn-content {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+    }
+    .bn-content svg {
+      stroke: currentColor;
+      opacity: 0.7;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s;
+    }
+    .bn-item.active svg {
+      opacity: 1;
+      transform: translateY(-2px);
+    }
+    .bn-item:hover svg {
+      opacity: 1;
+      transform: translateY(-1px);
+    }
+    .bn-content span {
+      font-size: 10.5px;
+      font-weight: 600;
+      letter-spacing: -0.1px;
+      transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .bn-item.active span {
+      transform: translateY(-1px);
+    }
+
+    /* Active Glow Color Themes */
+    .bn-item[data-color="blue"].active { color: #1e70e4; }
+    .bn-item[data-color="orange"].active { color: #f97316; }
+    .bn-item[data-color="green"].active { color: #10b981; }
+    .bn-item[data-color="purple"].active { color: #8b5cf6; }
+    .bn-item[data-color="red"].active { color: #ef4444; }
+
+    .bn-item[data-color="blue"]:hover { color: #1e70e4; }
+    .bn-item[data-color="orange"]:hover { color: #f97316; }
+    .bn-item[data-color="green"]:hover { color: #10b981; }
+    .bn-item[data-color="purple"]:hover { color: #8b5cf6; }
+    .bn-item[data-color="red"]:hover { color: #ef4444; }
 
     /* ══════════════════════════════
        RESPONSIVE
@@ -249,7 +325,7 @@
     @media (max-width: 768px) {
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
-      .main-wrap { margin-left: 0; padding-bottom: 64px; }
+      .main-wrap { margin-left: 0; padding-bottom: 84px; }
       .top-bar { display: flex; }
       .bottom-nav { display: block; }
       .page-content { padding: 20px 16px; }
@@ -356,6 +432,9 @@
     .kpi-icon.orange { background: #fff7ed; }
     .kpi-value { font-size: 28px; font-weight: 600; color: var(--dark-text); line-height: 1; }
     .kpi-label { font-size: 12.5px; color: var(--gray-text); margin-top: 6px; font-weight: 500; }
+    @media (max-width: 768px) {
+      .sidebar-nav .nav-primary { display: none; }
+    }
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -385,22 +464,32 @@
 
   <nav class="sidebar-nav">
     <!-- Dashboard -->
-    <a href="/admin/dashboard" class="{{ 'active' if request.path == '/admin/dashboard' else '' }}">
+    <a href="/admin/dashboard" class="nav-primary {{ 'active' if request.path == '/admin/dashboard' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
         <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
       </svg>
       Dashboard
     </a>
+    <!-- Activity -->
+    <a href="/admin/activity" class="nav-primary {{ 'active' if request.path == '/admin/activity' else '' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      Activity
+    </a>
     <!-- Inventory -->
-    <a href="/admin/inventory" class="{{ 'active' if '/admin/inventory' in request.path else '' }}">
+    <a href="/admin/inventory" class="nav-primary {{ 'active' if '/admin/inventory' in request.path else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
       </svg>
       Inventory
     </a>
     <!-- Outstanding -->
-    <a href="/admin/outstanding" class="{{ 'active' if request.path == '/admin/outstanding' else '' }}">
+    <a href="/admin/outstanding" class="nav-secondary {{ 'active' if request.path == '/admin/outstanding' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
         <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
@@ -408,14 +497,14 @@
       Outstanding
     </a>
     <!-- Aging -->
-    <a href="/admin/aging" class="{{ 'active' if request.path == '/admin/aging' else '' }}">
+    <a href="/admin/aging" class="nav-secondary {{ 'active' if request.path == '/admin/aging' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
       </svg>
       Aging
     </a>
     <!-- Rotation -->
-    <a href="/admin/rotation" class="{{ 'active' if request.path == '/admin/rotation' else '' }}">
+    <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
         <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
@@ -423,7 +512,7 @@
       Rotation
     </a>
     <!-- Drivers -->
-    <a href="/admin/drivers" class="{{ 'active' if request.path == '/admin/drivers' else '' }}">
+    <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
         <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
@@ -431,21 +520,21 @@
       Drivers
     </a>
     <!-- Movement -->
-    <a href="/admin/movement" class="{{ 'active' if request.path == '/admin/movement' else '' }}">
+    <a href="/admin/movement" class="nav-secondary {{ 'active' if request.path == '/admin/movement' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
       </svg>
       Movement
     </a>
     <!-- Search -->
-    <a href="/admin/search" class="{{ 'active' if request.path == '/admin/search' else '' }}">
+    <a href="/admin/search" class="nav-primary {{ 'active' if request.path == '/admin/search' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
       </svg>
       Search
     </a>
     <!-- Receipts -->
-    <a href="/admin/receipts" class="{{ 'active' if request.path == '/admin/receipts' else '' }}">
+    <a href="/admin/receipts" class="nav-secondary {{ 'active' if request.path == '/admin/receipts' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
         <polyline points="14 2 14 8 20 8"/>
@@ -456,7 +545,7 @@
       Receipts
     </a>
     <!-- Cylinders Registry -->
-    <a href="/admin/cylinders" class="{{ 'active' if '/admin/cylinders' in request.path else '' }}">
+    <a href="/admin/cylinders" class="nav-secondary {{ 'active' if '/admin/cylinders' in request.path else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="10" y="2" width="4" height="20" rx="2"/>
         <ellipse cx="12" cy="2" rx="6" ry="2.5"/>
@@ -465,7 +554,7 @@
       Cylinders
     </a>
     <!-- Customers -->
-    <a href="/admin/customers" class="{{ 'active' if '/admin/customers' in request.path else '' }}">
+    <a href="/admin/customers" class="nav-primary {{ 'active' if '/admin/customers' in request.path else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
         <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
@@ -473,7 +562,7 @@
       Customers
     </a>
     <!-- Products Config -->
-    <a href="/admin/products" class="{{ 'active' if request.path == '/admin/products' else '' }}">
+    <a href="/admin/products" class="nav-secondary {{ 'active' if request.path == '/admin/products' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
       </svg>
@@ -527,65 +616,60 @@
 <!-- ── BOTTOM NAV (mobile) ── -->
 <nav class="bottom-nav">
   <div class="bottom-nav-inner">
-    <a href="/admin/dashboard" class="bn-item {{ 'active' if request.path == '/admin/dashboard' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
-        <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
-      </svg>
-      Home
+    <!-- Home -->
+    <a href="/admin/dashboard" class="bn-item {{ 'active' if request.path == '/admin/dashboard' else '' }}" data-color="blue">
+      <div class="bn-glow" style="background: radial-gradient(circle, rgba(59,130,246,0.2) 0%, rgba(59,130,246,0.06) 55%, rgba(59,130,246,0) 100%);"></div>
+      <div class="bn-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+          <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+        </svg>
+        <span>Home</span>
+      </div>
     </a>
-    <a href="/admin/inventory" class="bn-item {{ 'active' if '/admin/inventory' in request.path else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-      Inventory
+    <!-- Activity -->
+    <a href="/admin/activity" class="bn-item {{ 'active' if request.path == '/admin/activity' else '' }}" data-color="orange">
+      <div class="bn-glow" style="background: radial-gradient(circle, rgba(249,115,22,0.2) 0%, rgba(249,115,22,0.06) 55%, rgba(249,115,22,0) 100%);"></div>
+      <div class="bn-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+          <line x1="16" y1="2" x2="16" y2="6"/>
+          <line x1="8" y1="2" x2="8" y2="6"/>
+          <line x1="3" y1="10" x2="21" y2="10"/>
+        </svg>
+        <span>Activity</span>
+      </div>
     </a>
-    <a href="/admin/outstanding" class="bn-item {{ 'active' if request.path == '/admin/outstanding' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-      </svg>
-      Stock
+    <!-- Inventory -->
+    <a href="/admin/inventory" class="bn-item {{ 'active' if '/admin/inventory' in request.path else '' }}" data-color="green">
+      <div class="bn-glow" style="background: radial-gradient(circle, rgba(16,185,129,0.2) 0%, rgba(16,185,129,0.06) 55%, rgba(16,185,129,0) 100%);"></div>
+      <div class="bn-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+        </svg>
+        <span>Inventory</span>
+      </div>
     </a>
-    <a href="/admin/aging" class="bn-item {{ 'active' if request.path == '/admin/aging' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
-      Aging
+    <!-- Search -->
+    <a href="/admin/search" class="bn-item {{ 'active' if request.path == '/admin/search' else '' }}" data-color="purple">
+      <div class="bn-glow" style="background: radial-gradient(circle, rgba(139,92,246,0.2) 0%, rgba(139,92,246,0.06) 55%, rgba(139,92,246,0) 100%);"></div>
+      <div class="bn-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <span>Search</span>
+      </div>
     </a>
-    <a href="/admin/rotation" class="bn-item {{ 'active' if request.path == '/admin/rotation' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-      </svg>
-      Rotation
-    </a>
-    <a href="/admin/drivers" class="bn-item {{ 'active' if request.path == '/admin/drivers' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-        <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-      </svg>
-      Drivers
-    </a>
-    <a href="/admin/search" class="bn-item {{ 'active' if request.path == '/admin/search' else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      Search
-    </a>
-    <a href="/admin/cylinders" class="bn-item {{ 'active' if '/admin/cylinders' in request.path else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="10" y="2" width="4" height="20" rx="2"/>
-        <ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
-      </svg>
-      Cylinders
-    </a>
-    <a href="/admin/customers" class="bn-item {{ 'active' if '/admin/customers' in request.path else '' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
-      Customers
+    <!-- Customers -->
+    <a href="/admin/customers" class="bn-item {{ 'active' if '/admin/customers' in request.path else '' }}" data-color="red">
+      <div class="bn-glow" style="background: radial-gradient(circle, rgba(239,68,68,0.2) 0%, rgba(239,68,68,0.06) 55%, rgba(239,68,68,0) 100%);"></div>
+      <div class="bn-content">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+        <span>Customers</span>
+      </div>
     </a>
   </div>
 </nav>

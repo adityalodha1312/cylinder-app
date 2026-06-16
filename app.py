@@ -586,6 +586,51 @@ def build_events():
     events.sort(key=lambda x: (x['date_obj'] or date.min, x['time']))
     return events
 
+def get_activity_events():
+    """Sorted list of all activity scans from Sheet1, enriched with Customer column or batch_map fallback"""
+    try:
+        if scan_ws is None:
+            return []
+        rows = scan_ws.get_all_values()
+        if len(rows) < 2:
+            return []
+        
+        batch_map = build_batch_map()
+        events = []
+        for r in rows[1:]:
+            if len(r) >= 5 and r[4].strip():
+                uid = r[4].strip()
+                date_str = r[0].strip()
+                time_str = r[1].strip()
+                driver = r[2].strip()
+                action = r[3].strip()
+                
+                # Retrieve from Column F (index 5) if present, otherwise fall back to batch_map
+                customer = r[5].strip() if len(r) > 5 else ''
+                if not customer:
+                    key = f"{date_str}||{time_str}||{driver}||{action}"
+                    customer = batch_map.get(key, '')
+                
+                # Standardize Customer name display
+                cust_display = customer if customer else ('Depot' if action == 'Filling' else '—')
+                
+                events.append({
+                    'date': date_str,
+                    'time': time_str,
+                    'driver': driver,
+                    'action': action,
+                    'uid': uid,
+                    'customer': cust_display,
+                    'date_obj': parse_date(date_str)
+                })
+        
+        # Sort newest first for chronological view
+        events.sort(key=lambda x: (x['date_obj'] or date.min, x['time']), reverse=True)
+        return events
+    except Exception as e:
+        print("Error getting activity events:", e)
+        return []
+
 def build_outstanding():
     """Outstanding cylinders per customer"""
     events          = build_events()
@@ -872,26 +917,36 @@ def get_cylinder_history(uid):
 
 def get_cylinder_status(uid):
     uid_upper = uid.strip().upper()
+    
+    # Check if the UID is registered in Cylinders sheet
+    registered = False
+    try:
+        cyls = get_all_cylinders()
+        registered = any(c['uid'].strip().upper() == uid_upper for c in cyls)
+    except Exception:
+        registered = False
+        
     scan_rows = get_scan_rows()
     history = [r for r in scan_rows if r['uid'].strip().upper() == uid_upper]
+    
     if not history:
-        return {'status': 'Empty', 'owner': None, 'date': None}
+        return {'status': 'Empty', 'owner': None, 'date': None, 'registered': registered}
     
     history.sort(key=lambda x: (parse_date(x['date']) or date.min, x['time']))
     last_event = history[-1]
     action = last_event['action']
     
     if action == 'Filling':
-        return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date']}
+        return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
     elif action == 'Delivery':
         batch_map = build_batch_map()
         key = f"{last_event['date']}||{last_event['time']}||{last_event['driver']}||{last_event['action']}"
         customer = batch_map.get(key, '(Unknown Customer)')
-        return {'status': 'Delivered', 'owner': customer, 'date': last_event['date']}
+        return {'status': 'Delivered', 'owner': customer, 'date': last_event['date'], 'registered': registered}
     elif action == 'Collection':
-        return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date']}
+        return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
         
-    return {'status': 'Empty', 'owner': None, 'date': None}
+    return {'status': 'Empty', 'owner': None, 'date': None, 'registered': registered}
 
 @app.route('/api/cylinder_status/<uid>')
 def api_cylinder_status(uid):
@@ -962,6 +1017,19 @@ def admin_dashboard():
         high_count    = high_count,
         today_scans   = today_scans,
         top_customers = top_customers
+    )
+
+@app.route('/admin/activity')
+@admin_required
+def admin_activity():
+    events = get_activity_events()
+    drivers = sorted(list(set(e['driver'] for e in events if e.get('driver'))))
+    today_str = date.today().strftime('%d-%m-%Y')
+    return render_template('activity.html',
+        user      = session['user'],
+        events    = events,
+        drivers   = drivers,
+        today_str = today_str
     )
 
 @app.route('/admin/outstanding')

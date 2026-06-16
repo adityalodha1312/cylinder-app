@@ -293,6 +293,7 @@
   .status-badge.filled { background: #d4edda; color: #155724; }
   .status-badge.delivered { background: #fff3cd; color: #856404; }
   .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
+  .status-badge.warning { background: #fffbeb; color: #b45309; border: 1.5px solid #fde68a; }
 
   /* ── CUSTOM SEARCHABLE DROPDOWN ── */
   .autocomplete-container {
@@ -705,6 +706,26 @@ async function validateRow(inputEl) {
     
     badgeEl.className = "status-badge";
     invalidRows.delete(rowDiv);
+    
+    if (data.registered === false) {
+      badgeEl.classList.add("warning");
+      badgeEl.innerText = "⚠️ Unregistered Cylinder (Allowed to Scan)";
+      inputEl.dataset.action = globalAction;
+      
+      // Re-validate other rows that were marked as duplicates because this duplicate might be resolved now
+      let inputs = document.getElementsByName("cylinders");
+      for (let i = 0; i < inputs.length; i++) {
+        if (inputs[i] !== inputEl && inputs[i].value.trim()) {
+          let otherRow = inputs[i].closest(".cylinder-row");
+          let otherBadge = otherRow ? otherRow.querySelector(".status-badge") : null;
+          if (otherBadge && otherBadge.innerText.includes("Duplicate")) {
+            validateRow(inputs[i]);
+          }
+        }
+      }
+      updateSubmitButton();
+      return;
+    }
     
     if (globalAction === "Filling") {
       if (currentStatus === "Empty") {

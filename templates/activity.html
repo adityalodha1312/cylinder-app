@@ -1,0 +1,254 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Activity Log{% endblock %}
+
+{% block head %}
+<style>
+  /* Extra styling for Activity Log table */
+  .badge-action {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .clickable-uid {
+    font-family: monospace;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--green-700);
+    text-decoration: none;
+    transition: color 0.15s;
+  }
+  .clickable-uid:hover {
+    color: var(--green-50);
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Operational Activity Log</div>
+  <div class="page-sub" id="activitySub">
+    Showing today's real-time cylinder dispatch and collection records.
+  </div>
+</div>
+
+<!-- ── FILTERS PANEL ── -->
+<div class="card card-pad" style="margin-bottom: 20px; border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);">
+  <div style="display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end;">
+    
+    <!-- Date picker with "All" button -->
+    <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 180px;">
+      <label for="filterDate" style="font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.4px;">Date</label>
+      <div style="display: flex; gap: 6px; align-items: center; width: 100%;">
+        <input type="date" id="filterDate" style="flex: 1; padding: 9px 12px; border: 1.5px solid var(--gray-bd); border-radius: 10px; font-family: inherit; font-size: 14px; color: var(--dark-text); outline: none; background: #fff;" onchange="filterTable()">
+        <button id="btnClearDate" type="button" style="padding: 9px 14px; border: 1.5px solid var(--gray-bd); border-radius: 10px; background: #f0f4f0; color: var(--green-900); font-size: 13.5px; cursor: pointer; transition: all 0.15s; font-weight: 600;" onclick="clearDate()" title="Show all dates">All</button>
+      </div>
+    </div>
+
+    <!-- Driver select dropdown -->
+    <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px;">
+      <label for="filterDriver" style="font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.4px;">Driver</label>
+      <select id="filterDriver" style="width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-bd); border-radius: 10px; font-family: inherit; font-size: 14px; color: var(--dark-text); outline: none; background: #fff;" onchange="filterTable()">
+        <option value="">— All Drivers —</option>
+        {% for d in drivers %}
+          <option value="{{ d | lower }}">{{ d }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <!-- Action type select dropdown -->
+    <div style="display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 160px;">
+      <label for="filterAction" style="font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.4px;">Action</label>
+      <select id="filterAction" style="width: 100%; padding: 9px 12px; border: 1.5px solid var(--gray-bd); border-radius: 10px; font-family: inherit; font-size: 14px; color: var(--dark-text); outline: none; background: #fff;" onchange="filterTable()">
+        <option value="">— All Actions —</option>
+        <option value="delivery">Delivery</option>
+        <option value="collection">Collection</option>
+        <option value="filling">Filling</option>
+      </select>
+    </div>
+
+    <!-- Search Text Box -->
+    <div style="display: flex; flex-direction: column; gap: 6px; flex: 2; min-width: 240px;">
+      <label for="filterSearch" style="font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.4px;">Search UID / Customer</label>
+      <div class="search-bar" style="max-width: 100%; width: 100%;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+        </svg>
+        <input type="text" id="filterSearch" placeholder="Search Cylinder UID or Customer..." oninput="filterTable()" autocomplete="off">
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ── LIVE COUNTER & SUMMARY ── -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 0 4px;">
+  <div style="font-size: 13.5px; color: var(--gray-text);" id="resultCount">
+    Loading logs...
+  </div>
+</div>
+
+<!-- ── ACTIVITY LOG TABLE ── -->
+<div class="table-wrap">
+  {% if events %}
+  <table id="activityTable">
+    <thead>
+      <tr>
+        <th style="width: 110px;">Date</th>
+        <th style="width: 90px;">Time</th>
+        <th style="width: 140px;">Cylinder UID</th>
+        <th style="width: 130px;">Action</th>
+        <th style="width: 140px;">Driver</th>
+        <th>Customer / Location</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in events %}
+      <tr class="table-row" 
+          data-date="{{ e.date }}" 
+          data-driver="{{ e.driver | lower }}" 
+          data-action="{{ e.action | lower }}" 
+          data-search="{{ (e.uid ~ ' ' ~ e.customer) | lower }}">
+        <td style="font-weight: 500; font-variant-numeric: tabular-nums;">{{ e.date }}</td>
+        <td style="color: var(--gray-text); font-size: 13.5px; font-variant-numeric: tabular-nums;">{{ e.time }}</td>
+        <td>
+          <a href="/admin/search?uid={{ e.uid }}" class="clickable-uid" title="See full scan history for this cylinder">
+            {{ e.uid }}
+          </a>
+        </td>
+        <td>
+          {% if e.action == 'Delivery' %}
+            <span class="badge badge-green">Delivery</span>
+          {% elif e.action == 'Collection' %}
+            <span class="badge badge-orange">Collection</span>
+          {% elif e.action == 'Filling' %}
+            <span class="badge badge-blue">Filling</span>
+          {% else %}
+            <span class="badge" style="background:#eee; color:#666;">{{ e.action }}</span>
+          {% endif %}
+        </td>
+        <td style="font-weight: 500;">{{ e.driver }}</td>
+        <td>
+          {% if e.customer == 'Depot' %}
+            <span style="color: var(--gray-text); font-style: italic; display: inline-flex; align-items: center; gap: 4px;">
+              🏭 Depot
+            </span>
+          {% elif e.customer == '—' %}
+            <span style="color: var(--gray-bd);">—</span>
+          {% else %}
+            <strong style="color: var(--dark-text);">{{ e.customer }}</strong>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- Empty state for search and filtering -->
+  <div id="emptySearch" style="display:none; padding: 64px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 12px;">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+    <div style="font-size: 15px; font-weight: 600; color: var(--dark-text); margin-bottom: 4px;">No Scan Activities Found</div>
+    <div style="font-size: 13.5px; color: var(--gray-text);">Try adjusting or clearing your filters (e.g. date, driver, or search string).</div>
+  </div>
+
+  {% else %}
+  <!-- Complete empty sheet state -->
+  <div style="padding: 80px 24px; text-align: center; background: #fff; border-radius: 14px;">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 16px;">
+      <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">Activity Log Empty</div>
+    <div style="font-size: 13.5px; color: var(--gray-text);">No scanned entries have been submitted to Sheet1 yet.</div>
+  </div>
+  {% endif %}
+</div>
+
+<script>
+  // Convert YYYY-MM-DD -> DD-MM-YYYY
+  function formatPickerDate(val) {
+    if (!val) return "";
+    const parts = val.split("-");
+    if (parts.length !== 3) return "";
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+
+  // Convert DD-MM-YYYY -> YYYY-MM-DD
+  function formatToPicker(val) {
+    if (!val) return "";
+    const parts = val.split("-");
+    if (parts.length !== 3) return "";
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+
+  function filterTable() {
+    const pickerVal = document.getElementById("filterDate").value;
+    const filterDateStr = formatPickerDate(pickerVal); // e.g. "16-06-2026"
+    
+    const filterDriver = document.getElementById("filterDriver").value.toLowerCase();
+    const filterAction = document.getElementById("filterAction").value.toLowerCase();
+    const filterSearch = document.getElementById("filterSearch").value.trim().toLowerCase();
+
+    const rows = document.querySelectorAll("#activityTable tbody .table-row");
+    let visible = 0;
+
+    rows.forEach(row => {
+      const rowDate   = row.dataset.date;
+      const rowDriver = row.dataset.driver;
+      const rowAction = row.dataset.action;
+      const rowSearch = row.dataset.search;
+
+      const matchesDate   = !filterDateStr || rowDate === filterDateStr;
+      const matchesDriver = !filterDriver  || rowDriver === filterDriver;
+      const matchesAction = !filterAction  || rowAction === filterAction;
+      const matchesSearch = !filterSearch  || rowSearch.includes(filterSearch);
+
+      const isVisible = matchesDate && matchesDriver && matchesAction && matchesSearch;
+      row.style.display = isVisible ? "" : "none";
+      if (isVisible) visible++;
+    });
+
+    // Update Counter
+    const countEl = document.getElementById("resultCount");
+    if (countEl) {
+      let context = filterDateStr ? `on <strong>${filterDateStr}</strong>` : "across <strong>all dates</strong>";
+      countEl.innerHTML = `Showing <strong>${visible}</strong> matching activity record${visible !== 1 ? "s" : ""} ${context}.`;
+    }
+
+    // Toggle Empty State view
+    const tableEl = document.getElementById("activityTable");
+    const emptyEl = document.getElementById("emptySearch");
+    if (tableEl && emptyEl) {
+      if (visible === 0 && (filterDateStr || filterDriver || filterAction || filterSearch)) {
+        emptyEl.style.display = "block";
+      } else {
+        emptyEl.style.display = "none";
+      }
+    }
+  }
+
+  function clearDate() {
+    document.getElementById("filterDate").value = "";
+    filterTable();
+  }
+
+  // Pre-populate datepicker with today's date on window load
+  window.addEventListener("DOMContentLoaded", () => {
+    // We can fetch today's date using local browser time in YYYY-MM-DD
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    
+    document.getElementById("filterDate").value = `${yyyy}-${mm}-${dd}`;
+    filterTable();
+  });
+</script>
+{% endblock %}
