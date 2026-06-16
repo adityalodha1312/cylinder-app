@@ -34,6 +34,7 @@ CUSTOMER_SHEET_NAME = "Customers"
 CYLINDER_SHEET_NAME = "Cylinders"
 CYLINDER_MAINT_NAME = "Cylinder Maintenance"
 BULK_TANKS_NAME     = "Bulk Tanks"
+PRODUCTS_SHEET_NAME = "Products"
 
 # Cache worksheet objects at startup to avoid roundtrip sheet lookup calls
 try:
@@ -55,6 +56,10 @@ try:
         bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
     except Exception:
         bulk_tanks_ws = None
+    try:
+        products_ws = doc.worksheet(PRODUCTS_SHEET_NAME)
+    except Exception:
+        products_ws = None
 except Exception as e:
     print("Error caching Google Sheets worksheets:", e)
     doc = None
@@ -66,6 +71,64 @@ except Exception as e:
     cyl_ws = None
     cyl_maint_ws = None
     bulk_tanks_ws = None
+    products_ws = None
+
+# ── Default products list (fallback if Products sheet not found) ──────────────
+DEFAULT_PRODUCTS_CONFIG = [
+    {'id': 'arg_pura',     'name': 'ARG Pura',      'gas_type': 'ARG', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0,    'unit': 'Cum', 'is_virtual': False},
+    {'id': 'acm_90_10',   'name': 'ACM (90.10)_',  'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.3512, 'unit': 'Cum', 'is_virtual': False},
+    {'id': 'co2_90_10',   'name': 'Co2 (90.10)_',  'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 1.35,   'unit': 'KG',  'is_virtual': True},
+    {'id': 'co2_pure',    'name': 'Co2',            'gas_type': 'CO2', 'cylinder_type': 'Standard', 'gas_per_cyl': 30.0,   'unit': 'KG',  'is_virtual': False},
+    {'id': 'n2_cyl',      'name': 'N2 Cyl',         'gas_type': 'N2',  'cylinder_type': 'Standard', 'gas_per_cyl': 7.0,    'unit': 'Cum', 'is_virtual': False},
+    {'id': 'oxygen_pure', 'name': 'OXYGEN',          'gas_type': 'OXY', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0,    'unit': 'Cum', 'is_virtual': False},
+    {'id': 'ahm_92_08',   'name': 'AHM(92.08)',     'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.92,   'unit': 'Cum', 'is_virtual': False},
+    {'id': 'ahm_98_02',   'name': 'AHM (98.02)',    'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.98,   'unit': 'Cum', 'is_virtual': False},
+    {'id': 'arg_dura',    'name': 'ARG Dura',       'gas_type': 'ARG', 'cylinder_type': 'Dura',     'gas_per_cyl': 0.0,    'unit': 'Cum', 'is_virtual': False},
+    {'id': 'n2_dura',     'name': 'N2Dura',         'gas_type': 'N2',  'cylinder_type': 'Dura',     'gas_per_cyl': 0.88,   'unit': 'Cum', 'is_virtual': False},
+    {'id': 'oxygen_dura', 'name': 'Oxygen Dura',    'gas_type': 'OXY', 'cylinder_type': 'Dura',     'gas_per_cyl': 0.0,    'unit': 'Cum', 'is_virtual': False},
+]
+
+def get_products_config():
+    """Reads product rows from the 'Products' Google Sheet.
+    Falls back to DEFAULT_PRODUCTS_CONFIG if the sheet is missing or unreadable."""
+    global products_ws
+    try:
+        if products_ws is None and doc:
+            try:
+                products_ws = doc.worksheet(PRODUCTS_SHEET_NAME)
+            except Exception:
+                pass
+        if products_ws is None:
+            return DEFAULT_PRODUCTS_CONFIG
+
+        rows = products_ws.get_all_values()
+        if len(rows) < 2:
+            return DEFAULT_PRODUCTS_CONFIG
+
+        # Expected header order:
+        # Product ID | Display Name | Gas Type | Cylinder Type | Gas Per Cylinder | Unit | Is Virtual?
+        config = []
+        for r in rows[1:]:  # skip header
+            if len(r) < 6 or not r[0].strip():
+                continue
+            try:
+                gas_per = float(r[4].strip()) if r[4].strip() else 0.0
+            except ValueError:
+                gas_per = 0.0
+            is_virtual = str(r[6]).strip().upper() == 'TRUE' if len(r) > 6 else False
+            config.append({
+                'id':            r[0].strip(),
+                'name':          r[1].strip(),
+                'gas_type':      r[2].strip().upper(),
+                'cylinder_type': r[3].strip().capitalize(),
+                'gas_per_cyl':   gas_per,
+                'unit':          r[5].strip(),
+                'is_virtual':    is_virtual,
+            })
+        return config if config else DEFAULT_PRODUCTS_CONFIG
+    except Exception as e:
+        print("get_products_config error:", e)
+        return DEFAULT_PRODUCTS_CONFIG
 
 # Helper functions to fetch customer details from Google Sheets
 def get_customer_names():
@@ -1438,19 +1501,7 @@ def calculate_table1_filled_inventory():
     cylinders = get_all_cylinders()
     maintenance = get_all_maintenance()
     
-    products_config = [
-        {'id': 'arg_pura', 'name': 'ARG Pura', 'gas_type': 'ARG', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
-        {'id': 'acm_90_10', 'name': 'ACM (90.10)_', 'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.3512, 'unit': 'Cum'},
-        {'id': 'co2_90_10', 'name': 'Co2 (90.10)_', 'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 1.35, 'unit': 'KG', 'is_virtual': True},
-        {'id': 'co2_pure', 'name': 'Co2', 'gas_type': 'CO2', 'cylinder_type': 'Standard', 'gas_per_cyl': 30.0, 'unit': 'KG'},
-        {'id': 'n2_cyl', 'name': 'N2 Cyl', 'gas_type': 'N2', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
-        {'id': 'oxygen_pure', 'name': 'OXYGEN', 'gas_type': 'OXY', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0, 'unit': 'Cum'},
-        {'id': 'ahm_92_08', 'name': 'AHM(92.08)', 'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.92, 'unit': 'Cum'},
-        {'id': 'ahm_98_02', 'name': 'AHM (98.02)', 'gas_type': 'AHM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.98, 'unit': 'Cum'},
-        {'id': 'arg_dura', 'name': 'ARG Dura', 'gas_type': 'ARG', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.0, 'unit': 'Cum'},
-        {'id': 'n2_dura', 'name': 'N2Dura', 'gas_type': 'N2', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.88, 'unit': 'Cum'},
-        {'id': 'oxygen_dura', 'name': 'Oxygen Dura', 'gas_type': 'OXY', 'cylinder_type': 'Dura', 'gas_per_cyl': 0.0, 'unit': 'Cum'}
-    ]
+    products_config = get_products_config()
     
     t1_rows = {p['id']: {**p, 'filled_count': 0, 'total_gas': 0.0} for p in products_config}
     
@@ -2486,15 +2537,29 @@ def _generate_offer_pdf(customer_name):
     
     footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
     
-    # 1. Noble Air Gases Header Layout
-    story.append(Paragraph("NOBLE", brand_style1))
-    story.append(Paragraph("air gases", brand_style2))
-    story.append(Spacer(1, 4))
+    # 1. Noble Air Gases Header Layout — use actual logo image
+    import os as _os
+    from reportlab.platypus import Image as RLImage
+
+    logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
+
+    if _os.path.exists(logo_path):
+        # Centre the logo: fit within 200pt wide × 80pt tall, keep aspect ratio
+        logo_img = RLImage(logo_path, width=200, height=80, kind='proportional')
+        logo_img.hAlign = 'CENTER'
+        story.append(logo_img)
+        story.append(Spacer(1, 6))
+    else:
+        # Fallback to text if logo file not found
+        story.append(Paragraph("NOBLE", brand_style1))
+        story.append(Paragraph("air gases", brand_style2))
+        story.append(Spacer(1, 4))
+
     story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
     story.append(Spacer(1, 4))
     story.append(Paragraph("✉ sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📞 +91 9225309555", header_contact_style))
     story.append(Spacer(1, 6))
-    
+
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
     
     # 2. Document Title
