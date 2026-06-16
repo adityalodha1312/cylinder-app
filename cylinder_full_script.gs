@@ -51,6 +51,7 @@ function onOpen() {
     .addSeparator()
     .addItem('🗄️ Setup Registry Sheets (Cylinders + Maintenance)', 'setupRegistrySheets')
     .addItem('📊 Setup Bulk Tanks Sheet', 'setupBulkTanksSheet')
+    .addItem('📋 Setup Products Config Sheet', 'setupProductsSheet')
     .addItem('🔄 Rebuild Cylinder Statuses from Log', 'rebuildCylinderRegistry')
     .addToUi();
 }
@@ -1748,3 +1749,136 @@ function rebuildCylinderRegistry() {
   SpreadsheetApp.getUi().alert('✅ Cylinder registry successfully rebuilt from scan log history!');
 }
 
+
+// ============================================================
+//  PRODUCTS CONFIG SHEET SETUP
+//  Creates / verifies the "Products" sheet that controls
+//  which rows appear in Table 1 (Filled Cylinder Inventory)
+//  on the Admin Portal's Inventory / Report page.
+// ============================================================
+function setupProductsSheet() {
+  const PRODUCTS_SHEET = 'Products';
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let ps = ss.getSheetByName(PRODUCTS_SHEET);
+
+  if (!ps) {
+    ps = ss.insertSheet(PRODUCTS_SHEET);
+  }
+
+  // Only write if sheet is empty (don't overwrite manager edits)
+  if (ps.getLastRow() > 0) {
+    SpreadsheetApp.getUi().alert(
+      '⚠️ Products sheet already exists and has data.\n\n' +
+      'No changes were made to preserve your existing configuration.\n\n' +
+      'To reset, manually clear all rows in the "Products" sheet and run this again.'
+    );
+    return;
+  }
+
+  // ── Headers ──────────────────────────────────────────────────────────────
+  const headers = [
+    'Product ID',
+    'Display Name',
+    'Gas Type',
+    'Cylinder Type',
+    'Gas Per Cylinder',
+    'Unit',
+    'Is Virtual?'
+  ];
+
+  const headerRange = ps.getRange(1, 1, 1, headers.length);
+  headerRange.setValues([headers])
+    .setBackground('#0F6E56')
+    .setFontColor('#ffffff')
+    .setFontWeight('bold')
+    .setFontSize(11)
+    .setHorizontalAlignment('center');
+
+  // Column widths
+  ps.setColumnWidth(1, 140);  // Product ID
+  ps.setColumnWidth(2, 180);  // Display Name
+  ps.setColumnWidth(3, 110);  // Gas Type
+  ps.setColumnWidth(4, 130);  // Cylinder Type
+  ps.setColumnWidth(5, 150);  // Gas Per Cylinder
+  ps.setColumnWidth(6, 80);   // Unit
+  ps.setColumnWidth(7, 110);  // Is Virtual?
+  ps.setFrozenRows(1);
+
+  // ── Default 11 product rows ──────────────────────────────────────────────
+  // Matches exactly what is hardcoded in app.py DEFAULT_PRODUCTS_CONFIG
+  const rows = [
+    ['arg_pura',     'ARG Pura',       'ARG', 'Standard', 7.0,    'Cum', 'FALSE'],
+    ['acm_90_10',   'ACM (90.10)_',   'ACM', 'Standard', 6.3512, 'Cum', 'FALSE'],
+    ['co2_90_10',   'Co2 (90.10)_',   'ACM', 'Standard', 1.35,   'KG',  'TRUE'],
+    ['co2_pure',    'Co2',            'CO2', 'Standard', 30.0,   'KG',  'FALSE'],
+    ['n2_cyl',      'N2 Cyl',         'N2',  'Standard', 7.0,    'Cum', 'FALSE'],
+    ['oxygen_pure', 'OXYGEN',         'OXY', 'Standard', 7.0,    'Cum', 'FALSE'],
+    ['ahm_92_08',   'AHM(92.08)',     'AHM', 'Standard', 6.92,   'Cum', 'FALSE'],
+    ['ahm_98_02',   'AHM (98.02)',    'AHM', 'Standard', 6.98,   'Cum', 'FALSE'],
+    ['arg_dura',    'ARG Dura',       'ARG', 'Dura',     0.0,    'Cum', 'FALSE'],
+    ['n2_dura',     'N2Dura',         'N2',  'Dura',     0.88,   'Cum', 'FALSE'],
+    ['oxygen_dura', 'Oxygen Dura',    'OXY', 'Dura',     0.0,    'Cum', 'FALSE'],
+  ];
+
+  ps.getRange(2, 1, rows.length, headers.length).setValues(rows);
+
+  // ── Styling for data rows ─────────────────────────────────────────────────
+  // Alternate row shading
+  for (let i = 0; i < rows.length; i++) {
+    const bg = i % 2 === 0 ? '#f8faf8' : '#ffffff';
+    ps.getRange(i + 2, 1, 1, headers.length).setBackground(bg);
+  }
+
+  // Highlight the one virtual row (co2_90_10) in light orange so it stands out
+  ps.getRange(4, 1, 1, headers.length).setBackground('#fff3cd'); // row 4 = co2_90_10
+
+  // Is Virtual? column: dropdown validation TRUE / FALSE
+  const dvRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['TRUE', 'FALSE'], true)
+    .setAllowInvalid(false)
+    .build();
+  ps.getRange(2, 7, rows.length, 1).setDataValidation(dvRule);
+
+  // Gas Type column: dropdown validation
+  const gasRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['ARG', 'CO2', 'N2', 'OXY', 'ACM', 'AHM'], true)
+    .setAllowInvalid(true)
+    .build();
+  ps.getRange(2, 3, rows.length, 1).setDataValidation(gasRule);
+
+  // Cylinder Type column: dropdown validation
+  const typeRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Standard', 'Dura'], true)
+    .setAllowInvalid(true)
+    .build();
+  ps.getRange(2, 4, rows.length, 1).setDataValidation(typeRule);
+
+  // Gas Per Cylinder: number format
+  ps.getRange(2, 5, rows.length, 1).setNumberFormat('0.0000');
+
+  // Add a note on the header explaining the columns
+  ps.getRange(1, 1).setNote(
+    'Product ID: unique key used by the app (do not change existing IDs)'
+  );
+  ps.getRange(1, 5).setNote(
+    'Gas Per Cylinder: default volume/weight per cylinder used in the report.\n' +
+    'If a cylinder has a Gas Capacity in the Maintenance sheet, that value is used instead.'
+  );
+  ps.getRange(1, 7).setNote(
+    'Is Virtual? TRUE means this row shares the cylinder count of another row\n' +
+    '(e.g. Co2 (90.10)_ borrows count from ACM cylinders).'
+  );
+
+  SpreadsheetApp.getUi().alert(
+    '✅ Products Config Sheet Created!\n\n' +
+    '• 11 default product rows have been pre-filled.\n' +
+    '• You can now:\n' +
+    '   – Rename any Display Name (Column B)\n' +
+    '   – Adjust Gas Per Cylinder values (Column E)\n' +
+    '   – Change Unit (Column F)\n' +
+    '   – Add new rows for new products\n\n' +
+    '• The Admin Portal Inventory page (Table 1) will automatically\n' +
+    '  pick up your changes on the next page load.\n\n' +
+    '⚠️ Do NOT change Product ID (Column A) for existing rows.'
+  );
+}
