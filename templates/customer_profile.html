@@ -16,8 +16,18 @@
   }
   .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
   .profile-name { font-size: 26px; font-weight: 700; color: var(--dark-text); }
-  .profile-meta { font-size: 14px; color: var(--gray-text); margin-top: 4px; display: flex; gap: 16px; flex-wrap: wrap; }
+  .profile-meta { font-size: 14px; color: var(--gray-text); margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
   .profile-meta span { display: flex; align-items: center; gap: 5px; }
+  .meta-badge {
+    background: var(--green-light); color: var(--green-dark);
+    border: 1.5px solid var(--gray-bd); border-radius: 20px;
+    padding: 3px 10px; font-size: 12.5px; font-weight: 600;
+    line-height: 1; display: inline-flex; align-items: center; gap: 5px;
+  }
+  .meta-badge.empty {
+    background: var(--gray-bg); color: var(--gray-text); border-style: dashed;
+    opacity: 0.75; font-style: italic; font-weight: 500;
+  }
 
   /* ── Cards / Sections ── */
   .section-card {
@@ -106,11 +116,23 @@
         </span>
       {% endif %}
     </div>
-    <div class="profile-name">{{ customer_name }}</div>
-    <div class="profile-meta">
-      {% if info.id %}<span>🪪 {{ info.id }}</span>{% endif %}
-      {% if info.email %}<span>✉️ {{ info.email }}</span>{% endif %}
-      {% if info.phone %}<span>📞 {{ info.phone }}</span>{% endif %}
+    <div style="display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-top:6px;">
+      <h1 class="profile-name" style="margin:0; line-height:1.2;">{{ customer_name }}</h1>
+      <div class="profile-meta" style="margin-top:0;">
+        {% if info.id %}
+          <span class="meta-badge">🪪 {{ info.id }}</span>
+        {% endif %}
+        {% if info.email %}
+          <span class="meta-badge">✉️ {{ info.email }}</span>
+        {% else %}
+          <span class="meta-badge empty">✉️ No Email</span>
+        {% endif %}
+        {% if info.phone %}
+          <span class="meta-badge">📞 {{ info.phone }}</span>
+        {% else %}
+          <span class="meta-badge empty">📞 No Phone</span>
+        {% endif %}
+      </div>
     </div>
   </div>
 
