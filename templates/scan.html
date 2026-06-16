@@ -375,6 +375,137 @@
     display: inline-block;
     transition: background-color 0.2s;
   }
+
+  /* ── WIZARD LAYOUT & PROGRESS BAR ── */
+  .step-container {
+    display: none;
+    animation: fadeIn 0.2s ease-in-out;
+  }
+  .step-container.active {
+    display: block;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .progress-tracker {
+    margin-bottom: 20px;
+    background: white;
+    border-radius: 12px;
+    border: 1.5px solid #e8e9e4;
+    padding: 12px 16px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .progress-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+  }
+  .step-label-text {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--green-700);
+    transition: color 0.2s;
+  }
+  .step-status-text {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--gray-700);
+  }
+  .progress-bar-bg {
+    height: 6px;
+    background: #e8e9e4;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: var(--green-500);
+    border-radius: 3px;
+    width: 33.3%;
+    transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
+  }
+
+  /* ── WIZARD BACK BUTTON ── */
+  .nav-back-btn {
+    padding: 15px;
+    background: white;
+    color: var(--gray-700);
+    border: 1.5px solid #d8d9d4;
+    border-radius: 12px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .nav-back-btn:hover {
+    border-color: var(--gray-700);
+    color: var(--gray-900);
+    background: #fcfcfb;
+  }
+
+  /* ── STEP 2 FEED ── */
+  .scan-feed {
+    margin-top: 14px;
+    margin-bottom: 20px;
+    max-height: 180px;
+    overflow-y: auto;
+    background: white;
+    border-radius: 12px;
+    border: 1.5px solid #e8e9e4;
+    padding: 10px 14px;
+  }
+  .scan-feed-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-700);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 8px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #f0f1ed;
+  }
+  .scan-feed-empty {
+    font-size: 13px;
+    color: var(--gray-200);
+    text-align: center;
+    padding: 20px 0;
+  }
+  .scan-feed-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    padding: 6px 0;
+    border-bottom: 1px dashed #f0f1ed;
+  }
+  .scan-feed-row:last-child {
+    border-bottom: none;
+  }
+  .scan-feed-uid {
+    font-weight: 600;
+    color: var(--gray-900);
+  }
+  .scan-feed-status {
+    font-size: 12px;
+    color: var(--green-700);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  /* Full-width scan reader */
+  #reader {
+    width: 100% !important;
+  }
+  #reader video {
+    width: 100% !important;
+    max-height: 380px;
+    object-fit: cover;
+  }
 </style>
 </head>
 <body>
@@ -419,70 +550,109 @@
     </div>
   </div>
 
-  <div class="field">
-    <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
-    <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
+  <!-- PROGRESS TRACKER -->
+  <div class="progress-tracker">
+    <div class="progress-info">
+      <span class="step-label-text" id="step-label-text">Step 1 of 3: Setup Scan</span>
+      <span class="step-status-text" id="step-status-text">Setup</span>
+    </div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-bar-fill" style="width: 33.3%;"></div>
+    </div>
   </div>
 
-  <div class="field">
-    <label>Action</label>
-    <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField(); updateTheme();">
-      {% if user and user['role'] == 'filler' %}
-        <option value="Filling">Filling</option>
-      {% elif user and user['role'] == 'driver' %}
-        <option value="Delivery">Delivery</option>
-        <option value="Collection">Collection</option>
-      {% else %}
-        <!-- Manager/Owner sees all options -->
-        <option value="Delivery">Delivery</option>
-        <option value="Collection">Collection</option>
-        <option value="Filling">Filling</option>
-      {% endif %}
-    </select>
-  </div>
+  <!-- STEP 1: SETUP -->
+  <div id="step-1" class="step-container active">
+    <div class="field">
+      <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
+      <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
+    </div>
 
-  <div class="field" id="customer-field" style="display: none;">
-    <label>Customer Name</label>
-    <div class="autocomplete-container">
-      <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
-      <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
-        {% for name in customers %}
-          <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
-        {% endfor %}
+    <div class="field">
+      <label>Action</label>
+      <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField(); updateTheme();">
+        {% if user and user['role'] == 'filler' %}
+          <option value="Filling">Filling</option>
+        {% elif user and user['role'] == 'driver' %}
+          <option value="Delivery">Delivery</option>
+          <option value="Collection">Collection</option>
+        {% else %}
+          <!-- Manager/Owner sees all options -->
+          <option value="Delivery">Delivery</option>
+          <option value="Collection">Collection</option>
+          <option value="Filling">Filling</option>
+        {% endif %}
+      </select>
+    </div>
+
+    <div class="field" id="customer-field" style="display: none;">
+      <label>Customer Name</label>
+      <div class="autocomplete-container">
+        <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+        <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
+          {% for name in customers %}
+            <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
+          {% endfor %}
+        </div>
       </div>
     </div>
+
+    <button class="submit-btn" style="margin-top: 10px;" onclick="goToStep(2)">Continue to Scan</button>
   </div>
 
-  <div class="scanner-card">
-    <div class="scanner-label">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
-      </svg>
-      QR Scanner
-    </div>
-    <div id="reader"></div>
-  </div>
-
-  <div class="count-bar">
-    <span>Cylinders scanned</span>
-    <span class="count-badge" id="scan-count">0</span>
-  </div>
-
-  <p id="status-message"></p>
-
-  <div class="cylinder-list" id="cylinder-container">
-    <div class="cylinder-row">
-      <div style="flex: 1; display: flex; flex-direction: column;">
-        <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
-        <div class="status-badge" style="display: none;"></div>
+  <!-- STEP 2: SCANNING -->
+  <div id="step-2" class="step-container">
+    <div class="scanner-card">
+      <div class="scanner-label">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+        </svg>
+        QR Scanner
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">×</button>
+      <div id="reader"></div>
+    </div>
+
+    <div class="count-bar">
+      <span>Cylinders scanned</span>
+      <span class="count-badge" id="scan-count">0</span>
+    </div>
+
+    <p id="status-message"></p>
+
+    <!-- Scan Feed -->
+    <div class="scan-feed">
+      <div class="scan-feed-title">Recently Scanned</div>
+      <div id="scan-feed-list">
+        <div class="scan-feed-empty">No cylinders scanned in this session yet.</div>
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px; margin-top: 10px;">
+      <button class="nav-back-btn" onclick="goToStep(1)">Back</button>
+      <button class="submit-btn" style="margin-bottom: 0;" onclick="goToStep(3)">Review Scanned</button>
     </div>
   </div>
 
-  <button class="add-btn" onclick="addCylinder()">+ Add Cylinder Manually</button>
-  <button class="submit-btn" id="submit-btn" onclick="submitForm()">Submit Scan</button>
+  <!-- STEP 3: REVIEW & SUBMIT -->
+  <div id="step-3" class="step-container">
+    <div class="cylinder-list" id="cylinder-container">
+      <div class="cylinder-row">
+        <div style="flex: 1; display: flex; flex-direction: column;">
+          <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
+          <div class="status-badge" style="display: none;"></div>
+        </div>
+        <button class="remove-btn" onclick="removeRow(this)">×</button>
+      </div>
+    </div>
+
+    <button class="add-btn" onclick="addCylinder()">+ Add Cylinder Manually</button>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.5fr; gap: 12px; margin-top: 10px;">
+      <button class="nav-back-btn" onclick="goToStep(2)">Back to Scan</button>
+      <button class="submit-btn" style="margin-bottom: 0;" id="submit-btn" onclick="submitForm()">Submit Scan</button>
+    </div>
+  </div>
 
 </div>
 
@@ -557,10 +727,115 @@ function toggleCustomerField() {
   }
 }
 
+let currentStep = 1;
+
 document.addEventListener("DOMContentLoaded", () => {
   toggleCustomerField();
   updateTheme();
+  goToStep(1);
 });
+
+function goToStep(step) {
+  if (step === 2 && currentStep === 1) {
+    // Validate driver
+    let driver = document.getElementById("driver-input").value.trim();
+    if (!driver) {
+      alert("Please enter driver name");
+      return;
+    }
+    
+    // Validate customer (if action requires it)
+    let action = document.getElementById("action-select").value;
+    if (action === "Delivery" || action === "Collection") {
+      let customer = document.getElementById("customer-select").value.trim();
+      if (!customer) {
+        alert("Please select a Customer Name");
+        return;
+      }
+      
+      // Case-insensitive match check and autocomplete correctness
+      let matchedCustomer = validCustomers.find(c => c.toLowerCase() === customer.toLowerCase());
+      if (!matchedCustomer) {
+        alert("Please select a valid customer from the suggestions list.");
+        return;
+      }
+      customer = matchedCustomer;
+      document.getElementById("customer-select").value = customer;
+    }
+  }
+
+  // Toggle step container visibility
+  document.getElementById("step-1").classList.remove("active");
+  document.getElementById("step-2").classList.remove("active");
+  document.getElementById("step-3").classList.remove("active");
+  
+  document.getElementById(`step-${step}`).classList.add("active");
+  currentStep = step;
+
+  // Update Progress Tracker
+  let labelText = "";
+  let statusText = "";
+  let percent = 33.3;
+  
+  if (step === 1) {
+    labelText = "Step 1 of 3: Setup Scan";
+    statusText = "Setup";
+    percent = 33.3;
+  } else if (step === 2) {
+    labelText = "Step 2 of 3: QR Scanner";
+    statusText = "Scanning";
+    percent = 66.6;
+    updateScanFeedList();
+  } else if (step === 3) {
+    labelText = "Step 3 of 3: Review & Submit";
+    statusText = "Review";
+    percent = 100.0;
+  }
+  
+  document.getElementById("step-label-text").innerText = labelText;
+  document.getElementById("step-status-text").innerText = statusText;
+  document.getElementById("progress-bar-fill").style.width = percent + "%";
+}
+
+function updateScanFeedList() {
+  let feedList = document.getElementById("scan-feed-list");
+  if (!feedList) return;
+  
+  let inputs = document.getElementsByName("cylinders");
+  let html = "";
+  let count = 0;
+  
+  for (let i = 0; i < inputs.length; i++) {
+    let val = inputs[i].value.trim();
+    if (val) {
+      count++;
+      let row = inputs[i].closest(".cylinder-row");
+      let badge = row ? row.querySelector(".status-badge") : null;
+      let badgeText = badge && badge.style.display !== "none" ? badge.innerText : "Verified";
+      let isConflict = badge && badge.classList.contains("conflict");
+      let isWarning = badge && badge.classList.contains("warning");
+      
+      let statusColor = "var(--green-700)";
+      if (isConflict) statusColor = "#e24b4a";
+      else if (isWarning) statusColor = "#b45309";
+      
+      html += `
+        <div class="scan-feed-row">
+          <span class="scan-feed-uid">${val.toUpperCase()}</span>
+          <span class="scan-feed-status" style="color: ${statusColor};">
+            ${isConflict ? '⚠️' : isWarning ? '⚠️' : '✓'} ${badgeText}
+          </span>
+        </div>
+      `;
+    }
+  }
+  
+  if (count === 0) {
+    feedList.innerHTML = '<div class="scan-feed-empty">No cylinders scanned in this session yet.</div>';
+  } else {
+    feedList.innerHTML = html;
+  }
+}
 
 function addCylinder() {
   let container = document.getElementById("cylinder-container");
@@ -592,6 +867,11 @@ function updateCount() {
   document.getElementById("scan-count").innerText = count;
   let topCount = document.getElementById("scan-count-top");
   if (topCount) topCount.innerText = count;
+  
+  let scanCountBtn = document.getElementById("scan-count-btn");
+  if (scanCountBtn) scanCountBtn.innerText = count;
+  
+  updateScanFeedList();
 }
 
 function updateTheme() {
@@ -667,6 +947,7 @@ async function validateRow(inputEl) {
         }
       }
     }
+    updateScanFeedList();
     return;
   }
 
@@ -687,6 +968,7 @@ async function validateRow(inputEl) {
     inputEl.dataset.action = "";
     invalidRows.add(rowDiv);
     updateSubmitButton();
+    updateScanFeedList();
     return;
   }
   
@@ -724,6 +1006,7 @@ async function validateRow(inputEl) {
         }
       }
       updateSubmitButton();
+      updateScanFeedList();
       return;
     }
     
@@ -799,6 +1082,7 @@ async function validateRow(inputEl) {
   }
   
   updateSubmitButton();
+  updateScanFeedList();
 }
 
 function revalidateAllRows() {
@@ -917,6 +1201,7 @@ function resetForm() {
   updateCount();
   updateSubmitButton();
   updateTheme();
+  goToStep(1);
 }
 </script>
 
