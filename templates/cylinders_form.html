@@ -289,6 +289,14 @@
           placeholder="e.g. 80% ARG / 20% CO2">
       </div>
 
+      <!-- Is UHP Checkbox -->
+      <div class="form-group" style="display: flex; flex-direction: row; align-items: center; gap: 8px; margin-top: 24px;">
+        <input type="checkbox" id="is_uhp" name="is_uhp" value="Yes"
+          {% if (form.is_uhp if form else 'No') == 'Yes' %}checked{% endif %}
+          style="width: 18px; height: 18px; accent-color: var(--green-700); cursor: pointer;">
+        <label for="is_uhp" style="cursor: pointer; margin-bottom: 0;">Is UHP (Ultra High Purity)?</label>
+      </div>
+
       <!-- 14. Manufacture Date -->
       <div class="form-group">
         <label for="manufacture_date">Manufacture Date</label>

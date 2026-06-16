@@ -141,6 +141,9 @@
       {% elif cyl.status == 'Lost' %}
         <span class="status-lost">Lost</span>
       {% endif %}
+      {% if maint.is_uhp == 'Yes' %}
+        <span class="hydro-badge" style="background:#eff6ff; color:#1d4ed8;">⚡ UHP</span>
+      {% endif %}
       {% if hydro_badge == 'OK' %}
         <span class="hydro-badge hydro-ok">✅ Hydro OK</span>
       {% elif hydro_badge == 'Due Soon' %}
@@ -204,6 +207,7 @@
       {% if maint.is_mixture == 'Yes' %}
       <tr><td>Mix Ratio</td><td>{{ maint.mix_ratio or '—' }}</td></tr>
       {% endif %}
+      <tr><td>Is UHP</td><td><strong>{{ maint.is_uhp or 'No' }}</strong></td></tr>
       <tr><td>Manufacture Date</td><td>{{ maint.manufacture_date or '—' }}</td></tr>
       <tr><td>Last Hydro Test</td><td>{{ maint.last_hydro_date or '—' }}</td></tr>
       <tr><td>Next Hydro Due</td><td>

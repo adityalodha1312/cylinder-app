@@ -1519,7 +1519,7 @@ function setupRegistrySheets() {
     'Cylinder UID', 'Water Capacity (L)', 'Fill Pressure (bar)',
     'Gas Capacity', 'Unit', 'Is Mixture', 'Mix Ratio',
     'Manufacture Date', 'Last Hydro Test Date', 'Next Hydro Test Due',
-    'Hydro Test Status', 'Test Certificate No.'
+    'Hydro Test Status', 'Test Certificate No.', 'Is UHP'
   ];
   maintSheet.getRange(1, 1, 1, maintHeaders.length).setValues([maintHeaders])
     .setBackground('#0F6E56')
@@ -1540,6 +1540,7 @@ function setupRegistrySheets() {
   maintSheet.setColumnWidth(10, 175);
   maintSheet.setColumnWidth(11, 160);
   maintSheet.setColumnWidth(12, 180);
+  maintSheet.setColumnWidth(13, 110);
   maintSheet.setFrozenRows(1);
 
   // Is Mixture dropdown for Column F
@@ -1548,6 +1549,13 @@ function setupRegistrySheets() {
     .setAllowInvalid(false)
     .build();
   maintSheet.getRange(2, 6, 500, 1).setDataValidation(mixtureRule);
+
+  // Is UHP dropdown for Column M
+  const uhpRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(['Yes', 'No'], true)
+    .setAllowInvalid(false)
+    .build();
+  maintSheet.getRange(2, 13, 500, 1).setDataValidation(uhpRule);
 
   // Date format for date columns (H, I, J)
   maintSheet.getRange(2, 8, 500, 3).setNumberFormat('dd-mm-yyyy');

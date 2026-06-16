@@ -327,6 +327,7 @@ def get_all_maintenance():
                 'next_hydro_due'   : r[9].strip() if len(r) > 9 else '',
                 'hydro_test_status': r[10].strip() if len(r) > 10 else '',
                 'cert_no'          : r[11].strip() if len(r) > 11 else '',
+                'is_uhp'           : r[12].strip() if len(r) > 12 else 'No',
             }
         _data_cache['maintenance']      = out
         _data_cache['maintenance_time'] = now
@@ -1990,6 +1991,7 @@ def admin_cylinders_add():
                     data.get('next_hydro_due', '').strip(),
                     data.get('hydro_test_status', '').strip(),
                     data.get('cert_no', '').strip(),
+                    'Yes' if data.get('is_uhp') == 'Yes' else 'No',
                 ])
             return redirect('/admin/cylinders')
         except Exception as e:
@@ -2030,7 +2032,7 @@ def admin_cylinders_edit(uid):
                     cyl.get('last_activity', ''),
                 ]])
             if maint_row and cyl_maint_ws:
-                cyl_maint_ws.update(f'A{maint_row}:L{maint_row}', [[
+                cyl_maint_ws.update(f'A{maint_row}:M{maint_row}', [[
                     uid,
                     data.get('water_capacity', '').strip(),
                     data.get('fill_pressure', '').strip(),
@@ -2043,6 +2045,7 @@ def admin_cylinders_edit(uid):
                     data.get('next_hydro_due', '').strip(),
                     data.get('hydro_test_status', '').strip(),
                     data.get('cert_no', '').strip(),
+                    'Yes' if data.get('is_uhp') == 'Yes' else 'No',
                 ]])
             return redirect('/admin/cylinders')
         except Exception as e:
