@@ -15,15 +15,23 @@
   }
   .clickable-uid {
     font-family: monospace;
-    font-size: 13.5px;
+    font-size: 12px;
     font-weight: 600;
     color: var(--green-700);
     text-decoration: none;
-    transition: color 0.15s;
+    background: var(--green-50);
+    padding: 2.5px 7px;
+    border-radius: 6px;
+    border: 1.5px solid var(--green-100);
+    display: inline-block;
+    transition: all 0.15s ease;
   }
   .clickable-uid:hover {
-    color: var(--green-50);
-    text-decoration: underline;
+    background: var(--green-500);
+    color: white;
+    border-color: var(--green-500);
+    text-decoration: none;
+    transform: translateY(-1px);
   }
 </style>
 {% endblock %}
@@ -100,7 +108,7 @@
       <tr>
         <th style="width: 110px;">Date</th>
         <th style="width: 90px;">Time</th>
-        <th style="width: 140px;">Cylinder UID</th>
+        <th>Cylinder UID(s)</th>
         <th style="width: 130px;">Action</th>
         <th style="width: 140px;">Driver</th>
         <th>Customer / Location</th>
@@ -112,13 +120,20 @@
           data-date="{{ e.date }}" 
           data-driver="{{ e.driver | lower }}" 
           data-action="{{ e.action | lower }}" 
-          data-search="{{ (e.uid ~ ' ' ~ e.customer) | lower }}">
+          data-search="{{ (e.uids | join(' ') ~ ' ' ~ e.customer) | lower }}">
         <td style="font-weight: 500; font-variant-numeric: tabular-nums;">{{ e.date }}</td>
         <td style="color: var(--gray-text); font-size: 13.5px; font-variant-numeric: tabular-nums;">{{ e.time }}</td>
         <td>
-          <a href="/admin/search?uid={{ e.uid }}" class="clickable-uid" title="See full scan history for this cylinder">
-            {{ e.uid }}
-          </a>
+          <div style="margin-bottom: 5px; font-size: 11px; font-weight: 600; color: var(--gray-text);">
+            {{ e.uids | length }} cylinder{{ 's' if e.uids | length > 1 else '' }}
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px;">
+            {% for uid in e.uids %}
+              <a href="/admin/search?uid={{ uid }}" class="clickable-uid" title="See full scan history for this cylinder">
+                {{ uid }}
+              </a>
+            {% endfor %}
+          </div>
         </td>
         <td>
           {% if e.action == 'Delivery' %}

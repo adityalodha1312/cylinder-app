@@ -587,7 +587,7 @@ def build_events():
     return events
 
 def get_activity_events():
-    """Sorted list of all activity scans from Sheet1, enriched with Customer column or batch_map fallback"""
+    """Sorted list of all activity scans from Sheet1, grouped by submission, enriched with Customer column or batch_map fallback"""
     try:
         if scan_ws is None:
             return []
@@ -596,7 +596,7 @@ def get_activity_events():
             return []
         
         batch_map = build_batch_map()
-        events = []
+        grouped = {}
         for r in rows[1:]:
             if len(r) >= 5 and r[4].strip():
                 uid = r[4].strip()
@@ -614,15 +614,22 @@ def get_activity_events():
                 # Standardize Customer name display
                 cust_display = customer if customer else ('Depot' if action == 'Filling' else '—')
                 
-                events.append({
-                    'date': date_str,
-                    'time': time_str,
-                    'driver': driver,
-                    'action': action,
-                    'uid': uid,
-                    'customer': cust_display,
-                    'date_obj': parse_date(date_str)
-                })
+                group_key = (date_str, time_str, driver, action, cust_display)
+                if group_key not in grouped:
+                    grouped[group_key] = []
+                grouped[group_key].append(uid)
+        
+        events = []
+        for (date_str, time_str, driver, action, cust_display), uids in grouped.items():
+            events.append({
+                'date': date_str,
+                'time': time_str,
+                'driver': driver,
+                'action': action,
+                'uids': uids,
+                'customer': cust_display,
+                'date_obj': parse_date(date_str)
+            })
         
         # Sort newest first for chronological view
         events.sort(key=lambda x: (x['date_obj'] or date.min, x['time']), reverse=True)
