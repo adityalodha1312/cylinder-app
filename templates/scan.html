@@ -329,6 +329,51 @@
     color: var(--green-700);
     font-weight: 500;
   }
+
+  /* ── TOP STATS BAR ── */
+  .top-stats-bar {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .stat-box {
+    background: white;
+    border-radius: 12px;
+    border: 1.5px solid #e8e9e4;
+    padding: 12px 14px;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+  }
+  .stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-700);
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+  .stat-val {
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--gray-900);
+    transition: color 0.2s;
+  }
+  .stat-val.count-highlight {
+    background: var(--green-700);
+    color: white;
+    padding: 3px 14px;
+    border-radius: 20px;
+    font-size: 15px;
+    min-width: 44px;
+    display: inline-block;
+    transition: background-color 0.2s;
+  }
 </style>
 </head>
 <body>
@@ -361,6 +406,18 @@
 <!-- MAIN FORM -->
 <div class="form-body" id="main-form">
 
+  <!-- TOP STATS BAR -->
+  <div class="top-stats-bar">
+    <div class="stat-box">
+      <span class="stat-label">Scan Mode</span>
+      <span class="stat-val" id="current-action-badge" style="color: var(--green-700);">Delivery</span>
+    </div>
+    <div class="stat-box">
+      <span class="stat-label">Scanned Count</span>
+      <span class="stat-val count-highlight" id="scan-count-top">0</span>
+    </div>
+  </div>
+
   <div class="field">
     <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
     <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
@@ -368,7 +425,7 @@
 
   <div class="field">
     <label>Action</label>
-    <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField();">
+    <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField(); updateTheme();">
       {% if user and user['role'] == 'filler' %}
         <option value="Filling">Filling</option>
       {% elif user and user['role'] == 'driver' %}
@@ -501,6 +558,7 @@ function toggleCustomerField() {
 
 document.addEventListener("DOMContentLoaded", () => {
   toggleCustomerField();
+  updateTheme();
 });
 
 function addCylinder() {
@@ -531,6 +589,50 @@ function updateCount() {
     if (inputs[i].value.trim() !== "") count++;
   }
   document.getElementById("scan-count").innerText = count;
+  let topCount = document.getElementById("scan-count-top");
+  if (topCount) topCount.innerText = count;
+}
+
+function updateTheme() {
+  const action = document.getElementById("action-select").value;
+  const root = document.documentElement;
+  const actionBadge = document.getElementById('current-action-badge');
+  
+  if (actionBadge) {
+    actionBadge.innerText = action;
+  }
+  
+  if (action === 'Delivery') {
+    root.style.setProperty('--green-50', '#E1F5EE');
+    root.style.setProperty('--green-100', '#9FE1CB');
+    root.style.setProperty('--green-500', '#1D9E75');
+    root.style.setProperty('--green-700', '#0F6E56');
+    root.style.setProperty('--green-900', '#04342C');
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0F6E56');
+    if (actionBadge) {
+      actionBadge.style.color = 'var(--green-700)';
+    }
+  } else if (action === 'Collection') {
+    root.style.setProperty('--green-50', '#EFF6FF');
+    root.style.setProperty('--green-100', '#BFDBFE');
+    root.style.setProperty('--green-500', '#3B82F6');
+    root.style.setProperty('--green-700', '#1E40AF');
+    root.style.setProperty('--green-900', '#1E3A8A');
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1E40AF');
+    if (actionBadge) {
+      actionBadge.style.color = 'var(--green-700)';
+    }
+  } else if (action === 'Filling') {
+    root.style.setProperty('--green-50', '#FEF3C7');
+    root.style.setProperty('--green-100', '#FDE68A');
+    root.style.setProperty('--green-500', '#F59E0B');
+    root.style.setProperty('--green-700', '#B45309');
+    root.style.setProperty('--green-900', '#78350F');
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#B45309');
+    if (actionBadge) {
+      actionBadge.style.color = 'var(--green-700)';
+    }
+  }
 }
 
 function showStatus(msg) {
@@ -793,6 +895,7 @@ function resetForm() {
   invalidRows.clear();
   updateCount();
   updateSubmitButton();
+  updateTheme();
 }
 </script>
 
