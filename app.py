@@ -2612,23 +2612,23 @@ def _generate_offer_pdf(customer_name):
     # Custom Styles
     brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
     brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
-    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
-    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=dark_gray, alignment=1)
     
-    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=8)
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=15, leading=17, textColor=colors.black, alignment=1, spaceAfter=8)
     
-    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=8)
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=8)
     
-    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=1)
-    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11, textColor=colors.black, alignment=1)
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, alignment=1)
     
-    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=0)
-    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11, textColor=colors.black, alignment=0)
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, alignment=0)
     
-    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, spaceBefore=10, spaceAfter=6)
-    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black)
+    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=11, leading=13, textColor=colors.black, spaceBefore=10, spaceAfter=6)
+    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9.5, leading=13, textColor=colors.black)
     
-    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=13, textColor=colors.black, alignment=0)
     
     # 1. Noble Air Gases Header Layout — use actual logo image
     import os as _os
@@ -2637,11 +2637,11 @@ def _generate_offer_pdf(customer_name):
     logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
 
     if _os.path.exists(logo_path):
-        # Centre the logo: fit within 200pt wide × 80pt tall, keep aspect ratio
-        logo_img = RLImage(logo_path, width=200, height=80, kind='proportional')
+        # Centre the logo: fit within 320pt wide × 120pt tall, keep aspect ratio
+        logo_img = RLImage(logo_path, width=320, height=120, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
-        story.append(Spacer(1, 6))
+        story.append(Spacer(1, 8))
     else:
         # Fallback to text if logo file not found
         story.append(Paragraph("NOBLE", brand_style1))
@@ -2650,7 +2650,7 @@ def _generate_offer_pdf(customer_name):
 
     story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
     story.append(Spacer(1, 4))
-    story.append(Paragraph("✉ sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 📞 +91 9225309555", header_contact_style))
+    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
     story.append(Spacer(1, 6))
 
     story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
@@ -2661,30 +2661,37 @@ def _generate_offer_pdf(customer_name):
     # 3. Metadata block table
     meta_data = [
         [
-            Paragraph(f"<b>To</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: M/s {customer_name}", left_cell_style),
-            Paragraph(f"<b>K.Attn</b> : {attn}", left_cell_style)
+            Paragraph("<b>To</b>", left_cell_bold_style),
+            Paragraph(f": M/s {customer_name}", left_cell_style),
+            Paragraph("<b>K.Attn</b>", left_cell_bold_style),
+            Paragraph(f": {attn}", left_cell_style)
         ],
         [
-            Paragraph(f"<b>Tel</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {tel}", left_cell_style),
-            Paragraph(f"<b>Date</b> &nbsp;&nbsp;&nbsp;: {q_date}", left_cell_style)
+            Paragraph("<b>Tel</b>", left_cell_bold_style),
+            Paragraph(f": {tel}", left_cell_style),
+            Paragraph("<b>Date</b>", left_cell_bold_style),
+            Paragraph(f": {q_date}", left_cell_style)
         ],
         [
-            Paragraph(f"<b>Q. No.</b> : {q_no}", left_cell_style),
-            Paragraph(f"<b>Ref</b> &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;: {ref}", left_cell_style)
+            Paragraph("<b>Q. No.</b>", left_cell_bold_style),
+            Paragraph(f": {q_no}", left_cell_style),
+            Paragraph("<b>Ref</b>", left_cell_bold_style),
+            Paragraph(f": {ref}", left_cell_style)
         ]
     ]
-    meta_table = Table(meta_data, colWidths=[270, 270])
+    meta_table = Table(meta_data, colWidths=[50, 220, 50, 220])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 3),
-        ('TOPPADDING', (0,0), (-1,-1), 3),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
     ]))
     
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceBefore=4, spaceAfter=4))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#888888'), spaceBefore=4, spaceAfter=4))
     story.append(meta_table)
-    story.append(HRFlowable(width="100%", thickness=1.5, color=colors.black, spaceBefore=4, spaceAfter=8))
+    story.append(Spacer(1, 10))
     
     # 4. Intro text
     story.append(Paragraph("Thank you for your interest in our products & services. We are pleased to offer our most Competitive quote for your consideration with regards to your requirements", intro_style))
@@ -2715,11 +2722,12 @@ def _generate_offer_pdf(customer_name):
     prod_table = Table(table_data, colWidths=[40, 200, 120, 90, 90])
     prod_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d8d9d4')),
+        ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
         ('TOPPADDING', (0,0), (-1,-1), 8),
         ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ('BACKGROUND', (0,0), (-1,0), colors.white),
     ]))
     story.append(prod_table)
