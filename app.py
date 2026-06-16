@@ -787,38 +787,6 @@ def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter=
             'date_obj' : d,
             'days_out' : days_out,
         })
-
-    # ── Filling events from raw scan rows (cylinder back at depot) ──────────
-    if direction_filter in ('', 'in'):
-        for r in all_scan_rows:
-            if r.get('action') != 'Filling':
-                continue
-            d = parse_date(r.get('date', ''))
-            if from_date and d and d < from_date:
-                continue
-            if to_date and d and d > to_date:
-                continue
-
-            uid  = r.get('uid', '')
-            gas  = uid.split('-')[0].upper() if '-' in uid else ''
-            if gas_filter and gas != gas_filter.upper():
-                continue
-            if customer_filter:
-                continue   # Filling has no customer, skip if customer filter active
-
-            movements.append({
-                'uid'      : uid,
-                'gas_type' : gas,
-                'direction': 'in',
-                'action'   : 'Filling',
-                'customer' : '— Depot —',
-                'driver'   : r.get('driver', ''),
-                'date'     : r.get('date', ''),
-                'time'     : r.get('time', ''),
-                'date_obj' : d,
-                'days_out' : None,
-            })
-
     # Sort chronologically descending
     movements.sort(key=lambda x: (x['date_obj'] or date.min, x['time']), reverse=True)
     return movements
@@ -1013,7 +981,12 @@ def admin_dashboard():
 
     today_str    = date.today().strftime('%d-%m-%Y')
     scan_rows    = get_scan_rows()
-    today_scans  = len([r for r in scan_rows if r['date'] == today_str])
+    # Count unique submissions today (same date, time, driver, action)
+    today_batches = set(
+        (r['date'], r['time'], r['driver'], r['action'])
+        for r in scan_rows if r['date'] == today_str
+    )
+    today_scans  = len(today_batches)
 
     top_customers = [c for c in outstanding if c['outstanding'] > 0][:5]
 
@@ -2768,7 +2741,6 @@ def _generate_offer_pdf(customer_name):
         ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
     ]))
     
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#888888'), spaceBefore=2, spaceAfter=2))
     story.append(meta_table)
     story.append(Spacer(1, 6))
     
