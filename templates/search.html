@@ -133,6 +133,68 @@
   .search-prompt svg { opacity: 0.25; margin-bottom: 16px; }
   .search-prompt-title { font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px; }
   .search-prompt-sub   { font-size: 13.5px; color: var(--gray-text); }
+
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+
+  /* ── Modal ── */
+  .modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #ffffff;
+    border-radius: 12px;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1.5px solid var(--gray-bd);
+  }
+  .modal-title { font-size: 16px; font-weight: 700; color: var(--dark-text); }
+  .modal-close {
+    background: none;
+    border: none;
+    font-size: 20px;
+    cursor: pointer;
+    color: var(--gray-text);
+    padding: 4px;
+    border-radius: 4px;
+    line-height: 1;
+  }
+  .modal-close:hover { background: var(--gray-bg); }
+  .modal-body {
+    padding: 20px;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    padding: 12px 20px;
+    background: #f7f8f6;
+    border-top: 1.5px solid var(--gray-bd);
+  }
 </style>
 {% endblock %}
 
@@ -175,17 +237,24 @@
 
   <!-- ── CURRENT STATUS ── -->
   {% if current %}
-    <div class="status-card with-customer">
-      <div class="status-icon-wrap" style="background: rgba(15,110,86,0.12);">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-        </svg>
+    <div class="status-card with-customer" style="display: flex; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box; flex-wrap: wrap; gap: 16px;">
+      <div style="display: flex; align-items: center; gap: 16px;">
+        <div class="status-icon-wrap" style="background: rgba(15,110,86,0.12);">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+            <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+          </svg>
+        </div>
+        <div>
+          <div class="status-label" style="color: #0F6E56;">Currently With</div>
+          <div class="status-value">{{ current.owner }}</div>
+          <div class="status-since">Since {{ current.since }}</div>
+        </div>
       </div>
       <div>
-        <div class="status-label" style="color: #0F6E56;">Currently With</div>
-        <div class="status-value">{{ current.owner }}</div>
-        <div class="status-since">Since {{ current.since }}</div>
+        <button class="back-btn" style="background: white; border-color: var(--gray-bd); color: var(--green-700); cursor: pointer;" onclick="openMarkCollectedModal('{{ uid }}', '{{ current.owner }}')">
+          Mark Collected (Depot Return)
+        </button>
       </div>
     </div>
   {% else %}
@@ -271,4 +340,89 @@
     <div class="search-prompt-sub">Search by UID to track delivery and collection events for any cylinder.</div>
   </div>
 {% endif %}
+<!-- Manual Collection Modal -->
+<div class="modal-overlay" id="collect-modal" onclick="closeCollectModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">📥 Mark Cylinder as Collected</div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <form action="/admin/cylinders/mark_collected" method="POST">
+      <div class="modal-body">
+        <input type="hidden" name="uid" id="modal-uid">
+        <input type="hidden" name="customer" id="modal-customer">
+        <input type="hidden" name="redirect_url" value="{{ request.path }}?uid={{ uid }}">
+        
+        <div style="margin-bottom: 16px; font-size: 14px; color: var(--dark-text);">
+          You are marking cylinder <strong id="modal-uid-text" style="font-family: monospace; color: var(--green-700);"></strong> as collected from <strong id="modal-customer-text"></strong>.
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; color: var(--gray-text); margin-bottom: 8px;">Collected By:</label>
+          <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="driver_type" value="select" checked onchange="toggleDriverInput()">
+              Select Driver
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="driver_type" value="custom" onchange="toggleDriverInput()">
+              Custom Entry
+            </label>
+          </div>
+          
+          <div id="driver-select-container">
+            <select name="driver_select" id="driver-select" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; background: white; font-family: inherit;">
+              <option value="">-- Choose Driver --</option>
+              {% for d in drivers %}
+                <option value="{{ d }}">{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div id="driver-custom-container" style="display: none;">
+            <input type="text" name="driver_custom" id="driver-custom" placeholder="e.g. Returned by Customer" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="back-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text); cursor:pointer;" onclick="closeModal()">Cancel</button>
+        <button type="submit" class="back-btn" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer;" id="confirm-collect-btn">Confirm Return</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openMarkCollectedModal(uid, customer) {
+    document.getElementById('modal-uid').value = uid;
+    document.getElementById('modal-customer').value = customer;
+    document.getElementById('modal-uid-text').innerText = uid;
+    document.getElementById('modal-customer-text').innerText = customer;
+    
+    // reset form
+    document.querySelector('input[name="driver_type"][value="select"]').checked = true;
+    document.getElementById('driver-select').value = "";
+    document.getElementById('driver-custom').value = "";
+    toggleDriverInput();
+    
+    document.getElementById('collect-modal').classList.add('open');
+  }
+  
+  function closeModal() {
+    document.getElementById('collect-modal').classList.remove('open');
+  }
+  
+  function closeCollectModal(e) {
+    if (e.target === document.getElementById('collect-modal')) {
+      closeModal();
+    }
+  }
+  
+  function toggleDriverInput() {
+    const isSelect = document.querySelector('input[name="driver_type"]:checked').value === 'select';
+    document.getElementById('driver-select-container').style.display = isSelect ? 'block' : 'none';
+    document.getElementById('driver-custom-container').style.display = isSelect ? 'none' : 'block';
+  }
+</script>
+
 {% endblock %}

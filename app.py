@@ -1210,11 +1210,15 @@ def admin_search():
                     cyl_owner = {}
         current = cyl_owner if cyl_owner else None
 
+    scan_rows = get_scan_rows()
+    drivers = sorted(list(set(r['driver'].strip() for r in scan_rows if r.get('driver') and r['driver'].strip())))
+
     return render_template('search.html',
         user    = session['user'],
         uid     = uid,
         history = history,
-        current = current
+        current = current,
+        drivers = drivers
     )
 def get_customer_map_batches():
     if map_ws is None:
@@ -2128,6 +2132,67 @@ def admin_cylinder_detail(uid):
     )
 
 
+@app.route('/admin/cylinders/mark_collected', methods=['POST'])
+@admin_required
+def admin_mark_collected():
+    uid = request.form.get('uid', '').strip()
+    customer = request.form.get('customer', '').strip()
+    redirect_url = request.form.get('redirect_url', '/admin/dashboard').strip()
+    
+    if not uid:
+        return redirect(redirect_url)
+        
+    driver_type = request.form.get('driver_type', 'select')
+    if driver_type == 'custom':
+        driver = request.form.get('driver_custom', '').strip()
+        if not driver:
+            driver = "Admin (Manual)"
+    else:
+        driver = request.form.get('driver_select', '').strip()
+        if not driver:
+            driver = "Admin (Manual)"
+            
+    now = datetime.now()
+    # Columns: Date, Time, Driver, Action, UID, Customer
+    row_to_append = [
+        now.strftime('%d-%m-%Y'),
+        now.strftime('%H:%M:%S'),
+        driver,
+        'Collection',
+        uid,
+        customer
+    ]
+    try:
+        global sheet
+        if sheet:
+            sheets_write_with_retry(sheet.append_rows, [row_to_append])
+            
+        # Update Cylinders registry sheet
+        global cyl_ws
+        if cyl_ws is None and doc:
+            try:
+                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+            except Exception:
+                cyl_ws = None
+        if cyl_ws:
+            cyl_rows = cyl_ws.get_all_values()
+            row_num = None
+            for idx, r in enumerate(cyl_rows):
+                if idx == 0:
+                    continue
+                if r and r[0].strip().upper() == uid.upper():
+                    row_num = idx + 1
+                    break
+            if row_num:
+                today_str = now.strftime('%d-%m-%Y')
+                cyl_ws.update(f'E{row_num}:G{row_num}', [['Empty', 'Depot', today_str]])
+    except Exception as e:
+        print("Manual collection log write / registry update error:", e)
+        
+    clear_cache()
+    return redirect(redirect_url)
+
+
 # ================================================================
 #  EXISTING ROUTES (unchanged)
 # ================================================================
@@ -2366,6 +2431,9 @@ def admin_customer_profile(customer_name):
     total_delivered = sum(e['count'] for e in history if e['action'] == 'Delivery')
     total_collected = sum(e['count'] for e in history if e['action'] == 'Collection')
 
+    scan_rows = get_scan_rows()
+    drivers = sorted(list(set(r['driver'].strip() for r in scan_rows if r.get('driver') and r['driver'].strip())))
+
     return render_template('customer_profile.html',
         user               = session['user'],
         info               = info,
@@ -2378,6 +2446,7 @@ def admin_customer_profile(customer_name):
         statement          = statement,
         total_delivered    = total_delivered,
         total_collected    = total_collected,
+        drivers            = drivers,
     )
 
 
@@ -2650,7 +2719,7 @@ def _generate_offer_pdf(customer_name):
     
     buffer = BytesIO()
     # Tighten margins from 36 to 24 to maximize printable vertical space (extra 24pt total height)
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=24, bottomMargin=24)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
     
     # ReportLab Styles
@@ -2664,23 +2733,23 @@ def _generate_offer_pdf(customer_name):
     # Custom Styles (compressed leading and sizes slightly where appropriate)
     brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
     brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
-    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
-    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
     
-    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=4)
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=6)
     
-    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=2, spaceAfter=4)
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=6)
     
-    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=1)
-    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=1)
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=1)
     
-    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=0)
-    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=0)
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=0)
     
-    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10.5, leading=12.5, textColor=colors.black, spaceBefore=6, spaceAfter=3)
-    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, spaceAfter=2)
+    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10.5, leading=12.5, textColor=colors.black, spaceBefore=8, spaceAfter=4)
+    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, spaceAfter=2)
     
-    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, alignment=0)
     
     # 1. Noble Air Gases Header Layout — use actual logo image
     import os as _os
@@ -2693,19 +2762,19 @@ def _generate_offer_pdf(customer_name):
         logo_img = RLImage(logo_path, width=240, height=60, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
-        story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
     else:
         # Fallback to text if logo file not found
         story.append(Paragraph("NOBLE", brand_style1))
         story.append(Paragraph("air gases", brand_style2))
-        story.append(Spacer(1, 2))
+        story.append(Spacer(1, 4))
 
     story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
-    story.append(Spacer(1, 2))
-    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
     story.append(Spacer(1, 4))
+    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
+    story.append(Spacer(1, 8))
 
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=4))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
     
     # 2. Document Title
     story.append(Paragraph("COMMERCIAL OFFER", title_style))
@@ -2734,15 +2803,15 @@ def _generate_offer_pdf(customer_name):
     meta_table = Table(meta_data, colWidths=[50, 220, 50, 220])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2),  # Tightened from 4
-        ('TOPPADDING', (0,0), (-1,-1), 2),     # Tightened from 4
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
     ]))
     
     story.append(meta_table)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 4. Intro text
     story.append(Paragraph("Thank you for your interest in our products & services. We are pleased to offer our most Competitive quote for your consideration with regards to your requirements", intro_style))
@@ -2775,14 +2844,14 @@ def _generate_offer_pdf(customer_name):
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d8d9d4')),
         ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
-        ('TOPPADDING', (0,0), (-1,-1), 4),       # Tightened from 8
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),    # Tightened from 8
-        ('LEFTPADDING', (0,0), (-1,-1), 6),      # Tightened from 8
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),     # Tightened from 8
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ('BACKGROUND', (0,0), (-1,0), colors.white),
     ]))
     story.append(prod_table)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 6. Terms and conditions — dynamic labels and values from form
     story.append(Paragraph("<b>TERMS &amp; CONDITIONS:</b>", terms_title_style))
@@ -2790,13 +2859,13 @@ def _generate_offer_pdf(customer_name):
         if label.strip():
             story.append(Paragraph(f"<b>{label.strip()}</b> : {value.strip()}", terms_item_style))
 
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 7. Footer text
     story.append(Paragraph("For any further queries, please feel free to contact us. We value your business association.", footer_text_style))
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
     story.append(Paragraph("Thanking you,", footer_text_style))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 15))
     
     # Signature line
     sig_data = [
@@ -2805,7 +2874,7 @@ def _generate_offer_pdf(customer_name):
             Paragraph("", cell_style)
         ],
         [
-            Paragraph("<br/>Authorized Signatory", left_cell_style), # Reduced <br/><br/> to <br/>
+            Paragraph("<br/><br/>Authorized Signatory", left_cell_style),
             Paragraph("", cell_style)
         ]
     ]

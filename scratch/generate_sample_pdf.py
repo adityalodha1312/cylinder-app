@@ -10,7 +10,7 @@ def generate_sample():
     output_pdf_path = os.path.join(os.path.dirname(__file__), 'sample_offer.pdf')
     
     # Document setup
-    doc = SimpleDocTemplate(output_pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=24, bottomMargin=24)
+    doc = SimpleDocTemplate(output_pdf_path, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
     story = []
     
     # ReportLab Styles
@@ -24,22 +24,22 @@ def generate_sample():
     # Custom Styles
     brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
     brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
-    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
-    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
     
-    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=4)
-    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=2, spaceAfter=4)
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=6)
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=6)
     
-    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=1)
-    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=1)
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=1)
     
-    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=0)
-    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=0)
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=0)
     
-    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10.5, leading=12.5, textColor=colors.black, spaceBefore=6, spaceAfter=3)
-    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, spaceAfter=2)
+    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10.5, leading=12.5, textColor=colors.black, spaceBefore=8, spaceAfter=4)
+    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, spaceAfter=2)
     
-    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, alignment=0)
     
     # 1. Noble Air Gases Header Layout
     logo_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'static', 'img', 'noble_logo.png'))
@@ -48,18 +48,18 @@ def generate_sample():
         logo_img = RLImage(logo_path, width=240, height=60, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
-        story.append(Spacer(1, 4))
+        story.append(Spacer(1, 8))
     else:
         # Fallback to text
         story.append(Paragraph("NOBLE", brand_style1))
         story.append(Paragraph("air gases", brand_style2))
-        story.append(Spacer(1, 2))
+        story.append(Spacer(1, 4))
         
     story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
-    story.append(Spacer(1, 2))
-    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
     story.append(Spacer(1, 4))
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=4))
+    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
+    story.append(Spacer(1, 8))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
     
     # 2. Document Title
     story.append(Paragraph("COMMERCIAL OFFER", title_style))
@@ -95,15 +95,15 @@ def generate_sample():
     meta_table = Table(meta_data, colWidths=[50, 220, 50, 220])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 2),
-        ('TOPPADDING', (0,0), (-1,-1), 2),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
     ]))
     
     story.append(meta_table)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 4. Intro text
     story.append(Paragraph("Thank you for your interest in our products & services. We are pleased to offer our most Competitive quote for your consideration with regards to your requirements", intro_style))
@@ -143,14 +143,14 @@ def generate_sample():
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d8d9d4')),
         ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('LEFTPADDING', (0,0), (-1,-1), 6),
-        ('RIGHTPADDING', (0,0), (-1,-1), 6),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
         ('BACKGROUND', (0,0), (-1,0), colors.white),
     ]))
     story.append(prod_table)
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 6. Terms and conditions
     story.append(Paragraph("<b>TERMS &amp; CONDITIONS:</b>", terms_title_style))
@@ -165,13 +165,13 @@ def generate_sample():
     for label, value in terms_pairs:
         story.append(Paragraph(f"<b>{label}</b> : {value}", terms_item_style))
         
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 10))
     
     # 7. Footer text
     story.append(Paragraph("For any further queries, please feel free to contact us. We value your business association.", footer_text_style))
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 6))
     story.append(Paragraph("Thanking you,", footer_text_style))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 15))
     
     # Signature line
     sig_data = [
@@ -180,7 +180,7 @@ def generate_sample():
             Paragraph("", cell_style)
         ],
         [
-            Paragraph("<br/>Authorized Signatory", left_cell_style),
+            Paragraph("<br/><br/>Authorized Signatory", left_cell_style),
             Paragraph("", cell_style)
         ]
     ]
