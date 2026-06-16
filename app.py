@@ -2601,7 +2601,8 @@ def _generate_offer_pdf(customer_name):
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    # Tighten margins from 36 to 24 to maximize printable vertical space (extra 24pt total height)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=24, bottomMargin=24)
     story = []
     
     # ReportLab Styles
@@ -2612,26 +2613,26 @@ def _generate_offer_pdf(customer_name):
     green_brand = colors.HexColor('#3fb549')
     dark_gray = colors.HexColor('#2c2c2a')
     
-    # Custom Styles
+    # Custom Styles (compressed leading and sizes slightly where appropriate)
     brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
     brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
-    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=dark_gray, alignment=1)
-    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=dark_gray, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9, leading=11, textColor=dark_gray, alignment=1)
     
-    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=15, leading=17, textColor=colors.black, alignment=1, spaceAfter=8)
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=4)
     
-    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=10, leading=13, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=8)
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=2, spaceAfter=4)
     
-    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=1)
-    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, alignment=1)
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=1)
     
-    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=0)
-    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=colors.black, alignment=0)
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9, leading=11, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=colors.black, alignment=0)
     
-    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=11, leading=13, textColor=colors.black, spaceBefore=10, spaceAfter=6)
-    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9.5, leading=13, textColor=colors.black)
+    terms_title_style = ParagraphStyle('TermsTitle', fontName='Helvetica-Bold', fontSize=10.5, leading=12.5, textColor=colors.black, spaceBefore=6, spaceAfter=3)
+    terms_item_style = ParagraphStyle('TermsItem', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, spaceAfter=2)
     
-    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=13, textColor=colors.black, alignment=0)
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9, leading=12, textColor=colors.black, alignment=0)
     
     # 1. Noble Air Gases Header Layout — use actual logo image
     import os as _os
@@ -2640,23 +2641,23 @@ def _generate_offer_pdf(customer_name):
     logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
 
     if _os.path.exists(logo_path):
-        # Centre the logo: fit within 320pt wide × 120pt tall, keep aspect ratio
-        logo_img = RLImage(logo_path, width=320, height=120, kind='proportional')
+        # Centre the logo: fit within 280pt wide × 75pt tall, keep aspect ratio (down from 320x120)
+        logo_img = RLImage(logo_path, width=280, height=75, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
-        story.append(Spacer(1, 8))
+        story.append(Spacer(1, 4))
     else:
         # Fallback to text if logo file not found
         story.append(Paragraph("NOBLE", brand_style1))
         story.append(Paragraph("air gases", brand_style2))
-        story.append(Spacer(1, 4))
+        story.append(Spacer(1, 2))
 
     story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
-    story.append(Spacer(1, 4))
+    story.append(Spacer(1, 2))
     story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
-    story.append(Spacer(1, 6))
+    story.append(Spacer(1, 4))
 
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=4))
     
     # 2. Document Title
     story.append(Paragraph("COMMERCIAL OFFER", title_style))
@@ -2685,16 +2686,16 @@ def _generate_offer_pdf(customer_name):
     meta_table = Table(meta_data, colWidths=[50, 220, 50, 220])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
-        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 2),  # Tightened from 4
+        ('TOPPADDING', (0,0), (-1,-1), 2),     # Tightened from 4
         ('LEFTPADDING', (0,0), (-1,-1), 0),
         ('RIGHTPADDING', (0,0), (-1,-1), 0),
         ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
     ]))
     
-    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#888888'), spaceBefore=4, spaceAfter=4))
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#888888'), spaceBefore=2, spaceAfter=2))
     story.append(meta_table)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
     
     # 4. Intro text
     story.append(Paragraph("Thank you for your interest in our products & services. We are pleased to offer our most Competitive quote for your consideration with regards to your requirements", intro_style))
@@ -2727,30 +2728,28 @@ def _generate_offer_pdf(customer_name):
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
         ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d8d9d4')),
         ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
-        ('TOPPADDING', (0,0), (-1,-1), 8),
-        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
-        ('LEFTPADDING', (0,0), (-1,-1), 8),
-        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('TOPPADDING', (0,0), (-1,-1), 4),       # Tightened from 8
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),    # Tightened from 8
+        ('LEFTPADDING', (0,0), (-1,-1), 6),      # Tightened from 8
+        ('RIGHTPADDING', (0,0), (-1,-1), 6),     # Tightened from 8
         ('BACKGROUND', (0,0), (-1,0), colors.white),
     ]))
     story.append(prod_table)
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
     
-
     # 6. Terms and conditions — dynamic labels and values from form
     story.append(Paragraph("<b>TERMS &amp; CONDITIONS:</b>", terms_title_style))
     for label, value in terms_pairs:
         if label.strip():
             story.append(Paragraph(f"<b>{label.strip()}</b> : {value.strip()}", terms_item_style))
-            story.append(Spacer(1, 2))
 
-    story.append(Spacer(1, 10))
+    story.append(Spacer(1, 6))
     
     # 7. Footer text
     story.append(Paragraph("For any further queries, please feel free to contact us. We value your business association.", footer_text_style))
-    story.append(Spacer(1, 8))
+    story.append(Spacer(1, 4))
     story.append(Paragraph("Thanking you,", footer_text_style))
-    story.append(Spacer(1, 15))
+    story.append(Spacer(1, 8))
     
     # Signature line
     sig_data = [
@@ -2759,7 +2758,7 @@ def _generate_offer_pdf(customer_name):
             Paragraph("", cell_style)
         ],
         [
-            Paragraph("<br/><br/>Authorized Signatory", left_cell_style),
+            Paragraph("<br/>Authorized Signatory", left_cell_style), # Reduced <br/><br/> to <br/>
             Paragraph("", cell_style)
         ]
     ]
