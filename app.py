@@ -1040,6 +1040,84 @@ def admin_rotation_journey(uid):
         j.pop('date_obj', None)
     return jsonify(journey)
 
+# ── Products Config Editor ─────────────────────────────────────────────────────
+@app.route('/admin/products')
+@admin_required
+def admin_products():
+    """Show the Products Config editor — lets admin edit Table 1 rows."""
+    config = get_products_config()
+    source = 'sheet' if products_ws is not None else 'default'
+    return render_template('products_config.html',
+        user=session['user'],
+        products=config,
+        source=source,
+    )
+
+@app.route('/admin/products/save', methods=['POST'])
+@admin_required
+def admin_products_save():
+    """Save all product rows back to the Products Google Sheet."""
+    global products_ws
+    from flask import jsonify as _jsonify
+
+    # Collect all rows from form
+    ids      = request.form.getlist('pid[]')
+    names    = request.form.getlist('name[]')
+    gas_types= request.form.getlist('gas_type[]')
+    cyl_types= request.form.getlist('cylinder_type[]')
+    gas_vals = request.form.getlist('gas_per_cyl[]')
+    units    = request.form.getlist('unit[]')
+    virtuals = request.form.getlist('is_virtual[]')   # checkboxes — only present if checked
+
+    # Build a set of checked virtual product IDs
+    virtual_set = set(virtuals)
+
+    rows = []
+    for i, pid in enumerate(ids):
+        if not pid.strip():
+            continue
+        is_virt = 'TRUE' if pid.strip() in virtual_set else 'FALSE'
+        try:
+            gval = float(gas_vals[i]) if i < len(gas_vals) else 0.0
+        except ValueError:
+            gval = 0.0
+        rows.append([
+            pid.strip(),
+            names[i].strip()      if i < len(names)     else '',
+            gas_types[i].strip()  if i < len(gas_types)  else '',
+            cyl_types[i].strip()  if i < len(cyl_types)  else 'Standard',
+            gval,
+            units[i].strip()      if i < len(units)      else 'Cum',
+            is_virt,
+        ])
+
+    if not rows:
+        return _jsonify({'ok': False, 'msg': 'No rows to save.'}), 400
+
+    try:
+        # Ensure Products sheet exists
+        if products_ws is None and doc:
+            try:
+                products_ws = doc.worksheet(PRODUCTS_SHEET_NAME)
+            except Exception:
+                products_ws = doc.add_worksheet(
+                    title=PRODUCTS_SHEET_NAME, rows=100, cols=7)
+
+        if products_ws is None:
+            return _jsonify({'ok': False, 'msg': 'Cannot connect to Google Sheets.'}), 500
+
+        # Clear and rewrite
+        products_ws.clear()
+        header = ['Product ID', 'Display Name', 'Gas Type',
+                  'Cylinder Type', 'Gas Per Cylinder', 'Unit', 'Is Virtual?']
+        products_ws.append_row(header, value_input_option='RAW')
+        products_ws.append_rows(rows, value_input_option='RAW')
+
+        return _jsonify({'ok': True, 'msg': f'Saved {len(rows)} products to Google Sheet.'})
+    except Exception as e:
+        print("admin_products_save error:", e)
+        return _jsonify({'ok': False, 'msg': str(e)}), 500
+
 @app.route('/admin/drivers')
 @admin_required
 def admin_drivers():
