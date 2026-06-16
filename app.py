@@ -583,8 +583,8 @@ def build_aging():
         d_date   = cylinder_delivery_date.get(uid)
         days_out = (today - d_date).days if d_date else None
         status   = (
-            'overdue' if days_out and days_out > 30 else
-            'warning' if days_out and days_out > 7  else
+            'overdue' if days_out and days_out > 20 else
+            'warning' if days_out and days_out >= 10 else
             'ok'
         )
         result.append({
@@ -599,6 +599,150 @@ def build_aging():
 
     result.sort(key=lambda x: (x['days_out'] or 0), reverse=True)
     return result
+
+def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter='', direction_filter=''):
+    """Builds cylinder rotation data — every in/out movement event in a date range.
+
+    Direction logic:
+      'out'  = Delivery (cylinder left depot to customer)
+      'in'   = Collection OR Filling (cylinder is back at depot)
+    """
+    events = build_events()
+    all_scan_rows = get_scan_rows()  # for Filling events (no customer in batch_map)
+
+    # Build a delivery-date lookup per UID so we can compute days_out for returns
+    # uid -> list of (delivery_date, customer) tuples, chronological
+    delivery_log = {}
+    for ev in events:
+        uid = ev['uid']
+        if ev['action'] == 'Delivery':
+            delivery_log.setdefault(uid, []).append((ev['date_obj'], ev.get('customer', '')))
+
+    movements = []
+
+    # ── Delivery + Collection from events (have customer) ──────────────────
+    for ev in events:
+        d = ev.get('date_obj')
+        if from_date and d and d < from_date:
+            continue
+        if to_date and d and d > to_date:
+            continue
+
+        action = ev.get('action', '')
+        uid    = ev.get('uid', '')
+        gas    = uid.split('-')[0].upper() if '-' in uid else ''
+
+        if gas_filter and gas != gas_filter.upper():
+            continue
+
+        customer = ev.get('customer', '')
+        if customer_filter and customer.lower() != customer_filter.lower():
+            continue
+
+        if action == 'Delivery':
+            direction = 'out'
+        elif action == 'Collection':
+            direction = 'in'
+        else:
+            continue   # Filling handled separately below
+
+        if direction_filter and direction != direction_filter:
+            continue
+
+        # For Collection: find how many days out since last delivery to same customer
+        days_out = None
+        if action == 'Collection' and d:
+            deliveries_for_uid = delivery_log.get(uid, [])
+            # Last delivery to same customer before this collection date
+            prior = [x for x in deliveries_for_uid if x[0] < d and x[1].lower() == customer.lower()]
+            if prior:
+                last_del = max(prior, key=lambda x: x[0])
+                days_out = (d - last_del[0]).days
+
+        movements.append({
+            'uid'      : uid,
+            'gas_type' : gas,
+            'direction': direction,
+            'action'   : action,
+            'customer' : customer,
+            'driver'   : ev.get('driver', ''),
+            'date'     : ev.get('date', ''),
+            'time'     : ev.get('time', ''),
+            'date_obj' : d,
+            'days_out' : days_out,
+        })
+
+    # ── Filling events from raw scan rows (cylinder back at depot) ──────────
+    if direction_filter in ('', 'in'):
+        for r in all_scan_rows:
+            if r.get('action') != 'Filling':
+                continue
+            d = parse_date(r.get('date', ''))
+            if from_date and d and d < from_date:
+                continue
+            if to_date and d and d > to_date:
+                continue
+
+            uid  = r.get('uid', '')
+            gas  = uid.split('-')[0].upper() if '-' in uid else ''
+            if gas_filter and gas != gas_filter.upper():
+                continue
+            if customer_filter:
+                continue   # Filling has no customer, skip if customer filter active
+
+            movements.append({
+                'uid'      : uid,
+                'gas_type' : gas,
+                'direction': 'in',
+                'action'   : 'Filling',
+                'customer' : '— Depot —',
+                'driver'   : r.get('driver', ''),
+                'date'     : r.get('date', ''),
+                'time'     : r.get('time', ''),
+                'date_obj' : d,
+                'days_out' : None,
+            })
+
+    # Sort chronologically descending
+    movements.sort(key=lambda x: (x['date_obj'] or date.min, x['time']), reverse=True)
+    return movements
+
+
+def build_cylinder_journey(uid):
+    """Returns the full chronological journey of a single cylinder UID."""
+    events    = build_events()
+    all_rows  = get_scan_rows()
+    journey   = []
+
+    for ev in events:
+        if ev.get('uid', '').strip().upper() != uid.strip().upper():
+            continue
+        journey.append({
+            'action'  : ev['action'],
+            'customer': ev.get('customer', ''),
+            'driver'  : ev.get('driver', ''),
+            'date'    : ev.get('date', ''),
+            'time'    : ev.get('time', ''),
+            'date_obj': ev.get('date_obj'),
+        })
+
+    for r in all_rows:
+        if r.get('uid', '').strip().upper() != uid.strip().upper():
+            continue
+        if r.get('action') != 'Filling':
+            continue
+        d = parse_date(r.get('date', ''))
+        journey.append({
+            'action'  : 'Filling',
+            'customer': '— Depot —',
+            'driver'  : r.get('driver', ''),
+            'date'    : r.get('date', ''),
+            'time'    : r.get('time', ''),
+            'date_obj': d,
+        })
+
+    journey.sort(key=lambda x: (x['date_obj'] or date.min, x['time']))
+    return journey
 
 def build_driver_stats():
     """Delivery / collection stats per driver"""
@@ -780,6 +924,58 @@ def admin_aging():
         warning = len(warning),
         ok_count= len(ok)
     )
+
+@app.route('/admin/rotation')
+@admin_required
+def admin_rotation():
+    today_str = date.today().isoformat()
+    from_str         = request.args.get('from', today_str)
+    to_str           = request.args.get('to',   today_str)
+    gas_filter       = request.args.get('gas',  '')
+    customer_filter  = request.args.get('customer', '')
+    direction_filter = request.args.get('direction', '')
+    try:
+        from_date = date.fromisoformat(from_str)
+    except Exception:
+        from_date = date.today()
+    try:
+        to_date = date.fromisoformat(to_str)
+    except Exception:
+        to_date = date.today()
+
+    movements = build_rotation(from_date=from_date, to_date=to_date,
+                               gas_filter=gas_filter, customer_filter=customer_filter,
+                               direction_filter=direction_filter)
+
+    in_count       = sum(1 for m in movements if m['direction'] == 'in')
+    out_count      = sum(1 for m in movements if m['direction'] == 'out')
+    days_out_vals  = [m['days_out'] for m in movements if m['days_out'] is not None]
+    avg_days       = round(sum(days_out_vals) / len(days_out_vals), 1) if days_out_vals else 0
+    customers      = sorted(get_customer_names())
+
+    return render_template('rotation.html',
+        user=session['user'],
+        movements=movements,
+        in_count=in_count,
+        out_count=out_count,
+        avg_days=avg_days,
+        net_movement=out_count - in_count,
+        from_str=from_str,
+        to_str=to_str,
+        gas_filter=gas_filter,
+        customer_filter=customer_filter,
+        direction_filter=direction_filter,
+        customers=customers,
+    )
+
+@app.route('/admin/rotation/journey/<path:uid>')
+@admin_required
+def admin_rotation_journey(uid):
+    from flask import jsonify
+    journey = build_cylinder_journey(uid)
+    for j in journey:
+        j.pop('date_obj', None)
+    return jsonify(journey)
 
 @app.route('/admin/drivers')
 @admin_required
@@ -2155,16 +2351,16 @@ def admin_customer_offer_form(customer_name):
         {"name": "SF6 Gas", "capacity": "50 Kg", "price": "1050", "unit": "Per Kg"},
     ]
     
-    # Default terms matching the sample exactly
-    default_terms = {
-        "prices": "As Quoted",
-        "gst": "@18% Extra.",
-        "transport": "Inclusive Delivery.",
-        "payment": "30 Days",
-        "valve_damage": "Rs. 1000/- per Valve",
-        "cyl_damage": "Rs.10,000/- Per Cylinder"
-    }
-    
+    # Default terms as list of {label, value} for dynamic T&C table
+    default_terms_list = [
+        {"label": "1. Prices",              "value": "As Quoted"},
+        {"label": "2. GST",                 "value": "@18% Extra."},
+        {"label": "3. Transportation",      "value": "Inclusive Delivery."},
+        {"label": "4. Payment",             "value": "30 Days"},
+        {"label": "5. Valve Damage",        "value": "Rs. 1000/- per Valve"},
+        {"label": "6. Cylinder Lost / Damage", "value": "Rs.10,000/- Per Cylinder"}
+    ]
+
     return render_template('offer_form.html',
         user=session['user'],
         customer=cust,
@@ -2172,35 +2368,83 @@ def admin_customer_offer_form(customer_name):
         q_no=q_no,
         date_str=date_str,
         products=default_products,
-        terms=default_terms
+        terms_list=default_terms_list,
+        standalone=False
     )
+
+
+# ── Standalone offer routes (no customer required) ──────────────────────────
+@app.route('/admin/offer/new')
+@admin_required
+def admin_offer_new():
+    """Standalone Commercial Offer form — not tied to a registered customer."""
+    import random
+    q_no = f"NAG/26-27/{random.randint(3000, 9999)}"
+    today = date.today()
+    day = today.day
+    suffix = "th" if 4 <= day <= 20 or 24 <= day <= 30 else ["st", "nd", "rd"][day % 10 - 1]
+    date_str = f"{day}{suffix} {today.strftime('%B %Y')}"
+
+    default_products = [
+        {"name": "Argon (5.5 Grade)",    "capacity": "07 Cum", "price": "630",  "unit": "Per Cum"},
+        {"name": "Argon (5.0 Grade)",    "capacity": "07 Cum", "price": "390",  "unit": "Per Cum"},
+        {"name": "Helium (5.0 Grade)",   "capacity": "07 Cum", "price": "5700", "unit": "Per Cum"},
+        {"name": "Nitrogen (5.0 Grade)", "capacity": "07 Cum", "price": "135",  "unit": "Per Cum"},
+        {"name": "Hydrogen (5.0 Grade)", "capacity": "07 Cum", "price": "250",  "unit": "Per Cum"},
+        {"name": "SF6 Gas",              "capacity": "50 Kg",  "price": "1050", "unit": "Per Kg"},
+    ]
+    default_terms_list = [
+        {"label": "1. Prices",               "value": "As Quoted"},
+        {"label": "2. GST",                  "value": "@18% Extra."},
+        {"label": "3. Transportation",       "value": "Inclusive Delivery."},
+        {"label": "4. Payment",              "value": "30 Days"},
+        {"label": "5. Valve Damage",         "value": "Rs. 1000/- per Valve"},
+        {"label": "6. Cylinder Lost / Damage", "value": "Rs.10,000/- Per Cylinder"}
+    ]
+    return render_template('offer_form.html',
+        user=session['user'],
+        customer=None,
+        customer_name='',
+        q_no=q_no,
+        date_str=date_str,
+        products=default_products,
+        terms_list=default_terms_list,
+        standalone=True
+    )
+
+@app.route('/admin/offer/generate', methods=['POST'])
+@admin_required
+def admin_offer_generate_standalone():
+    """Generates PDF for standalone offer (customer name comes from form)."""
+    customer_name = request.form.get('customer_name', 'Customer').strip()
+    return _generate_offer_pdf(customer_name)
+# ─────────────────────────────────────────────────────────────────────────────
 
 @app.route('/admin/customers/<path:customer_name>/offer/generate', methods=['POST'])
 @admin_required
 def admin_generate_offer_pdf(customer_name):
     from urllib.parse import unquote
     customer_name = unquote(customer_name).strip()
-    
+    return _generate_offer_pdf(customer_name)
+
+def _generate_offer_pdf(customer_name):
     # Extract form values
     attn = request.form.get('attn', '').strip()
     tel = request.form.get('tel', '').strip()
     q_date = request.form.get('date', '').strip()
     q_no = request.form.get('q_no', '').strip()
     ref = request.form.get('ref', '').strip()
-    
+
     # Product lists from dynamic fields
     product_names = request.form.getlist('product_name[]')
     product_contents = request.form.getlist('product_content[]')
     product_prices = request.form.getlist('product_price[]')
     product_units = request.form.getlist('product_unit[]')
-    
-    # T&C fields
-    prices_term = request.form.get('prices_term', '').strip()
-    gst_term = request.form.get('gst_term', '').strip()
-    transport_term = request.form.get('transport_term', '').strip()
-    payment_term = request.form.get('payment_term', '').strip()
-    valve_damage_term = request.form.get('valve_damage_term', '').strip()
-    cyl_damage_term = request.form.get('cyl_damage_term', '').strip()
+
+    # Dynamic T&C rows (both label and value editable)
+    term_labels = request.form.getlist('term_label[]')
+    term_values = request.form.getlist('term_value[]')
+    terms_pairs = list(zip(term_labels, term_values))
     
     # Generate PDF using ReportLab
     from io import BytesIO
@@ -2323,22 +2567,14 @@ def admin_generate_offer_pdf(customer_name):
     story.append(prod_table)
     story.append(Spacer(1, 10))
     
-    # 6. Terms and conditions section
-    story.append(Paragraph("<b>TERMS & CONDITIONS:</b>", terms_title_style))
-    
-    terms = [
-        f"<b>1. Prices</b> : {prices_term}",
-        f"<b>2. GST</b> : {gst_term}",
-        f"<b>3. Transportation</b> : <b>{transport_term}</b>", # Bold transportation
-        f"<b>4. Payment</b> : {payment_term}",
-        f"<b>5. Valve Damage</b> : {valve_damage_term}",
-        f"<b>6. Cylinder Lost/Damage</b> : {cyl_damage_term}"
-    ]
-    
-    for t in terms:
-        story.append(Paragraph(t, terms_item_style))
-        story.append(Spacer(1, 2))
-        
+
+    # 6. Terms and conditions — dynamic labels and values from form
+    story.append(Paragraph("<b>TERMS &amp; CONDITIONS:</b>", terms_title_style))
+    for label, value in terms_pairs:
+        if label.strip():
+            story.append(Paragraph(f"<b>{label.strip()}</b> : {value.strip()}", terms_item_style))
+            story.append(Spacer(1, 2))
+
     story.append(Spacer(1, 10))
     
     # 7. Footer text

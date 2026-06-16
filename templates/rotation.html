@@ -1,0 +1,461 @@
+{% extends "admin_base.html" %}
+{% block title %}Cylinder Rotation{% endblock %}
+
+{% block head %}
+<style>
+  /* ── PAGE HEADER ── */
+  .rot-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 14px;
+  }
+
+  /* ── KPI CARDS ── */
+  .rot-kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  .rot-kpi {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 18px 20px;
+    display: flex; align-items: center; gap: 14px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .rot-kpi-icon {
+    width: 44px; height: 44px; border-radius: 10px;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .rot-kpi-val { font-size: 26px; font-weight: 700; color: var(--dark-text); line-height: 1; }
+  .rot-kpi-lbl { font-size: 12px; color: var(--gray-text); margin-top: 3px; font-weight: 500; }
+
+  /* ── FILTER BAR ── */
+  .filter-bar {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .filter-group { display: flex; flex-direction: column; gap: 4px; }
+  .filter-group label { font-size: 11.5px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.5px; }
+  .filter-group input[type="date"],
+  .filter-group select {
+    padding: 8px 11px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    color: var(--dark-text);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+    height: 38px;
+  }
+  .filter-group input[type="date"]:focus,
+  .filter-group select:focus { border-color: var(--green-500); }
+  .filter-btn {
+    padding: 8px 20px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 8px; font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px; font-weight: 600; cursor: pointer;
+    transition: background 0.15s; height: 38px; align-self: flex-end;
+  }
+  .filter-btn:hover { background: var(--green-500); }
+  .filter-reset {
+    padding: 8px 14px; background: #fff; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s; height: 38px; align-self: flex-end;
+    text-decoration: none; display: inline-flex; align-items: center;
+  }
+  .filter-reset:hover { background: var(--gray-bd); }
+
+  /* ── TABLE ── */
+  .rot-table-wrap {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    margin-bottom: 40px;
+  }
+  .rot-table { width: 100%; border-collapse: collapse; }
+  .rot-table th {
+    background: #f5f5f0; font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px 14px; text-align: left; color: var(--gray-text);
+    border-bottom: 1.5px solid var(--gray-bd);
+  }
+  .rot-table td {
+    padding: 11px 14px; font-size: 13.5px; border-bottom: 1px solid #f0f0eb;
+    vertical-align: middle;
+  }
+  .rot-table tr:last-child td { border-bottom: none; }
+  .rot-table tr:hover td { background: #fafaf7; }
+
+  /* Row colouring */
+  .rot-table tr.row-in td:first-child  { border-left: 3px solid #16a34a; }
+  .rot-table tr.row-out td:first-child { border-left: 3px solid #0369a1; }
+  .rot-table tr.row-fill td:first-child { border-left: 3px solid #9333ea; }
+
+  /* Direction badge */
+  .dir-badge {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px;
+    font-size: 11.5px; font-weight: 700;
+  }
+  .dir-badge.in   { background: #dcfce7; color: #166534; }
+  .dir-badge.out  { background: #dbeafe; color: #1e40af; }
+  .dir-badge.fill { background: #f3e8ff; color: #6b21a8; }
+
+  /* Gas badge */
+  .gas-pill {
+    display: inline-block; padding: 2px 9px;
+    border-radius: 12px; font-size: 11.5px; font-weight: 600;
+    background: var(--green-50); color: var(--green-900);
+    border: 1px solid var(--green-200, #bbf7d0);
+  }
+
+  /* Days-out chip */
+  .days-chip {
+    display: inline-block; padding: 2px 9px;
+    border-radius: 12px; font-size: 12px; font-weight: 600;
+  }
+  .days-chip.ok      { background: #dcfce7; color: #166534; }
+  .days-chip.warning { background: #fef9c3; color: #854d0e; }
+  .days-chip.overdue { background: #fee2e2; color: #991b1b; }
+
+  /* UID link */
+  .uid-link {
+    font-family: monospace; font-weight: 600; font-size: 13px;
+    color: var(--green-700); text-decoration: none; cursor: pointer;
+  }
+  .uid-link:hover { text-decoration: underline; }
+
+  /* Empty state */
+  .rot-empty {
+    padding: 56px 24px; text-align: center; color: var(--gray-text);
+  }
+  .rot-empty svg { opacity: 0.2; margin-bottom: 14px; }
+  .rot-empty h3 { font-size: 16px; color: var(--dark-text); margin-bottom: 6px; }
+
+  /* ── JOURNEY MODAL ── */
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45); z-index: 1000;
+    align-items: center; justify-content: center;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-box {
+    background: #fff; border-radius: 16px;
+    width: min(680px, 95vw); max-height: 80vh;
+    overflow-y: auto; padding: 28px 30px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    animation: modalIn 0.2s ease;
+  }
+  @keyframes modalIn { from { transform: translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 22px;
+  }
+  .modal-title { font-size: 16px; font-weight: 700; color: var(--dark-text); }
+  .modal-uid { font-family: monospace; font-size: 13px; color: var(--green-700); margin-top: 2px; }
+  .modal-close {
+    width: 32px; height: 32px; border-radius: 8px;
+    border: 1.5px solid var(--gray-bd); background: #f5f5f0;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: var(--gray-text);
+  }
+  .modal-close:hover { background: var(--gray-bd); }
+
+  /* Timeline */
+  .timeline { position: relative; padding-left: 28px; }
+  .timeline::before {
+    content: ''; position: absolute; left: 10px; top: 0; bottom: 0;
+    width: 2px; background: var(--gray-bd);
+  }
+  .tl-item {
+    position: relative; padding: 0 0 20px 18px;
+  }
+  .tl-item:last-child { padding-bottom: 0; }
+  .tl-dot {
+    position: absolute; left: -10px; top: 4px;
+    width: 14px; height: 14px; border-radius: 50%;
+    border: 2.5px solid #fff;
+    box-shadow: 0 0 0 2px var(--gray-bd);
+  }
+  .tl-dot.delivery { background: #0369a1; box-shadow: 0 0 0 2px #bfdbfe; }
+  .tl-dot.collection { background: #16a34a; box-shadow: 0 0 0 2px #bbf7d0; }
+  .tl-dot.filling { background: #9333ea; box-shadow: 0 0 0 2px #e9d5ff; }
+
+  .tl-action { font-size: 13px; font-weight: 700; color: var(--dark-text); }
+  .tl-meta { font-size: 12px; color: var(--gray-text); margin-top: 2px; }
+  .tl-customer { font-size: 12.5px; font-weight: 600; color: var(--green-700); margin-top: 3px; }
+
+  .modal-loading { text-align: center; padding: 40px; color: var(--gray-text); font-size: 14px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- ── PAGE HEADER ── -->
+<div class="rot-header">
+  <div>
+    <h1 class="page-title" style="margin:0;">Cylinder Rotation</h1>
+    <p class="page-sub" style="margin:0;">
+      Track every cylinder movement — departures, returns &amp; fillings.
+      {% if from_str == to_str %}
+        Showing <strong>{{ from_str }}</strong>
+      {% else %}
+        Showing <strong>{{ from_str }}</strong> → <strong>{{ to_str }}</strong>
+      {% endif %}
+    </p>
+  </div>
+</div>
+
+<!-- ── KPI CARDS ── -->
+<div class="rot-kpi-grid">
+  <div class="rot-kpi">
+    <div class="rot-kpi-icon" style="background: #dbeafe;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/>
+      </svg>
+    </div>
+    <div>
+      <div class="rot-kpi-val">{{ out_count }}</div>
+      <div class="rot-kpi-lbl">🚛 Cylinders Out</div>
+    </div>
+  </div>
+  <div class="rot-kpi">
+    <div class="rot-kpi-icon" style="background: #dcfce7;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+      </svg>
+    </div>
+    <div>
+      <div class="rot-kpi-val">{{ in_count }}</div>
+      <div class="rot-kpi-lbl">📦 Cylinders In</div>
+    </div>
+  </div>
+  <div class="rot-kpi">
+    <div class="rot-kpi-icon" style="background: {% if net_movement > 0 %}#fef9c3{% elif net_movement < 0 %}#fee2e2{% else %}#f3f4f6{% endif %};">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}#6b7280{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+      </svg>
+    </div>
+    <div>
+      <div class="rot-kpi-val" style="color: {% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}var(--dark-text){% endif %};">
+        {% if net_movement > 0 %}+{% endif %}{{ net_movement }}
+      </div>
+      <div class="rot-kpi-lbl">🔄 Net Movement</div>
+    </div>
+  </div>
+  <div class="rot-kpi">
+    <div class="rot-kpi-icon" style="background: #f3e8ff;">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b21a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+      </svg>
+    </div>
+    <div>
+      <div class="rot-kpi-val">{{ avg_days }}</div>
+      <div class="rot-kpi-lbl">⏱ Avg Days Out</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── FILTER BAR ── -->
+<form class="filter-bar" method="GET" action="/admin/rotation" id="filter-form">
+  <div class="filter-group">
+    <label>From Date</label>
+    <input type="date" name="from" value="{{ from_str }}">
+  </div>
+  <div class="filter-group">
+    <label>To Date</label>
+    <input type="date" name="to" value="{{ to_str }}">
+  </div>
+  <div class="filter-group">
+    <label>Gas Type</label>
+    <select name="gas">
+      <option value="">All Gases</option>
+      {% for g in ['ARG','CO2','N2','OXY','ACM','AHM'] %}
+      <option value="{{ g }}" {{ 'selected' if gas_filter == g else '' }}>{{ g }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Customer</label>
+    <select name="customer">
+      <option value="">All Customers</option>
+      {% for c in customers %}
+      <option value="{{ c }}" {{ 'selected' if customer_filter == c else '' }}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Direction</label>
+    <select name="direction">
+      <option value="">All</option>
+      <option value="out" {{ 'selected' if direction_filter == 'out' else '' }}>🚛 Out only</option>
+      <option value="in"  {{ 'selected' if direction_filter == 'in'  else '' }}>📦 In only</option>
+    </select>
+  </div>
+  <button type="submit" class="filter-btn">Apply Filters</button>
+  <a href="/admin/rotation" class="filter-reset">✕ Reset</a>
+</form>
+
+<!-- ── ROTATION TABLE ── -->
+<div class="rot-table-wrap">
+  {% if movements %}
+  <div style="overflow-x:auto;">
+    <table class="rot-table" id="rot-table">
+      <thead>
+        <tr>
+          <th>Cylinder UID</th>
+          <th>Gas</th>
+          <th>Direction</th>
+          <th>Action</th>
+          <th>Customer / Party</th>
+          <th>Driver</th>
+          <th>Date &amp; Time</th>
+          <th>Days Out</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for m in movements %}
+        {% set row_class = 'row-fill' if m.action == 'Filling' else ('row-in' if m.direction == 'in' else 'row-out') %}
+        <tr class="table-row {{ row_class }}">
+          <td>
+            <span class="uid-link" onclick="showJourney('{{ m.uid }}')" title="Click to see full journey">
+              {{ m.uid }}
+            </span>
+          </td>
+          <td><span class="gas-pill">{{ m.gas_type }}</span></td>
+          <td>
+            {% if m.action == 'Filling' %}
+              <span class="dir-badge fill">🔧 Filling</span>
+            {% elif m.direction == 'in' %}
+              <span class="dir-badge in">📦 In</span>
+            {% else %}
+              <span class="dir-badge out">🚛 Out</span>
+            {% endif %}
+          </td>
+          <td style="font-size:13px; color: var(--gray-text);">{{ m.action }}</td>
+          <td style="font-weight: 500;">{{ m.customer }}</td>
+          <td style="font-size: 13px; color: var(--gray-text);">{{ m.driver }}</td>
+          <td style="font-size: 13px;">
+            <span style="font-weight:600;">{{ m.date }}</span>
+            {% if m.time %}<span style="color:var(--gray-text);"> {{ m.time }}</span>{% endif %}
+          </td>
+          <td>
+            {% if m.days_out is not none %}
+              {% if m.days_out > 20 %}
+                <span class="days-chip overdue">{{ m.days_out }}d</span>
+              {% elif m.days_out >= 10 %}
+                <span class="days-chip warning">{{ m.days_out }}d</span>
+              {% else %}
+                <span class="days-chip ok">{{ m.days_out }}d</span>
+              {% endif %}
+            {% else %}
+              <span style="color: var(--gray-text);">—</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div style="padding: 10px 16px; font-size: 12px; color: var(--gray-text); border-top: 1px solid #eeeee9;">
+    {{ movements | length }} movement{{ 's' if movements | length != 1 else '' }} shown
+  </div>
+  {% else %}
+  <div class="rot-empty">
+    <svg width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+    <h3>No movements found</h3>
+    <p>Try adjusting the date range or clearing the filters.</p>
+  </div>
+  {% endif %}
+</div>
+
+<!-- ── JOURNEY MODAL ── -->
+<div class="modal-overlay" id="journey-modal" onclick="closeJourneyModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">🔄 Cylinder Journey</div>
+        <div class="modal-uid" id="journey-uid-label"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">&times;</button>
+    </div>
+    <div id="journey-content">
+      <div class="modal-loading">Loading journey…</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showJourney(uid) {
+    document.getElementById('journey-uid-label').textContent = uid;
+    document.getElementById('journey-content').innerHTML = '<div class="modal-loading">Loading journey…</div>';
+    document.getElementById('journey-modal').classList.add('open');
+
+    fetch('/admin/rotation/journey/' + encodeURIComponent(uid))
+      .then(r => r.json())
+      .then(data => renderJourney(uid, data))
+      .catch(() => {
+        document.getElementById('journey-content').innerHTML = '<div class="modal-loading">Failed to load journey.</div>';
+      });
+  }
+
+  function renderJourney(uid, steps) {
+    if (!steps || steps.length === 0) {
+      document.getElementById('journey-content').innerHTML = '<div class="modal-loading">No journey data found for this cylinder.</div>';
+      return;
+    }
+
+    const actionMeta = {
+      'Delivery':   { dot: 'delivery',   icon: '🚛', label: 'Delivery — Sent Out',   color: '#1e40af' },
+      'Collection': { dot: 'collection', icon: '📦', label: 'Collection — Returned',  color: '#166534' },
+      'Filling':    { dot: 'filling',    icon: '🔧', label: 'Filling — At Depot',     color: '#6b21a8' },
+    };
+
+    let html = '<div class="timeline">';
+    steps.forEach((s, i) => {
+      const meta = actionMeta[s.action] || { dot: 'filling', icon: '📋', label: s.action, color: '#374151' };
+      html += `
+        <div class="tl-item">
+          <div class="tl-dot ${meta.dot}"></div>
+          <div class="tl-action" style="color:${meta.color};">${meta.icon} ${meta.label}</div>
+          <div class="tl-meta">${s.date}${s.time ? ' &nbsp;·&nbsp; ' + s.time : ''} &nbsp;·&nbsp; Driver: ${s.driver || '—'}</div>
+          <div class="tl-customer">${s.customer || ''}</div>
+        </div>`;
+    });
+    html += '</div>';
+
+    // Summary line
+    const deliveries  = steps.filter(s => s.action === 'Delivery').length;
+    const collections = steps.filter(s => s.action === 'Collection').length;
+    const fillings    = steps.filter(s => s.action === 'Filling').length;
+    html += `<div style="margin-top:18px; padding-top:14px; border-top:1px solid #eeeee9; font-size:12.5px; color:var(--gray-text);">
+      ${steps.length} total events &nbsp;·&nbsp; ${deliveries} deliveries &nbsp;·&nbsp; ${collections} collections &nbsp;·&nbsp; ${fillings} fillings
+    </div>`;
+
+    document.getElementById('journey-content').innerHTML = html;
+  }
+
+  function closeModal() {
+    document.getElementById('journey-modal').classList.remove('open');
+  }
+
+  function closeJourneyModal(e) {
+    if (e.target === document.getElementById('journey-modal')) closeModal();
+  }
+
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+</script>
+
+{% endblock %}

@@ -74,7 +74,7 @@
     </div>
     <div>
       <div class="stat-num" style="color: #b91c1c;">{{ overdue }}</div>
-      <div class="stat-lbl">Overdue &gt;30 days</div>
+      <div class="stat-lbl">Overdue &gt;20 days</div>
     </div>
   </div>
 
@@ -86,7 +86,7 @@
     </div>
     <div>
       <div class="stat-num" style="color: #92400e;">{{ warning }}</div>
-      <div class="stat-lbl">Warning 7–30 days</div>
+      <div class="stat-lbl">Warning 10–20 days</div>
     </div>
   </div>
 
@@ -98,7 +98,7 @@
     </div>
     <div>
       <div class="stat-num" style="color: var(--green-700);">{{ ok_count }}</div>
-      <div class="stat-lbl">OK &lt;7 days</div>
+      <div class="stat-lbl">OK &lt;10 days</div>
     </div>
   </div>
 </div>
@@ -127,23 +127,23 @@
     <tbody>
       {% for row in data | sort(attribute='days_out', reverse=True) %}
       <tr class="table-row aging-row"
-          data-status="{{ 'overdue' if row.days_out > 30 else ('warning' if row.days_out >= 7 else 'ok') }}">
+          data-status="{{ 'overdue' if row.days_out > 20 else ('warning' if row.days_out >= 10 else 'ok') }}">
         <td style="font-family: monospace; font-size: 13px; font-weight: 600; color: var(--green-900);">{{ row.cylinder_uid }}</td>
         <td style="font-weight: 500;">{{ row.customer }}</td>
         <td style="font-size: 13px; color: var(--gray-text);">{{ row.delivered_on }}</td>
         <td style="font-weight: 600;">
-          {% if row.days_out > 30 %}
+          {% if row.days_out > 20 %}
             <span style="color: #b91c1c;">{{ row.days_out }}d</span>
-          {% elif row.days_out >= 7 %}
+          {% elif row.days_out >= 10 %}
             <span style="color: #92400e;">{{ row.days_out }}d</span>
           {% else %}
             <span style="color: var(--green-700);">{{ row.days_out }}d</span>
           {% endif %}
         </td>
         <td>
-          {% if row.days_out > 30 %}
+          {% if row.days_out > 20 %}
             <span class="badge badge-red">Overdue</span>
-          {% elif row.days_out >= 7 %}
+          {% elif row.days_out >= 10 %}
             <span class="badge badge-yellow">Warning</span>
           {% else %}
             <span class="badge badge-green">OK</span>

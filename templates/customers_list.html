@@ -82,6 +82,13 @@
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
   }
   .btn-add-cust:hover { background: var(--green-500); color: #fff; }
+  .btn-offer {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 16px; background: #fff; color: var(--green-700);
+    border: 1.5px solid var(--green-700); border-radius: 9px; font-size: 13.5px; font-weight: 600;
+    text-decoration: none; transition: all 0.15s; height: 38px;
+  }
+  .btn-offer:hover { background: var(--green-700); color: #fff; }
 </style>
 {% endblock %}
 
@@ -103,6 +110,9 @@
     </div>
     <a href="/admin/customers/add" class="btn-add-cust" id="btn-add-customer">
       ➕ Add Customer
+    </a>
+    <a href="/admin/offer/new" class="btn-offer" id="btn-new-offer">
+      📄 New Offer
     </a>
   </div>
 </div>
