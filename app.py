@@ -1931,19 +1931,25 @@ def admin_cylinders():
 @admin_required
 def admin_cylinders_add():
     global cyl_ws, cyl_maint_ws
+    products = get_products_config()
+    gas_types = sorted(list(set(p['gas_type'] for p in products if p.get('gas_type'))))
+    cylinder_types = sorted(list(set(p['cylinder_type'] for p in products if p.get('cylinder_type'))))
+
     if request.method == 'POST':
         data = request.form
         uid = data.get('uid', '').strip()
         if not uid:
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
-                error='Cylinder UID is required.', form=data)
+                error='Cylinder UID is required.', form=data,
+                gas_types=gas_types, cylinder_types=cylinder_types)
         # Check duplicate
         existing = get_all_cylinders()
         if any(c['uid'].upper() == uid.upper() for c in existing):
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
-                error=f'Cylinder UID "{uid}" already exists.', form=data)
+                error=f'Cylinder UID "{uid}" already exists.', form=data,
+                gas_types=gas_types, cylinder_types=cylinder_types)
         try:
             # Refresh worksheet references if needed
             if cyl_ws is None and doc:
@@ -1956,7 +1962,8 @@ def admin_cylinders_add():
             if cyl_ws is None:
                 return render_template('cylinders_form.html',
                     user=session['user'], mode='add',
-                    error='Cylinders sheet not found. Please run Setup Registry Sheets from Google Sheets menu first.', form=data)
+                    error='Cylinders sheet not found. Please run Setup Registry Sheets from Google Sheets menu first.', form=data,
+                    gas_types=gas_types, cylinder_types=cylinder_types)
 
             # Write to Cylinders sheet
             cyl_ws.append_row([
@@ -1988,9 +1995,11 @@ def admin_cylinders_add():
         except Exception as e:
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
-                error=str(e), form=data)
+                error=str(e), form=data,
+                gas_types=gas_types, cylinder_types=cylinder_types)
     return render_template('cylinders_form.html',
-        user=session['user'], mode='add', error=None, form={})
+        user=session['user'], mode='add', error=None, form={},
+        gas_types=gas_types, cylinder_types=cylinder_types)
 
 @app.route('/admin/cylinders/<uid>/edit', methods=['GET', 'POST'])
 @admin_required
@@ -2001,6 +2010,10 @@ def admin_cylinders_edit(uid):
     maint = maintenance.get(uid, maintenance.get(uid.upper(), {}))
     if not cyl:
         return redirect('/admin/cylinders')
+
+    products = get_products_config()
+    gas_types = sorted(list(set(p['gas_type'] for p in products if p.get('gas_type'))))
+    cylinder_types = sorted(list(set(p['cylinder_type'] for p in products if p.get('cylinder_type'))))
 
     if request.method == 'POST':
         data = request.form
@@ -2036,11 +2049,13 @@ def admin_cylinders_edit(uid):
             merged = {**cyl, **maint}
             return render_template('cylinders_form.html',
                 user=session['user'], mode='edit',
-                error=str(e), form=merged, uid=uid)
+                error=str(e), form=merged, uid=uid,
+                gas_types=gas_types, cylinder_types=cylinder_types)
 
     merged = {**cyl, **maint}
     return render_template('cylinders_form.html',
-        user=session['user'], mode='edit', error=None, form=merged, uid=uid)
+        user=session['user'], mode='edit', error=None, form=merged, uid=uid,
+        gas_types=gas_types, cylinder_types=cylinder_types)
 
 @app.route('/admin/cylinders/<uid>')
 @admin_required

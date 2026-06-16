@@ -164,7 +164,7 @@
         <select id="gas_type" name="gas_type" required>
           <option value="">— Select Gas Type —</option>
           {% set gt = form.gas_type if form else '' %}
-          {% for g in ['ARG', 'OXY', 'N2', 'CO2', 'ACM', 'N2D'] %}
+          {% for g in gas_types %}
             <option value="{{ g }}" {% if gt == g %}selected{% endif %}>{{ g }}</option>
           {% endfor %}
         </select>
@@ -176,7 +176,7 @@
         <select id="cylinder_type" name="cylinder_type" required>
           <option value="">— Select Type —</option>
           {% set ct = form.cylinder_type if form else '' %}
-          {% for t in ['Standard', 'Dura'] %}
+          {% for t in cylinder_types %}
             <option value="{{ t }}" {% if ct == t %}selected{% endif %}>{{ t }}</option>
           {% endfor %}
         </select>
