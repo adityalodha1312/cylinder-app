@@ -2709,8 +2709,8 @@ def _generate_offer_pdf(customer_name):
     logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
 
     if _os.path.exists(logo_path):
-        # Centre the logo: fit within 280pt wide × 75pt tall, keep aspect ratio (down from 320x120)
-        logo_img = RLImage(logo_path, width=280, height=75, kind='proportional')
+        # Centre the logo: fit within 240pt wide × 60pt tall, keep aspect ratio
+        logo_img = RLImage(logo_path, width=240, height=60, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
         story.append(Spacer(1, 4))
