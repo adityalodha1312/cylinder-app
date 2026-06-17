@@ -2,6 +2,27 @@
 
 {% block title %}Outstanding{% endblock %}
 
+{% block head %}
+<style>
+  #outstandingTable tbody tr.table-row {
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  #outstandingTable tbody tr.table-row:hover {
+    background: var(--green-50, #E1F5EE);
+  }
+  .customer-link {
+    color: var(--dark-text, #2C2C2A);
+    text-decoration: none;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .customer-link:hover { color: var(--green-700, #0F6E56); text-decoration: underline; }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="page-header">
   <div class="page-title">Outstanding Ledger</div>
@@ -39,8 +60,16 @@
     </thead>
     <tbody>
       {% for row in data %}
-      <tr class="table-row" data-customer="{{ row.customer | lower }}">
-        <td style="font-weight: 500;">{{ row.customer }}</td>
+      <tr class="table-row" data-customer="{{ row.customer | lower }}"
+          onclick="window.location.href='/admin/customers/{{ row.customer | urlencode }}'">
+        <td>
+          <a class="customer-link" href="/admin/customers/{{ row.customer | urlencode }}" onclick="event.stopPropagation()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.5;flex-shrink:0;">
+              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+            </svg>
+            {{ row.customer }}
+          </a>
+        </td>
         <td>{{ row.total_delivered }}</td>
         <td>{{ row.total_collected }}</td>
         <td>

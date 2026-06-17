@@ -88,9 +88,13 @@
     </thead>
     <tbody>
       {% for row in top_customers %}
-      <tr>
+      <tr style="cursor:pointer; transition:background 0.12s;" onclick="window.location.href='/admin/customers/{{ row.customer | urlencode }}'" onmouseover="this.style.background='var(--green-light,#E1F5EE)'" onmouseout="this.style.background=''">
         <td style="color: var(--gray-text); font-size: 13px;">{{ loop.index }}</td>
-        <td style="font-weight: 500;">{{ row.customer }}</td>
+        <td>
+          <a href="/admin/customers/{{ row.customer | urlencode }}" onclick="event.stopPropagation()" style="color:var(--dark-text,#2C2C2A); text-decoration:none; font-weight:600;">
+            {{ row.customer }}
+          </a>
+        </td>
         <td>
           {% if row.outstanding > 10 %}
             <span class="badge badge-red">{{ row.outstanding }}</span>
