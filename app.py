@@ -2897,8 +2897,17 @@ def _generate_offer_pdf(customer_name):
 @app.route('/')
 @login_required
 def home():
+    user = session.get('user')
+    if user and user.get('role') in ['manager', 'owner']:
+        return redirect('/admin')
+    return redirect('/scan')
+
+@app.route('/scan')
+@login_required
+def scan_app():
+    user = session.get('user')
     customers = get_customer_names()
-    return render_template('scan.html', user=session.get('user'), customers=customers)
+    return render_template('scan.html', user=user, customers=customers)
 
 @app.route('/submit', methods=['POST'])
 def submit():
