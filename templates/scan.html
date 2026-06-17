@@ -333,23 +333,61 @@
 
   /* ── TOP STATS BAR ── */
   .top-stats-bar {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: 20px;
   }
-  .stat-box {
+  /* Big scanned count card */
+  .stat-box-count {
     background: white;
-    border-radius: 12px;
+    border-radius: 14px;
     border: 1.5px solid #e8e9e4;
-    padding: 12px 14px;
+    padding: 18px 20px 14px;
     text-align: center;
     box-shadow: 0 1px 4px rgba(0,0,0,0.04);
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    transition: all 0.2s ease;
+  }
+  .stat-count-num {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--green-700);
+    transition: color 0.25s;
+    letter-spacing: -2px;
+    margin-bottom: 4px;
+  }
+  .stat-count-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gray-700);
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+  }
+  /* Scan mode toggle button card */
+  .stat-box-mode {
+    background: white;
+    border-radius: 12px;
+    border: 2px solid var(--green-100);
+    padding: 11px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .stat-box-mode:hover  { background: var(--green-50); }
+  .stat-box-mode:active { transform: scale(0.98); }
+  .stat-mode-left {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
   }
   .stat-label {
     font-size: 11px;
@@ -357,23 +395,21 @@
     color: var(--gray-700);
     text-transform: uppercase;
     letter-spacing: 0.6px;
-    margin-bottom: 4px;
+    margin-bottom: 2px;
   }
   .stat-val {
-    font-size: 16px;
+    font-size: 18px;
     font-weight: 700;
-    color: var(--gray-900);
+    color: var(--green-700);
     transition: color 0.2s;
   }
-  .stat-val.count-highlight {
-    background: var(--green-700);
-    color: white;
-    padding: 3px 14px;
-    border-radius: 20px;
-    font-size: 15px;
-    min-width: 44px;
-    display: inline-block;
-    transition: background-color 0.2s;
+  .mode-tap-hint {
+    font-size: 11px;
+    color: var(--gray-700);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    opacity: 0.7;
   }
 
   /* ── WIZARD LAYOUT & PROGRESS BAR ── */
@@ -540,14 +576,28 @@
 
   <!-- TOP STATS BAR -->
   <div class="top-stats-bar">
-    <div class="stat-box">
-      <span class="stat-label">Scan Mode</span>
-      <span class="stat-val" id="current-action-badge" style="color: var(--green-700);">Delivery</span>
+
+    <!-- Big scanned count -->
+    <div class="stat-box-count">
+      <div class="stat-count-num" id="scan-count-top">0</div>
+      <div class="stat-count-label">Cylinders Scanned</div>
     </div>
-    <div class="stat-box">
-      <span class="stat-label">Scanned Count</span>
-      <span class="stat-val count-highlight" id="scan-count-top">0</span>
+
+    <!-- Scan mode as tappable toggle -->
+    <div class="stat-box-mode" id="mode-toggle-card" onclick="cycleScanMode()" title="Tap to switch scan mode">
+      <div class="stat-mode-left">
+        <span class="stat-label">Scan Mode</span>
+        <span class="stat-val" id="current-action-badge">Delivery</span>
+      </div>
+      <div class="mode-tap-hint">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+        Tap to switch
+      </div>
     </div>
+
   </div>
 
   <!-- PROGRESS TRACKER -->
@@ -878,10 +928,9 @@ function updateTheme() {
   const action = document.getElementById("action-select").value;
   const root = document.documentElement;
   const actionBadge = document.getElementById('current-action-badge');
+  const modeCard = document.getElementById('mode-toggle-card');
   
-  if (actionBadge) {
-    actionBadge.innerText = action;
-  }
+  if (actionBadge) actionBadge.innerText = action;
   
   if (action === 'Delivery') {
     root.style.setProperty('--green-50', '#E1F5EE');
@@ -890,9 +939,6 @@ function updateTheme() {
     root.style.setProperty('--green-700', '#0F6E56');
     root.style.setProperty('--green-900', '#04342C');
     document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0F6E56');
-    if (actionBadge) {
-      actionBadge.style.color = 'var(--green-700)';
-    }
   } else if (action === 'Collection') {
     root.style.setProperty('--green-50', '#EFF6FF');
     root.style.setProperty('--green-100', '#BFDBFE');
@@ -900,9 +946,6 @@ function updateTheme() {
     root.style.setProperty('--green-700', '#1E40AF');
     root.style.setProperty('--green-900', '#1E3A8A');
     document.querySelector('meta[name="theme-color"]').setAttribute('content', '#1E40AF');
-    if (actionBadge) {
-      actionBadge.style.color = 'var(--green-700)';
-    }
   } else if (action === 'Filling') {
     root.style.setProperty('--green-50', '#FEF3C7');
     root.style.setProperty('--green-100', '#FDE68A');
@@ -910,10 +953,25 @@ function updateTheme() {
     root.style.setProperty('--green-700', '#B45309');
     root.style.setProperty('--green-900', '#78350F');
     document.querySelector('meta[name="theme-color"]').setAttribute('content', '#B45309');
-    if (actionBadge) {
-      actionBadge.style.color = 'var(--green-700)';
-    }
   }
+}
+
+function cycleScanMode() {
+  const sel = document.getElementById("action-select");
+  const options = Array.from(sel.options).map(o => o.value);
+  if (options.length < 2) return;
+  const currentIdx = options.indexOf(sel.value);
+  const nextIdx = (currentIdx + 1) % options.length;
+  sel.value = options[nextIdx];
+
+  // Brief flash animation on the mode card
+  const card = document.getElementById('mode-toggle-card');
+  card.style.transform = 'scale(0.97)';
+  setTimeout(() => { card.style.transform = ''; }, 120);
+
+  revalidateAllRows();
+  toggleCustomerField();
+  updateTheme();
 }
 
 function showStatus(msg) {
