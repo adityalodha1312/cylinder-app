@@ -367,7 +367,7 @@
     text-transform: uppercase;
     letter-spacing: 0.8px;
   }
-  /* Scan mode toggle button card */
+  /* Scan mode display card (read-only) */
   .stat-box-mode {
     background: white;
     border-radius: 12px;
@@ -377,13 +377,7 @@
     align-items: center;
     justify-content: space-between;
     box-shadow: 0 1px 4px rgba(0,0,0,0.04);
-    cursor: pointer;
-    transition: background 0.15s, border-color 0.15s, transform 0.1s;
-    user-select: none;
-    -webkit-tap-highlight-color: transparent;
   }
-  .stat-box-mode:hover  { background: var(--green-50); }
-  .stat-box-mode:active { transform: scale(0.98); }
   .stat-mode-left {
     display: flex;
     flex-direction: column;
@@ -403,13 +397,9 @@
     color: var(--green-700);
     transition: color 0.2s;
   }
-  .mode-tap-hint {
-    font-size: 11px;
-    color: var(--gray-700);
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    opacity: 0.7;
+  .mode-icon {
+    opacity: 0.4;
+    flex-shrink: 0;
   }
 
   /* ── WIZARD LAYOUT & PROGRESS BAR ── */
@@ -583,19 +573,16 @@
       <div class="stat-count-label">Cylinders Scanned</div>
     </div>
 
-    <!-- Scan mode as tappable toggle -->
-    <div class="stat-box-mode" id="mode-toggle-card" onclick="cycleScanMode()" title="Tap to switch scan mode">
+    <!-- Scan mode display -->
+    <div class="stat-box-mode" id="mode-toggle-card">
       <div class="stat-mode-left">
         <span class="stat-label">Scan Mode</span>
         <span class="stat-val" id="current-action-badge">Delivery</span>
       </div>
-      <div class="mode-tap-hint">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-        </svg>
-        Tap to switch
-      </div>
+      <svg class="mode-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+        <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+      </svg>
     </div>
 
   </div>
@@ -956,23 +943,6 @@ function updateTheme() {
   }
 }
 
-function cycleScanMode() {
-  const sel = document.getElementById("action-select");
-  const options = Array.from(sel.options).map(o => o.value);
-  if (options.length < 2) return;
-  const currentIdx = options.indexOf(sel.value);
-  const nextIdx = (currentIdx + 1) % options.length;
-  sel.value = options[nextIdx];
-
-  // Brief flash animation on the mode card
-  const card = document.getElementById('mode-toggle-card');
-  card.style.transform = 'scale(0.97)';
-  setTimeout(() => { card.style.transform = ''; }, 120);
-
-  revalidateAllRows();
-  toggleCustomerField();
-  updateTheme();
-}
 
 function showStatus(msg) {
   let el = document.getElementById("status-message");
@@ -1244,7 +1214,10 @@ function resetForm() {
   if (!driverInput.readOnly) {
     driverInput.value = "";
   }
-  document.getElementById("action-select").value = "Delivery";
+  const actionSelect = document.getElementById("action-select");
+  if (actionSelect && actionSelect.options.length > 0) {
+    actionSelect.selectedIndex = 0;
+  }
   document.getElementById("customer-select").value = "";
   toggleCustomerField();
   document.getElementById("cylinder-container").innerHTML = `
