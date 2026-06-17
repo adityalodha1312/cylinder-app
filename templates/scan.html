@@ -1017,31 +1017,15 @@ async function validateRow(inputEl) {
     badgeEl.className = "status-badge";
     invalidRows.delete(rowDiv);
     
-    if (data.registered === false) {
-      badgeEl.classList.add("warning");
-      badgeEl.innerText = "⚠️ Unregistered Cylinder (Allowed to Scan)";
-      inputEl.dataset.action = globalAction;
-      
-      // Re-validate other rows that were marked as duplicates because this duplicate might be resolved now
-      let inputs = document.getElementsByName("cylinders");
-      for (let i = 0; i < inputs.length; i++) {
-        if (inputs[i] !== inputEl && inputs[i].value.trim()) {
-          let otherRow = inputs[i].closest(".cylinder-row");
-          let otherBadge = otherRow ? otherRow.querySelector(".status-badge") : null;
-          if (otherBadge && otherBadge.innerText.includes("Duplicate")) {
-            validateRow(inputs[i]);
-          }
-        }
-      }
-      updateSubmitButton();
-      updateScanFeedList();
-      return;
-    }
-    
     if (globalAction === "Filling") {
       if (currentStatus === "Empty") {
-        badgeEl.classList.add("filled");
-        badgeEl.innerText = "✓ Empty (Ready to Fill)";
+        if (data.registered === false) {
+          badgeEl.classList.add("warning");
+          badgeEl.innerText = "⚠️ Unregistered - Empty (Ready to Fill)";
+        } else {
+          badgeEl.classList.add("filled");
+          badgeEl.innerText = "✓ Empty (Ready to Fill)";
+        }
         inputEl.dataset.action = "Filling";
       } else {
         badgeEl.classList.add("conflict");
@@ -1053,12 +1037,22 @@ async function validateRow(inputEl) {
     } 
     else if (globalAction === "Delivery") {
       if (currentStatus === "Filled") {
-        badgeEl.classList.add("filled");
-        badgeEl.innerText = "✓ Filled (Ready to Deliver)";
+        if (data.registered === false) {
+          badgeEl.classList.add("warning");
+          badgeEl.innerText = "⚠️ Unregistered - Filled (Ready to Deliver)";
+        } else {
+          badgeEl.classList.add("filled");
+          badgeEl.innerText = "✓ Filled (Ready to Deliver)";
+        }
         inputEl.dataset.action = "Delivery";
       } else if (currentStatus === "Delivered") {
-        badgeEl.classList.add("delivered");
-        badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
+        if (data.registered === false) {
+          badgeEl.classList.add("warning");
+          badgeEl.innerText = `⚠️ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
+        } else {
+          badgeEl.classList.add("delivered");
+          badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
+        }
         inputEl.dataset.action = "Collection";
         if (owner) {
           let custSelect = document.getElementById("customer-select");
@@ -1075,8 +1069,13 @@ async function validateRow(inputEl) {
     } 
     else if (globalAction === "Collection") {
       if (currentStatus === "Delivered") {
-        badgeEl.classList.add("filled");
-        badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
+        if (data.registered === false) {
+          badgeEl.classList.add("warning");
+          badgeEl.innerText = `⚠️ Unregistered - Delivered (Collecting from ${owner})`;
+        } else {
+          badgeEl.classList.add("filled");
+          badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
+        }
         inputEl.dataset.action = "Collection";
         if (owner) {
           let custSelect = document.getElementById("customer-select");
