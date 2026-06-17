@@ -391,11 +391,26 @@
     letter-spacing: 0.6px;
     margin-bottom: 2px;
   }
-  .stat-val {
+  .stat-mode-select {
+    border: none;
+    background: transparent;
     font-size: 18px;
     font-weight: 700;
     color: var(--green-700);
+    outline: none;
+    cursor: pointer;
+    width: 100%;
+    padding: 0;
+    margin-top: 2px;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    font-family: 'DM Sans', sans-serif;
     transition: color 0.2s;
+  }
+  .stat-mode-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
   }
   .mode-icon {
     opacity: 0.4;
@@ -575,13 +590,24 @@
 
     <!-- Scan mode display -->
     <div class="stat-box-mode" id="mode-toggle-card">
-      <div class="stat-mode-left">
+      <div class="stat-mode-left" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
         <span class="stat-label">Scan Mode</span>
-        <span class="stat-val" id="current-action-badge">Delivery</span>
+        <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField(); updateTheme();" class="stat-mode-select">
+          {% if user and user['role'] == 'filler' %}
+            <option value="Filling">Filling</option>
+          {% elif user and user['role'] == 'driver' %}
+            <option value="Delivery">Delivery</option>
+            <option value="Collection">Collection</option>
+          {% else %}
+            <!-- Manager/Owner sees all options -->
+            <option value="Delivery">Delivery</option>
+            <option value="Collection">Collection</option>
+            <option value="Filling">Filling</option>
+          {% endif %}
+        </select>
       </div>
-      <svg class="mode-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+      <svg class="mode-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-left: 8px;">
+        <polyline points="6 9 12 15 18 9"/>
       </svg>
     </div>
 
@@ -603,23 +629,6 @@
     <div class="field">
       <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
       <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
-    </div>
-
-    <div class="field">
-      <label>Action</label>
-      <select id="action-select" onchange="revalidateAllRows(); toggleCustomerField(); updateTheme();">
-        {% if user and user['role'] == 'filler' %}
-          <option value="Filling">Filling</option>
-        {% elif user and user['role'] == 'driver' %}
-          <option value="Delivery">Delivery</option>
-          <option value="Collection">Collection</option>
-        {% else %}
-          <!-- Manager/Owner sees all options -->
-          <option value="Delivery">Delivery</option>
-          <option value="Collection">Collection</option>
-          <option value="Filling">Filling</option>
-        {% endif %}
-      </select>
     </div>
 
     <div class="field" id="customer-field" style="display: none;">
@@ -808,6 +817,12 @@ function goToStep(step) {
   
   document.getElementById(`step-${step}`).classList.add("active");
   currentStep = step;
+
+  // Enable action select only on Step 1
+  const actionSelect = document.getElementById("action-select");
+  if (actionSelect) {
+    actionSelect.disabled = (step !== 1);
+  }
 
   // Update Progress Tracker
   let labelText = "";
