@@ -1258,11 +1258,21 @@ function onScanSuccess(decodedText) {
   if (scanLocked) return;
   scanLocked = true;
 
+  // Pause the scanner to prevent continuous rapid scanning
+  if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.pause === "function") {
+    try { html5QrcodeScanner.pause(true); } catch (e) { console.log("Scanner pause error:", e); }
+  }
+
   let inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i].value === decodedText) {
       showStatus("⚠ Already scanned: " + decodedText);
-      setTimeout(() => { scanLocked = false; }, 2000);
+      setTimeout(() => {
+        scanLocked = false;
+        if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
+          try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
+        }
+      }, 2000);
       return;
     }
   }
@@ -1296,7 +1306,12 @@ function onScanSuccess(decodedText) {
   updateCount();
   beep.play();
   showStatus("✓ Added: " + decodedText);
-  setTimeout(() => { scanLocked = false; }, 2000);
+  setTimeout(() => {
+    scanLocked = false;
+    if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
+      try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
+    }
+  }, 2000);
 }
 
 let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 220 });
