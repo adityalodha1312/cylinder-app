@@ -1022,9 +1022,30 @@ def admin_activity():
 @app.route('/admin/daily_summary')
 @admin_required
 def admin_daily_summary():
-    today_str = date.today().strftime('%d-%m-%Y')
+    target_date_str = request.args.get('date', '').strip()
+    if target_date_str:
+        try:
+            # HTML input type="date" yields YYYY-MM-DD
+            parsed_dt = datetime.strptime(target_date_str, '%Y-%m-%d')
+            selected_date_str = parsed_dt.strftime('%d-%m-%Y')
+            display_date_input = target_date_str
+        except ValueError:
+            try:
+                # Fallback if in DD-MM-YYYY format
+                parsed_dt = datetime.strptime(target_date_str, '%d-%m-%Y')
+                selected_date_str = target_date_str
+                display_date_input = parsed_dt.strftime('%Y-%m-%d')
+            except ValueError:
+                selected_date = date.today()
+                selected_date_str = selected_date.strftime('%d-%m-%Y')
+                display_date_input = selected_date.strftime('%Y-%m-%d')
+    else:
+        selected_date = date.today()
+        selected_date_str = selected_date.strftime('%d-%m-%Y')
+        display_date_input = selected_date.strftime('%Y-%m-%d')
+
     scan_rows = get_scan_rows()
-    today_rows = [r for r in scan_rows if r['date'] == today_str]
+    today_rows = [r for r in scan_rows if r['date'] == selected_date_str]
 
     # Group by driver
     driver_stats = {}
@@ -1054,7 +1075,8 @@ def admin_daily_summary():
 
     return render_template('daily_summary.html',
         user               = session['user'],
-        today              = today_str,
+        today              = selected_date_str,
+        display_date_input = display_date_input,
         driver_stats       = driver_stats,
         total_deliveries   = total_deliveries,
         total_collections  = total_collections,
