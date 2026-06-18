@@ -450,9 +450,7 @@
     .kpi-icon.orange { background: #fff7ed; }
     .kpi-value { font-size: 28px; font-weight: 600; color: var(--dark-text); line-height: 1; }
     .kpi-label { font-size: 12.5px; color: var(--gray-text); margin-top: 6px; font-weight: 500; }
-    @media (max-width: 768px) {
-      .sidebar-nav .nav-primary { display: none; }
-    }
+
   </style>
   {% block head %}{% endblock %}
 </head>
@@ -543,6 +541,7 @@
       </summary>
       <div style="padding-left: 12px; margin-top: 4px;">
         <a href="/admin/receipts" class="nav-secondary {{ 'active' if request.path == '/admin/receipts' else '' }}">Receipts</a>
+        <a href="/admin/activity" class="nav-secondary {{ 'active' if request.path == '/admin/activity' else '' }}">Activity Log</a>
         <a href="/admin/aging" class="nav-secondary {{ 'active' if request.path == '/admin/aging' else '' }}">Aging</a>
         <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">Rotation</a>
         <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">Drivers</a>
