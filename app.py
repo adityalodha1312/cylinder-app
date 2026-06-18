@@ -2486,19 +2486,45 @@ def admin_customers_add():
                     user=session['user'], mode='add',
                     error='Customers worksheet not found.', form=request.form)
                     
-            # Generate next Customer ID
-            all_info = get_all_customer_info()
-            max_id = 0
-            for c in all_info:
-                id_str = c.get('id', '')
-                if id_str.startswith('C'):
-                    try:
-                        val = int(id_str[1:])
-                        if val > max_id: max_id = val
-                    except ValueError: pass
-            new_id = f"C{str(max_id + 1).zfill(3)}"
+            # Find the first row where Name (Column B) is empty
+            all_rows = customer_ws.get_all_values()
+            empty_row_idx = None
+            for idx, r in enumerate(all_rows):
+                if idx == 0: continue # Skip header
+                # Check if Column B (Name) is empty
+                if len(r) < 2 or not r[1].strip():
+                    empty_row_idx = idx + 1 # 1-based row index
+                    break
             
-            customer_ws.append_row([new_id, name, email, phone])
+            if empty_row_idx:
+                existing_row = all_rows[empty_row_idx - 1]
+                existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
+                if existing_id:
+                    new_id = existing_id
+                else:
+                    all_info = get_all_customer_info()
+                    max_id = 0
+                    for c in all_info:
+                        id_str = c.get('id', '')
+                        if id_str.startswith('C'):
+                            try:
+                                val = int(id_str[1:])
+                                if val > max_id: max_id = val
+                            except ValueError: pass
+                    new_id = f"C{str(max_id + 1).zfill(3)}"
+                customer_ws.update(f'A{empty_row_idx}:D{empty_row_idx}', [[new_id, name, email, phone]])
+            else:
+                all_info = get_all_customer_info()
+                max_id = 0
+                for c in all_info:
+                    id_str = c.get('id', '')
+                    if id_str.startswith('C'):
+                        try:
+                            val = int(id_str[1:])
+                            if val > max_id: max_id = val
+                        except ValueError: pass
+                new_id = f"C{str(max_id + 1).zfill(3)}"
+                customer_ws.append_row([new_id, name, email, phone])
             clear_cache()
             return redirect('/admin/customers')
         except Exception as e:
