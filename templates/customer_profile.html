@@ -199,6 +199,11 @@
     <a href="/admin/customers/{{ customer_name | urlencode }}/edit" class="back-btn" id="edit-customer-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text);">
       ✏️ Edit Profile
     </a>
+    <form action="/admin/customers/{{ customer_name | urlencode }}/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete this customer? This will clear their profile details from the sheet.');" style="display:inline;">
+      <button type="submit" class="back-btn" id="delete-customer-btn" style="background:#fff; border-color:#f5c6cb; color:#721c24; cursor:pointer;">
+        🗑️ Delete Profile
+      </button>
+    </form>
     <a href="/admin/customers/{{ customer_name | urlencode }}/offer" class="back-btn" id="create-offer-btn" style="background:var(--green-700); border-color:var(--green-700); color:#fff;">
       📄 Commercial Offer
     </a>

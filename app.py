@@ -2613,6 +2613,36 @@ def admin_customers_edit(customer_name):
     return render_template('customers_form.html',
         user=session['user'], mode='edit', uid=customer_name, error=None, form=cust)
 
+@app.route('/admin/customers/<path:customer_name>/delete', methods=['POST'])
+@admin_required
+def admin_customers_delete(customer_name):
+    from urllib.parse import unquote
+    customer_name = unquote(customer_name).strip()
+    global customer_ws
+    try:
+        if customer_ws is None and doc:
+            customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+        if customer_ws is None:
+            return "Error: Customers worksheet not found", 404
+            
+        rows = customer_ws.get_all_values()
+        row_num = None
+        for idx, r in enumerate(rows):
+            if idx == 0: continue
+            if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                row_num = idx + 1
+                break
+                
+        if row_num:
+            # Clear columns B, C, D, E of the customer row to mark it deleted
+            customer_ws.update(f'B{row_num}:E{row_num}', [["", "", "", ""]])
+            clear_cache()
+            
+        return redirect('/admin/customers')
+    except Exception as e:
+        print("Error deleting customer:", e)
+        return str(e), 500
+
 
 @app.route('/admin/customers/<path:customer_name>/offer')
 @admin_required
