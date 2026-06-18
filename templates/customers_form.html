@@ -164,6 +164,15 @@
           placeholder="e.g. +91 98765 43210">
         <span class="hint">Contact phone number for communication.</span>
       </div>
+
+      <!-- Customer Address -->
+      <div class="form-group">
+        <label for="address">Customer Address</label>
+        <input type="text" id="address" name="address"
+          value="{{ form.address if form else '' }}"
+          placeholder="e.g. Plot No. 45, Industrial Area Phase 1">
+        <span class="hint">Physical delivery address for customer records.</span>
+      </div>
     </div>
   </div>
 

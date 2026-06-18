@@ -182,9 +182,9 @@ def get_customer_emails():
             return _data_cache['customer_emails']
         return {}
 
-# Helper to ensure customers sheet has phone column D
-def ensure_phone_column():
-    """Ensures that the Customers sheet contains at least 4 columns (with Phone in Column D)"""
+# Helper to ensure customers sheet has phone column D and address column E
+def ensure_customer_columns():
+    """Ensures that the Customers sheet contains necessary columns (Phone in D, Address in E)"""
     global customer_ws
     try:
         if customer_ws is None:
@@ -196,10 +196,17 @@ def ensure_phone_column():
         if customer_ws:
             rows = customer_ws.get_all_values()
             if len(rows) > 0:
-                if len(rows[0]) < 4:
+                headers = rows[0]
+                if len(headers) < 4:
                     customer_ws.update_cell(1, 4, "Phone")
+                if len(headers) < 5:
+                    customer_ws.update_cell(1, 5, "Address")
     except Exception as e:
-        print("Error ensuring phone column:", e)
+        print("Error ensuring customer columns:", e)
+
+# Backward compatibility alias
+def ensure_phone_column():
+    ensure_customer_columns()
 
 def rename_customer_in_sheets(old_name, new_name):
     """Cascades a customer name change across registry, log, and map sheets"""
@@ -2202,7 +2209,7 @@ def admin_mark_collected():
 # ================================================================
 
 def get_all_customer_info():
-    """Returns list of dicts from Customers sheet: {id, name, email, phone}"""
+    """Returns list of dicts from Customers sheet: {id, name, email, phone, address}"""
     try:
         if customer_ws is None:
             return []
@@ -2214,10 +2221,11 @@ def get_all_customer_info():
             if len(row) < 2 or not row[1].strip():
                 continue
             out.append({
-                'id'   : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
-                'name' : row[1].strip() if len(row) > 1 else '',
-                'email': row[2].strip() if len(row) > 2 else '',
-                'phone': row[3].strip() if len(row) > 3 else '',
+                'id'     : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
+                'name'   : row[1].strip() if len(row) > 1 else '',
+                'email'  : row[2].strip() if len(row) > 2 else '',
+                'phone'  : row[3].strip() if len(row) > 3 else '',
+                'address': row[4].strip() if len(row) > 4 else '',
             })
         return out
     except Exception as e:
@@ -2458,12 +2466,13 @@ def admin_customer_profile(customer_name):
 @admin_required
 def admin_customers_add():
     global customer_ws
-    ensure_phone_column()
+    ensure_customer_columns()
     
     if request.method == 'POST':
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
         phone = request.form.get('phone', '').strip()
+        address = request.form.get('address', '').strip()
         
         if not name:
             return render_template('customers_form.html',
@@ -2512,7 +2521,7 @@ def admin_customers_add():
                                 if val > max_id: max_id = val
                             except ValueError: pass
                     new_id = f"C{str(max_id + 1).zfill(3)}"
-                customer_ws.update(f'A{empty_row_idx}:D{empty_row_idx}', [[new_id, name, email, phone]])
+                customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id, name, email, phone, address]])
             else:
                 all_info = get_all_customer_info()
                 max_id = 0
@@ -2524,7 +2533,7 @@ def admin_customers_add():
                             if val > max_id: max_id = val
                         except ValueError: pass
                 new_id = f"C{str(max_id + 1).zfill(3)}"
-                customer_ws.append_row([new_id, name, email, phone])
+                customer_ws.append_row([new_id, name, email, phone, address])
             clear_cache()
             return redirect('/admin/customers')
         except Exception as e:
@@ -2541,7 +2550,7 @@ def admin_customers_edit(customer_name):
     from urllib.parse import unquote
     customer_name = unquote(customer_name).strip()
     global customer_ws
-    ensure_phone_column()
+    ensure_customer_columns()
     
     all_info = get_all_customer_info()
     cust = next((c for c in all_info if c['name'].lower() == customer_name.lower()), None)
@@ -2552,6 +2561,7 @@ def admin_customers_edit(customer_name):
         name = request.form.get('name', '').strip()
         email = request.form.get('email', '').strip()
         phone = request.form.get('phone', '').strip()
+        address = request.form.get('address', '').strip()
         
         if not name:
             return render_template('customers_form.html',
@@ -2592,7 +2602,7 @@ def admin_customers_edit(customer_name):
             if name.lower() != customer_name.lower():
                 rename_customer_in_sheets(customer_name, name)
                 
-            customer_ws.update(f'A{row_num}:D{row_num}', [[cust.get('id', ''), name, email, phone]])
+            customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
             clear_cache()
             return redirect(f'/admin/customers/{name}')
         except Exception as e:
@@ -2610,7 +2620,7 @@ def admin_customer_offer_form(customer_name):
     from urllib.parse import unquote
     customer_name = unquote(customer_name).strip()
     global customer_ws
-    ensure_phone_column()
+    ensure_customer_columns()
     
     # Get customer details
     all_info = get_all_customer_info()

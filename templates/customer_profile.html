@@ -186,6 +186,11 @@
         {% else %}
           <span class="meta-badge empty">📞 No Phone</span>
         {% endif %}
+        {% if info.address %}
+          <span class="meta-badge">📍 {{ info.address }}</span>
+        {% else %}
+          <span class="meta-badge empty">📍 No Address</span>
+        {% endif %}
       </div>
     </div>
   </div>
