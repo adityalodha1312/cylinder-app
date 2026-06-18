@@ -1019,6 +1019,51 @@ def admin_activity():
         today_str = today_str
     )
 
+@app.route('/admin/daily_summary')
+@admin_required
+def admin_daily_summary():
+    today_str = date.today().strftime('%d-%m-%Y')
+    scan_rows = get_scan_rows()
+    today_rows = [r for r in scan_rows if r['date'] == today_str]
+
+    # Group by driver
+    driver_stats = {}
+    for r in today_rows:
+        d = r['driver'].strip()
+        if not d:
+            continue
+        if d not in driver_stats:
+            driver_stats[d] = {'deliveries': 0, 'collections': 0, 'fillings': 0, 'total': 0}
+        action = r['action'].strip()
+        if action == 'Delivery':
+            driver_stats[d]['deliveries'] += 1
+        elif action == 'Collection':
+            driver_stats[d]['collections'] += 1
+        elif action == 'Filling':
+            driver_stats[d]['fillings'] += 1
+        driver_stats[d]['total'] += 1
+
+    total_deliveries  = sum(v['deliveries']  for v in driver_stats.values())
+    total_collections = sum(v['collections'] for v in driver_stats.values())
+    total_fillings    = sum(v['fillings']    for v in driver_stats.values())
+    total_scans       = len(today_rows)
+
+    outstanding = build_outstanding()
+    outstanding_snapshot = [c for c in outstanding if c['outstanding'] > 0]
+    total_out = sum(c['outstanding'] for c in outstanding_snapshot)
+
+    return render_template('daily_summary.html',
+        user               = session['user'],
+        today              = today_str,
+        driver_stats       = driver_stats,
+        total_deliveries   = total_deliveries,
+        total_collections  = total_collections,
+        total_fillings     = total_fillings,
+        total_scans        = total_scans,
+        outstanding_snapshot = outstanding_snapshot,
+        total_out          = total_out,
+    )
+
 @app.route('/admin/outstanding')
 @admin_required
 def admin_outstanding():
@@ -1227,6 +1272,40 @@ def admin_search():
         current = current,
         drivers = drivers
     )
+def get_customer_receipt_history(customer_name):
+    """Returns receipt send history for a customer from the Customer Map sheet.
+    Returns list of dicts: {date, time, driver, action, count, status}
+    """
+    if map_ws is None:
+        return []
+    try:
+        rows = map_ws.get_all_values()
+        if len(rows) < 2:
+            return []
+        out = []
+        for r in rows[1:]:
+            if len(r) < 7:
+                continue
+            cust = r[6].strip() if len(r) > 6 else ''
+            status = r[8].strip() if len(r) > 8 else ''
+            if cust.lower() != customer_name.lower():
+                continue
+            if not status.lower().startswith('sent'):
+                continue
+            out.append({
+                'date':   r[0].strip(),
+                'time':   r[1].strip(),
+                'driver': r[2].strip(),
+                'action': r[3].strip(),
+                'count':  r[4].strip() if len(r) > 4 else '0',
+                'status': status,
+            })
+        out.reverse()
+        return out
+    except Exception as e:
+        print('Error reading receipt history:', e)
+        return []
+
 def get_customer_map_batches():
     if map_ws is None:
         return []
@@ -2442,6 +2521,8 @@ def admin_customer_profile(customer_name):
     scan_rows = get_scan_rows()
     drivers = sorted(list(set(r['driver'].strip() for r in scan_rows if r.get('driver') and r['driver'].strip())))
 
+    receipt_history = get_customer_receipt_history(customer_name)
+
     return render_template('customer_profile.html',
         user               = session['user'],
         info               = info,
@@ -2455,6 +2536,7 @@ def admin_customer_profile(customer_name):
         total_delivered    = total_delivered,
         total_collected    = total_collected,
         drivers            = drivers,
+        receipt_history    = receipt_history,
     )
 
 
@@ -2642,6 +2724,60 @@ def admin_customers_delete(customer_name):
     except Exception as e:
         print("Error deleting customer:", e)
         return str(e), 500
+
+
+@app.route('/admin/customers/<path:customer_name>/collect_all', methods=['POST'])
+@admin_required
+def admin_collect_all(customer_name):
+    from urllib.parse import unquote
+    customer_name = unquote(customer_name)
+    redirect_url  = request.form.get('redirect_url', f'/admin/customers/{customer_name}').strip()
+
+    driver_type = request.form.get('driver_type', 'select')
+    if driver_type == 'custom':
+        driver = request.form.get('driver_custom', '').strip() or 'Admin (Manual)'
+    else:
+        driver = request.form.get('driver_select', '').strip() or 'Admin (Manual)'
+
+    outstanding_detail = build_customer_outstanding_detail(customer_name)
+    uids = [c['uid'] for c in outstanding_detail]
+    if not uids:
+        return redirect(redirect_url)
+
+    now = datetime.now()
+    date_str = now.strftime('%d-%m-%Y')
+    time_str = now.strftime('%H:%M:%S')
+
+    rows_to_append = []
+    for uid in uids:
+        rows_to_append.append([date_str, time_str, driver, 'Collection', uid, customer_name])
+
+    try:
+        global sheet, cyl_ws
+        if sheet:
+            sheets_write_with_retry(sheet.append_rows, rows_to_append)
+
+        if cyl_ws is None and doc:
+            try:
+                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+            except Exception:
+                cyl_ws = None
+        if cyl_ws:
+            cyl_rows = cyl_ws.get_all_values()
+            uid_set = {u.upper() for u in uids}
+            updates = []
+            for idx, r in enumerate(cyl_rows):
+                if idx == 0:
+                    continue
+                if r and r[0].strip().upper() in uid_set:
+                    updates.append({'range': f'E{idx+1}:G{idx+1}', 'values': [['Empty', 'Depot', date_str]]})
+            for upd in updates:
+                cyl_ws.update(upd['range'], upd['values'])
+    except Exception as e:
+        print('Collect all error:', e)
+
+    clear_cache()
+    return redirect(redirect_url)
 
 
 @app.route('/admin/customers/<path:customer_name>/offer')

@@ -1,0 +1,216 @@
+{% extends "admin_base.html" %}
+{% block title %}Daily Summary — {{ today }}{% endblock %}
+
+{% block head %}
+<style>
+  @media print {
+    .no-print { display: none !important; }
+    .page-header { margin-bottom: 16px; }
+    body { background: white; }
+  }
+
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 768px) { .summary-grid { grid-template-columns: repeat(2,1fr); } }
+
+  .sum-kpi {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 16px 18px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .sum-kpi-val  { font-size: 32px; font-weight: 800; line-height: 1; color: var(--dark-text); }
+  .sum-kpi-lbl  { font-size: 12px; font-weight: 600; color: var(--gray-text); margin-top: 5px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .sum-kpi.delivery .sum-kpi-val { color: #0f6e56; }
+  .sum-kpi.collection .sum-kpi-val { color: #856404; }
+  .sum-kpi.filling .sum-kpi-val { color: #c2410c; }
+  .sum-kpi.outstanding .sum-kpi-val { color: #1d4ed8; }
+
+  .section-card {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    margin-bottom: 22px;
+  }
+  .section-header {
+    background: var(--green-50);
+    border-bottom: 1.5px solid var(--gray-bd);
+    padding: 13px 20px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--green-700);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: space-between;
+  }
+  .tbl { width: 100%; border-collapse: collapse; }
+  .tbl th, .tbl td { padding: 11px 18px; font-size: 13.5px; border-bottom: 1px solid #eeeee9; text-align: left; }
+  .tbl th { background: #f0f4f0; font-weight: 600; border-bottom: 1.5px solid var(--gray-bd); color: var(--dark-text); }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr:hover td { background: #f7faf8; }
+  .tbl td.num { font-weight: 700; font-size: 15px; }
+
+  .badge { display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-green  { background: #d4edda; color: #155724; }
+  .badge-yellow { background: #fff3cd; color: #856404; }
+  .badge-red    { background: #f8d7da; color: #721c24; }
+
+  .print-btn {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px;
+    background: var(--green-700); color: white;
+    border: none; border-radius: 9px;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; text-decoration: none;
+    transition: background 0.15s;
+  }
+  .print-btn:hover { background: var(--green-500); }
+
+  .empty-day {
+    text-align: center; padding: 48px 24px;
+    color: var(--gray-text); font-size: 14px; font-style: italic;
+  }
+  .driver-row td:first-child { font-weight: 600; color: var(--dark-text); }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="page-header no-print" style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+  <div>
+    <div class="page-title">Daily Summary</div>
+    <div class="page-sub">Operations report for {{ today }}</div>
+  </div>
+  <button class="print-btn" onclick="window.print()" id="print-summary-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/>
+      <rect x="6" y="14" width="12" height="8"/>
+    </svg>
+    Print / Save PDF
+  </button>
+</div>
+
+<!-- KPI Row -->
+<div class="summary-grid">
+  <div class="sum-kpi delivery">
+    <div class="sum-kpi-val">{{ total_deliveries }}</div>
+    <div class="sum-kpi-lbl">Deliveries Today</div>
+  </div>
+  <div class="sum-kpi collection">
+    <div class="sum-kpi-val">{{ total_collections }}</div>
+    <div class="sum-kpi-lbl">Collections Today</div>
+  </div>
+  <div class="sum-kpi filling">
+    <div class="sum-kpi-val">{{ total_fillings }}</div>
+    <div class="sum-kpi-lbl">Fillings Today</div>
+  </div>
+  <div class="sum-kpi outstanding">
+    <div class="sum-kpi-val">{{ total_out }}</div>
+    <div class="sum-kpi-lbl">Total Outstanding</div>
+  </div>
+</div>
+
+<!-- Driver Breakdown -->
+<div class="section-card">
+  <div class="section-header">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+        <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+      </svg>
+      Driver Breakdown — {{ today }}
+    </span>
+    <span style="font-size:11px; font-weight:500; color:var(--gray-text);">{{ total_scans }} total cylinder scans</span>
+  </div>
+  {% if driver_stats %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Driver</th>
+        <th>Deliveries</th>
+        <th>Collections</th>
+        <th>Fillings</th>
+        <th>Total Cylinders</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for driver, stats in driver_stats.items() | sort(attribute='1.total', reverse=True) %}
+      <tr class="driver-row">
+        <td>{{ driver }}</td>
+        <td class="num" style="color:#0f6e56;">{{ stats.deliveries }}</td>
+        <td class="num" style="color:#856404;">{{ stats.collections }}</td>
+        <td class="num" style="color:#c2410c;">{{ stats.fillings }}</td>
+        <td class="num">{{ stats.total }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-day">No scan activity recorded today.</div>
+  {% endif %}
+</div>
+
+<!-- Outstanding Snapshot -->
+<div class="section-card">
+  <div class="section-header">
+    <span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+      Outstanding Cylinders Snapshot
+    </span>
+    <span style="font-size:11px; font-weight:500; color:var(--gray-text);">{{ outstanding_snapshot|length }} customers with cylinders out</span>
+  </div>
+  {% if outstanding_snapshot %}
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Customer</th>
+        <th>Outstanding</th>
+        <th>Total Delivered</th>
+        <th>Total Collected</th>
+        <th>Last Activity</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in outstanding_snapshot | sort(attribute='outstanding', reverse=True) %}
+      <tr>
+        <td>
+          <a href="/admin/customers/{{ row.customer | urlencode }}" style="color:var(--dark-text); text-decoration:none; font-weight:600;" class="no-print">{{ row.customer }}</a>
+          <span class="no-print" style="display:none;">{{ row.customer }}</span>
+          <span style="display:none;" class="print-only">{{ row.customer }}</span>
+          <style>.print-only { display:none; } @media print { .print-only { display:inline !important; } .no-print a { display:none; } }</style>
+        </td>
+        <td>
+          {% if row.outstanding > 10 %}
+            <span class="badge badge-red">{{ row.outstanding }}</span>
+          {% elif row.outstanding > 5 %}
+            <span class="badge badge-yellow">{{ row.outstanding }}</span>
+          {% else %}
+            <span class="badge badge-green">{{ row.outstanding }}</span>
+          {% endif %}
+        </td>
+        <td>{{ row.total_delivered }}</td>
+        <td>{{ row.total_collected }}</td>
+        <td style="color:var(--gray-text); font-size:13px;">{{ row.last_activity }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-day">🎉 No outstanding cylinders — all collected!</div>
+  {% endif %}
+</div>
+
+{% endblock %}

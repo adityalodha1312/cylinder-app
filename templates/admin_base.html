@@ -489,87 +489,13 @@
       </svg>
       Dashboard
     </a>
-    <!-- Activity -->
-    <a href="/admin/activity" class="nav-primary {{ 'active' if request.path == '/admin/activity' else '' }}">
+    <!-- Daily Summary -->
+    <a href="/admin/daily_summary" class="nav-primary {{ 'active' if request.path == '/admin/daily_summary' else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-        <line x1="16" y1="2" x2="16" y2="6"/>
-        <line x1="8" y1="2" x2="8" y2="6"/>
-        <line x1="3" y1="10" x2="21" y2="10"/>
+        <line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
       </svg>
-      Activity
-    </a>
-    <!-- Inventory -->
-    <a href="/admin/inventory" class="nav-primary {{ 'active' if '/admin/inventory' in request.path else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
-      </svg>
-      Inventory
-    </a>
-    <!-- Outstanding -->
-    <a href="/admin/outstanding" class="nav-secondary {{ 'active' if request.path == '/admin/outstanding' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-      </svg>
-      Outstanding
-    </a>
-    <!-- Aging -->
-    <a href="/admin/aging" class="nav-secondary {{ 'active' if request.path == '/admin/aging' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
-      Aging
-    </a>
-    <!-- Rotation -->
-    <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-      </svg>
-      Rotation
-    </a>
-    <!-- Drivers -->
-    <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-        <circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
-      </svg>
-      Drivers
-    </a>
-    <!-- Movement -->
-    <a href="/admin/movement" class="nav-secondary {{ 'active' if request.path == '/admin/movement' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/>
-      </svg>
-      Movement
-    </a>
-    <!-- Search -->
-    <a href="/admin/search" class="nav-primary {{ 'active' if request.path == '/admin/search' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
-      </svg>
-      Search
-    </a>
-    <!-- Receipts -->
-    <a href="/admin/receipts" class="nav-secondary {{ 'active' if request.path == '/admin/receipts' else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-        <polyline points="14 2 14 8 20 8"/>
-        <line x1="16" y1="13" x2="8" y2="13"/>
-        <line x1="16" y1="17" x2="8" y2="17"/>
-        <polyline points="10 9 9 9 8 9"/>
-      </svg>
-      Receipts
-    </a>
-    <!-- Cylinders Registry -->
-    <a href="/admin/cylinders" class="nav-secondary {{ 'active' if '/admin/cylinders' in request.path else '' }}">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="10" y="2" width="4" height="20" rx="2"/>
-        <ellipse cx="12" cy="2" rx="6" ry="2.5"/>
-        <ellipse cx="12" cy="22" rx="6" ry="2.5"/>
-      </svg>
-      Cylinders
+      Daily Summary
     </a>
     <!-- Customers -->
     <a href="/admin/customers" class="nav-primary {{ 'active' if '/admin/customers' in request.path else '' }}">
@@ -579,20 +505,52 @@
       </svg>
       Customers
     </a>
-    <!-- Products Config -->
-    <a href="/admin/products" class="nav-secondary {{ 'active' if request.path == '/admin/products' else '' }}">
+    <!-- Cylinders Registry -->
+    <a href="/admin/cylinders" class="nav-secondary {{ 'active' if '/admin/cylinders' in request.path else '' }}">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
+        <rect x="10" y="2" width="4" height="20" rx="2"/><ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
       </svg>
-      Products
+      Cylinders
+    </a>
+    <!-- Outstanding -->
+    <a href="/admin/outstanding" class="nav-secondary {{ 'active' if request.path == '/admin/outstanding' else '' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+      </svg>
+      Outstanding
+    </a>
+    <!-- Search -->
+    <a href="/admin/search" class="nav-primary {{ 'active' if request.path == '/admin/search' else '' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      Search
     </a>
     <!-- Go to Scan App -->
-    <a href="/scan" class="nav-secondary">
+    <a href="/scan" class="nav-secondary" style="margin-top: 12px; border-top: 1px solid var(--green-500); padding-top: 12px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
       </svg>
       Driver Scan App
     </a>
+    
+    <!-- Collapsible Advanced Reports -->
+    <details style="margin-top: 8px;">
+      <summary style="cursor: pointer; padding: 10px 16px; font-size: 13.5px; font-weight: 600; color: #9FE1CB; list-style: none; display: flex; align-items: center; gap: 8px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+        More Reports & config
+      </summary>
+      <div style="padding-left: 12px; margin-top: 4px;">
+        <a href="/admin/receipts" class="nav-secondary {{ 'active' if request.path == '/admin/receipts' else '' }}">Receipts</a>
+        <a href="/admin/aging" class="nav-secondary {{ 'active' if request.path == '/admin/aging' else '' }}">Aging</a>
+        <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">Rotation</a>
+        <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">Drivers</a>
+        <a href="/admin/movement" class="nav-secondary {{ 'active' if request.path == '/admin/movement' else '' }}">Movement</a>
+        <a href="/admin/inventory" class="nav-secondary {{ 'active' if '/admin/inventory' in request.path else '' }}">Inventory</a>
+        <a href="/admin/products" class="nav-secondary {{ 'active' if request.path == '/admin/products' else '' }}">Products</a>
+      </div>
+    </details>
   </nav>
 
   <div class="sidebar-user">

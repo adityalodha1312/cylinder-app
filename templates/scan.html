@@ -45,6 +45,16 @@
   .header h1 { font-size: 17px; font-weight: 600; letter-spacing: 0.2px; }
   .header p { font-size: 12px; opacity: 0.75; margin-top: 2px; }
 
+  #offline-banner {
+    display: none;
+    background: #f59e0b;
+    color: #fff;
+    text-align: center;
+    padding: 8px;
+    font-size: 13px;
+    font-weight: 600;
+  }
+
   .form-body { padding: 20px 16px; max-width: 540px; margin: 0 auto; }
 
   .field { margin-bottom: 16px; }
@@ -574,6 +584,10 @@
       <a href="/logout" style="color: white; font-size: 12px; font-weight: 500; text-decoration: none; padding: 6px 12px; border: 1.5px solid rgba(255,255,255,0.35); border-radius: 8px; background: rgba(255,255,255,0.1); transition: background 0.2s;">Logout</a>
     {% endif %}
   </div>
+</div>
+
+<div id="offline-banner">
+  ⚠️ You are currently offline. Scans will be saved and synced automatically when you reconnect.
 </div>
 
 <!-- MAIN FORM -->
@@ -1183,11 +1197,22 @@ async function submitForm() {
   btn.disabled = true;
   btn.innerText = "Submitting...";
 
+  let payload = { driver: driver, customer: customer, scans: scans };
+
+  if (!navigator.onLine) {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'QUEUE_SCAN', payload: payload });
+      showStatus("Saved offline. Will sync when reconnected.");
+      setTimeout(() => window.location.reload(), 2000);
+      return;
+    }
+  }
+
   try {
     let res = await fetch("/submit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ driver: driver, customer: customer, scans: scans })
+      body: JSON.stringify(payload)
     });
     if (!res.ok) throw new Error("Server error");
 
@@ -1323,7 +1348,20 @@ html5QrcodeScanner.render(onScanSuccess);
     navigator.serviceWorker.register('/static/sw.js')
       .then(() => console.log('SW registered'))
       .catch(e => console.log('SW error', e));
+      
+    navigator.serviceWorker.addEventListener('message', event => {
+      if (event.data && event.data.type === 'QUEUE_FLUSHED') {
+        showStatus("Offline scans have been synced successfully.");
+      }
+    });
   }
+
+  function updateOnlineStatus() {
+    document.getElementById('offline-banner').style.display = navigator.onLine ? 'none' : 'block';
+  }
+  window.addEventListener('online', updateOnlineStatus);
+  window.addEventListener('offline', updateOnlineStatus);
+  updateOnlineStatus();
 </script>
 
 </body>
