@@ -11,6 +11,7 @@ import re
 from db import db
 from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product
 from apscheduler.schedulers.background import BackgroundScheduler
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv()
 
@@ -21,6 +22,13 @@ app.secret_key = 'cyl-tracker-secret-2026'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
+
+# Session Security Configuration
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['SESSION_COOKIE_SECURE'] = not os.environ.get('FLASK_DEBUG') == '1'
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
+
 
 
 SCOPES = [
@@ -585,12 +593,31 @@ def check_login(username, password):
     try:
         if os.environ.get('DATABASE_URL'):
             u = User.query.filter(db.func.lower(User.username) == username.lower()).first()
-            if u and u.password == password:
-                return {
-                    'username': u.username,
-                    'role': u.role.lower() if u.role else 'driver',
-                    'name': u.name or u.username
-                }
+            if u:
+                password_valid = False
+                is_hashed = u.password.startswith('pbkdf2:') or u.password.startswith('scrypt:')
+                
+                if is_hashed:
+                    password_valid = check_password_hash(u.password, password)
+                else:
+                    # Plain text comparison
+                    password_valid = (u.password == password)
+                    if password_valid:
+                        # Auto-upgrade the plain text password to hashed format in database
+                        try:
+                            u.password = generate_password_hash(password)
+                            db.session.commit()
+                            print(f"[security] Successfully auto-upgraded password hash for user: {u.username}")
+                        except Exception as upgrade_err:
+                            db.session.rollback()
+                            print(f"[security] Error auto-upgrading password hash for {u.username}:", upgrade_err)
+                
+                if password_valid:
+                    return {
+                        'username': u.username,
+                        'role': u.role.lower() if u.role else 'driver',
+                        'name': u.name or u.username
+                    }
     except Exception as e:
         print("[db] Login check error, falling back to Sheets:", e)
 
@@ -1117,6 +1144,7 @@ def login():
         password = request.form.get('password', '').strip()
         user     = check_login(username, password)
         if user:
+            session.permanent = True
             session['user'] = user
             if user['role'] in ['manager', 'owner']:
                 return redirect('/admin')

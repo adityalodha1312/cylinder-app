@@ -11,6 +11,7 @@ load_dotenv()
 
 from db import db
 from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product
+from werkzeug.security import generate_password_hash
 
 def parse_float(val):
     if not val:
@@ -58,15 +59,21 @@ def sync_sheets_to_db(doc):
             role = str(r.get('Role', 'driver')).strip().lower()
             name = str(r.get('Name', username)).strip()
             
+            # Hash plain text password from Google Sheets
+            db_password = password
+            if password and not (password.startswith('pbkdf2:') or password.startswith('scrypt:')):
+                db_password = generate_password_hash(password)
+            
             if username in existing_users:
                 user = existing_users[username]
-                if user.password != password or user.role != role or user.name != name:
-                    user.password = password
+                # Compare db_password with user.password
+                if user.password != db_password or user.role != role or user.name != name:
+                    user.password = db_password
                     user.role = role
                     user.name = name
                     print(f"[sync] Updated user: {username}")
             else:
-                user = User(username=username, password=password, role=role, name=name)
+                user = User(username=username, password=db_password, role=role, name=name)
                 db.session.add(user)
                 print(f"[sync] Added user: {username}")
         db.session.commit()
