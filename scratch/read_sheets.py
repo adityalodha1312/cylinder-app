@@ -19,7 +19,7 @@ try:
         
     print("\nReading sample from Customers:")
     cust_ws = doc.worksheet("Customers")
-    print(cust_ws.get_all_values()[:5])
+    print(cust_ws.get_all_values())
     
     try:
         cyl_ws = doc.worksheet("Cylinders")

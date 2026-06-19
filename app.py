@@ -790,6 +790,40 @@ def build_events():
 def get_activity_events():
     """Sorted list of all activity scans from Sheet1, grouped by submission, enriched with Customer column or batch_map fallback"""
     try:
+        if os.environ.get('DATABASE_URL'):
+            scans = Scan.query.all()
+            if scans:
+                grouped = {}
+                for s in scans:
+                    date_str = s.scan_date
+                    time_str = s.scan_time or ''
+                    driver = s.driver or ''
+                    action = s.action
+                    customer = s.customer or ''
+                    cust_display = customer if customer else ('Depot' if action == 'Filling' else '—')
+                    
+                    group_key = (date_str, time_str, driver, action, cust_display)
+                    if group_key not in grouped:
+                        grouped[group_key] = []
+                    grouped[group_key].append(s.cylinder_uid)
+                
+                events = []
+                for (date_str, time_str, driver, action, cust_display), uids in grouped.items():
+                    events.append({
+                        'date': date_str,
+                        'time': time_str,
+                        'driver': driver,
+                        'action': action,
+                        'uids': uids,
+                        'customer': cust_display,
+                        'date_obj': parse_date(date_str)
+                    })
+                events.sort(key=lambda x: (x['date_obj'] or date.min, x['time']), reverse=True)
+                return events
+    except Exception as e:
+        print("[db] Error getting activity events from DB, falling back to Sheets:", e)
+
+    try:
         if scan_ws is None:
             return []
         rows = scan_ws.get_all_values()
@@ -1412,6 +1446,32 @@ def admin_products_save():
     if not rows:
         return _jsonify({'ok': False, 'msg': 'No rows to save.'}), 400
 
+    db_written = False
+    if os.environ.get('DATABASE_URL'):
+        try:
+            Product.query.delete()
+            for r in rows:
+                p_db = Product(
+                    product_id=r[0],
+                    name=r[1],
+                    gas_type=r[2],
+                    cylinder_type=r[3],
+                    gas_per_cyl=r[4],
+                    unit=r[5],
+                    is_virtual=(r[6] == 'TRUE')
+                )
+                db.session.add(p_db)
+            db.session.commit()
+            db_written = True
+            print(f"[db] Saved {len(rows)} products to database.")
+        except Exception as dbe:
+            db.session.rollback()
+            print("[db] Error saving products in DB:", dbe)
+            from sqlalchemy.exc import OperationalError, InterfaceError
+            is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+            if not is_connection_error:
+                return _jsonify({'ok': False, 'msg': f"Database error: {str(dbe)}"}), 500
+
     try:
         # Ensure Products sheet exists
         if products_ws is None and doc:
@@ -1422,19 +1482,24 @@ def admin_products_save():
                     title=PRODUCTS_SHEET_NAME, rows=100, cols=7)
 
         if products_ws is None:
-            return _jsonify({'ok': False, 'msg': 'Cannot connect to Google Sheets.'}), 500
+            if not db_written:
+                return _jsonify({'ok': False, 'msg': 'Cannot connect to Google Sheets and DB offline.'}), 500
+        else:
+            # Clear and rewrite
+            products_ws.clear()
+            header = ['Product ID', 'Display Name', 'Gas Type',
+                      'Cylinder Type', 'Gas Per Cylinder', 'Unit', 'Is Virtual?']
+            products_ws.append_row(header, value_input_option='RAW')
+            products_ws.append_rows(rows, value_input_option='RAW')
 
-        # Clear and rewrite
-        products_ws.clear()
-        header = ['Product ID', 'Display Name', 'Gas Type',
-                  'Cylinder Type', 'Gas Per Cylinder', 'Unit', 'Is Virtual?']
-        products_ws.append_row(header, value_input_option='RAW')
-        products_ws.append_rows(rows, value_input_option='RAW')
-
-        return _jsonify({'ok': True, 'msg': f'Saved {len(rows)} products to Google Sheet.'})
+        clear_cache()
+        return _jsonify({'ok': True, 'msg': f'Saved {len(rows)} products successfully.'})
     except Exception as e:
-        print("admin_products_save error:", e)
-        return _jsonify({'ok': False, 'msg': str(e)}), 500
+        print("admin_products_save sheets error:", e)
+        if not db_written:
+            return _jsonify({'ok': False, 'msg': str(e)}), 500
+        clear_cache()
+        return _jsonify({'ok': True, 'msg': f'Saved {len(rows)} products to DB (failed mirroring to Sheets).'})
 
 @app.route('/admin/drivers')
 @admin_required
@@ -1490,9 +1555,31 @@ def admin_search():
         drivers = drivers
     )
 def get_customer_receipt_history(customer_name):
-    """Returns receipt send history for a customer from the Customer Map sheet.
+    """Returns receipt send history for a customer from the Customer Map table, falling back to Sheets.
     Returns list of dicts: {date, time, driver, action, count, status}
     """
+    try:
+        if os.environ.get('DATABASE_URL'):
+            maps = CustomerMap.query.filter(CustomerMap.customer.ilike(customer_name)).all()
+            if maps:
+                out = []
+                for m in maps:
+                    status = m.receipt_status or ''
+                    if not status.lower().startswith('sent'):
+                        continue
+                    out.append({
+                        'date':   m.scan_date,
+                        'time':   m.scan_time or '',
+                        'driver': m.driver or '',
+                        'action': m.action or '',
+                        'count':  str(m.count or 0),
+                        'status': status,
+                    })
+                out.reverse()
+                return out
+    except Exception as e:
+        print("[db] Error reading receipt history from DB, falling back to Sheets:", e)
+
     if map_ws is None:
         return []
     try:
@@ -1520,10 +1607,32 @@ def get_customer_receipt_history(customer_name):
         out.reverse()
         return out
     except Exception as e:
-        print('Error reading receipt history:', e)
+        print('Error reading receipt history from sheet:', e)
         return []
 
 def get_customer_map_batches():
+    """Returns list of all Customer Map batches from PostgreSQL, falling back to Sheets."""
+    try:
+        if os.environ.get('DATABASE_URL'):
+            maps = CustomerMap.query.all()
+            if maps:
+                out = [{
+                    'row_num': None,
+                    'date': m.scan_date,
+                    'time': m.scan_time or '',
+                    'driver': m.driver or '',
+                    'action': m.action or '',
+                    'count': str(m.count or 0),
+                    'uids': m.uids or '',
+                    'customer': m.customer or '',
+                    'send_receipt': 'TRUE' if m.send_receipt else 'FALSE',
+                    'status': m.receipt_status or ''
+                } for m in maps]
+                out.reverse()
+                return out
+    except Exception as e:
+        print("[db] Error reading map batches from DB, falling back to Sheets:", e)
+
     if map_ws is None:
         return []
     try:
@@ -1550,7 +1659,7 @@ def get_customer_map_batches():
         out.reverse()
         return out
     except Exception as e:
-        print("Error reading Customer Map:", e)
+        print("Error reading Customer Map from sheet:", e)
         return []
 
 @app.route('/admin/receipts')
@@ -1589,40 +1698,49 @@ def admin_update_mapping():
         return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
 
     try:
-        if map_ws is None:
-            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
-        
-        rows = map_ws.get_all_values()
-        for idx, r in enumerate(rows):
-            if idx == 0:
-                continue
-            if len(r) >= 4:
-                if (r[0].strip() == date_val and 
-                    r[1].strip() == time_val and 
-                    r[2].strip() == driver_val and 
-                    r[3].strip() == action_val):
-                    map_ws.update_cell(idx + 1, 7, customer_val) # Column G is 7
+        db_written = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                cmap = CustomerMap.query.filter_by(
+                    scan_date=date_val,
+                    scan_time=time_val,
+                    driver=driver_val,
+                    action=action_val
+                ).first()
+                if cmap:
+                    cmap.customer = customer_val
+                    db.session.commit()
+                    db_written = True
+                    print(f"[db] Mapped customer {customer_val} to batch scan in DB.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error mapping customer in DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return jsonify({'status': 'Error', 'message': f"Database error: {str(dbe)}"})
 
-                    # Database updates
-                    if os.environ.get('DATABASE_URL'):
-                        try:
-                            cmap = CustomerMap.query.filter_by(
-                                scan_date=date_val,
-                                scan_time=time_val,
-                                driver=driver_val,
-                                action=action_val
-                            ).first()
-                            if cmap:
-                                cmap.customer = customer_val
-                                db.session.commit()
-                                print(f"[db] Mapped customer {customer_val} to batch scan in DB.")
-                        except Exception as dbe:
-                            db.session.rollback()
-                            print("[db] Error mapping customer in DB:", dbe)
+        # Mirror to Google Sheets
+        try:
+            if map_ws is not None:
+                rows = map_ws.get_all_values()
+                for idx, r in enumerate(rows):
+                    if idx == 0:
+                        continue
+                    if len(r) >= 4:
+                        if (r[0].strip() == date_val and 
+                            r[1].strip() == time_val and 
+                            r[2].strip() == driver_val and 
+                            r[3].strip() == action_val):
+                            map_ws.update_cell(idx + 1, 7, customer_val) # Column G is 7
+                            break
+        except Exception as se:
+            print("[sheets] Error mirroring mapping update to Sheets:", se)
+            if not db_written:
+                raise se
 
-                    clear_cache()
-                    return jsonify({'status': 'Success', 'message': 'Customer mapped successfully'})
-        return jsonify({'status': 'Error', 'message': 'Batch row not found'})
+        clear_cache()
+        return jsonify({'status': 'Success', 'message': 'Customer mapped successfully'})
     except Exception as e:
         return jsonify({'status': 'Error', 'message': str(e)})
 
@@ -1639,54 +1757,92 @@ def admin_send_receipt():
         return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
 
     try:
-        if map_ws is None:
-            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
-        
-        rows = map_ws.get_all_values()
-        for idx, r in enumerate(rows):
-            if idx == 0:
-                continue
-            if len(r) >= 4:
-                if (r[0].strip() == date_val and 
-                    r[1].strip() == time_val and 
-                    r[2].strip() == driver_val and 
-                    r[3].strip() == action_val):
-                    
-                    customer_name = r[6].strip() if len(r) > 6 else ''
-                    if not customer_name:
-                        return jsonify({'status': 'Error', 'message': 'Please map a customer first'})
-                    
-                    # Validate if email exists for this customer
-                    emails = get_customer_emails()
-                    email = emails.get(customer_name, '').strip()
-                    if not email or '@' not in email:
-                        return jsonify({'status': 'Error', 'message': f"Missing Email: Please enter an email address for {customer_name} in the Customers page first."})
-                    
-                    # Batch update Column H (Send Receipt? = TRUE) and Column I (Status = Sending...)
-                    # Column H is 8, Column I is 9. This single call executes instantly.
-                    map_ws.update(f"H{idx + 1}:I{idx + 1}", [[True, "Sending..."]], value_input_option='USER_ENTERED')
+        # Determine customer name from DB first
+        customer_name = ""
+        db_record = None
+        if os.environ.get('DATABASE_URL'):
+            try:
+                db_record = CustomerMap.query.filter_by(
+                    scan_date=date_val,
+                    scan_time=time_val,
+                    driver=driver_val,
+                    action=action_val
+                ).first()
+                if db_record:
+                    customer_name = db_record.customer or ""
+            except Exception as dbe:
+                print("[db] Error looking up customer map for receipt in DB:", dbe)
 
-                    # Database updates
-                    if os.environ.get('DATABASE_URL'):
-                        try:
-                            cmap = CustomerMap.query.filter_by(
-                                scan_date=date_val,
-                                scan_time=time_val,
-                                driver=driver_val,
-                                action=action_val
-                            ).first()
-                            if cmap:
-                                cmap.send_receipt = True
-                                cmap.receipt_status = "Sending..."
-                                db.session.commit()
-                                print("[db] Triggered send receipt in database.")
-                        except Exception as dbe:
-                            db.session.rollback()
-                            print("[db] Error triggering send receipt in DB:", dbe)
+        # If not found in DB or DB offline, read from Sheets
+        if not customer_name:
+            if map_ws is not None:
+                rows = map_ws.get_all_values()
+                for idx, r in enumerate(rows):
+                    if idx == 0:
+                        continue
+                    if len(r) >= 7:
+                        if (r[0].strip() == date_val and 
+                            r[1].strip() == time_val and 
+                            r[2].strip() == driver_val and 
+                            r[3].strip() == action_val):
+                            customer_name = r[6].strip()
+                            break
 
-                    clear_cache()
-                    return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
-        return jsonify({'status': 'Error', 'message': 'Batch row not found'})
+        if not customer_name:
+            return jsonify({'status': 'Error', 'message': 'Please map a customer first'})
+
+        # Validate if email exists for this customer
+        emails = get_customer_emails()
+        email = emails.get(customer_name, '').strip()
+        if not email or '@' not in email:
+            return jsonify({'status': 'Error', 'message': f"Missing Email: Please enter an email address for {customer_name} in the Customers page first."})
+
+        # Database update first
+        db_written = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                if not db_record:
+                    db_record = CustomerMap.query.filter_by(
+                        scan_date=date_val,
+                        scan_time=time_val,
+                        driver=driver_val,
+                        action=action_val
+                    ).first()
+                if db_record:
+                    db_record.send_receipt = True
+                    db_record.receipt_status = "Sending..."
+                    db.session.commit()
+                    db_written = True
+                    print("[db] Triggered send receipt in database.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error triggering send receipt in DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return jsonify({'status': 'Error', 'message': f"Database error: {str(dbe)}"})
+
+        # Sheets update
+        try:
+            if map_ws is not None:
+                rows = map_ws.get_all_values()
+                for idx, r in enumerate(rows):
+                    if idx == 0:
+                        continue
+                    if len(r) >= 4:
+                        if (r[0].strip() == date_val and 
+                            r[1].strip() == time_val and 
+                            r[2].strip() == driver_val and 
+                            r[3].strip() == action_val):
+                            map_ws.update(f"H{idx + 1}:I{idx + 1}", [[True, "Sending..."]], value_input_option='USER_ENTERED')
+                            break
+        except Exception as se:
+            print("[sheets] Error mirroring send receipt trigger to Sheets:", se)
+            if not db_written:
+                raise se
+
+        clear_cache()
+        return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
     except Exception as e:
         return jsonify({'status': 'Error', 'message': str(e)})
 
@@ -1883,26 +2039,33 @@ def get_tank_data_for_date(target_date_str):
 
 def calculate_used_today(target_date_str):
     """Calculates used gas today from fillings logged in scan log."""
-    global scan_ws
-    used = {'Argon': 0.0, 'CO2': 0.0, 'N2': 0.0, 'Oxygen': 0.0}
     try:
-        if scan_ws is None and doc:
-            try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
-            except Exception: pass
-        if scan_ws is None:
-            return used
-            
-        rows = scan_ws.get_all_values()
-        if len(rows) < 2:
-            return used
-            
         fillings = []
-        for r in rows[1:]:
-            if len(r) >= 5:
-                # Col A: Date, Col D: Action, Col E: UID
-                if r[0].strip() == target_date_str and r[3].strip() == 'Filling':
-                    fillings.append(r[4].strip().upper())
-                    
+        db_loaded = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                scans = Scan.query.filter_by(scan_date=target_date_str, action='Filling').all()
+                fillings = [s.cylinder_uid.strip().upper() for s in scans if s.cylinder_uid]
+                db_loaded = True
+            except Exception as dbe:
+                print("[db] Error querying scans for calculate_used_today, falling back to Sheets:", dbe)
+
+        if not db_loaded:
+            if scan_ws is None and doc:
+                try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
+                except Exception: pass
+            if scan_ws is None:
+                return used
+                
+            rows = scan_ws.get_all_values()
+            if len(rows) < 2:
+                return used
+                
+            for r in rows[1:]:
+                if len(r) >= 5:
+                    if r[0].strip() == target_date_str and r[3].strip() == 'Filling':
+                        fillings.append(r[4].strip().upper())
+                        
         if not fillings:
             return used
             
@@ -2100,30 +2263,10 @@ def calculate_table2_bulk_inventory(target_date_str):
     return rows
 
 def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume, unit):
-    """Updates opening stock, capacity, and dead volume for a specific gas and date."""
+    """Updates opening stock, capacity, and dead volume for a specific gas and date in database first, then mirror to Sheets."""
     global bulk_tanks_ws
     try:
-        if bulk_tanks_ws is None and doc:
-            try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
-            except Exception: pass
-        if bulk_tanks_ws is None:
-            return False
-            
-        rows = bulk_tanks_ws.get_all_values()
-        row_num = None
-        for idx, r in enumerate(rows):
-            if idx == 0: continue
-            if len(r) >= 2 and r[0].strip() == date_str and r[1].strip() == gas_name:
-                row_num = idx + 1
-                break
-                
-        row_data = [date_str, gas_name, float(opening), float(dead_volume), float(capacity), unit]
-        if row_num:
-            bulk_tanks_ws.update(f'A{row_num}:F{row_num}', [row_data])
-        else:
-            bulk_tanks_ws.append_row(row_data)
-
-        # Database updates
+        db_written = False
         if os.environ.get('DATABASE_URL'):
             try:
                 bt = BulkTank.query.filter_by(date=date_str, gas=gas_name).first()
@@ -2143,10 +2286,40 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
                     )
                     db.session.add(bt)
                 db.session.commit()
+                db_written = True
                 print(f"[db] Updated bulk tank stock for {gas_name} on {date_str} in DB.")
             except Exception as dbe:
                 db.session.rollback()
                 print("[db] Error updating bulk tank stock in DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return False
+
+        # Mirror to Google Sheets
+        try:
+            if bulk_tanks_ws is None and doc:
+                try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
+                except Exception: pass
+            
+            if bulk_tanks_ws is not None:
+                rows = bulk_tanks_ws.get_all_values()
+                row_num = None
+                for idx, r in enumerate(rows):
+                    if idx == 0: continue
+                    if len(r) >= 2 and r[0].strip() == date_str and r[1].strip() == gas_name:
+                        row_num = idx + 1
+                        break
+                        
+                row_data = [date_str, gas_name, float(opening), float(dead_volume), float(capacity), unit]
+                if row_num:
+                    bulk_tanks_ws.update(f'A{row_num}:F{row_num}', [row_data])
+                else:
+                    bulk_tanks_ws.append_row(row_data)
+        except Exception as se:
+            print("[sheets] Error mirroring bulk tank update to Sheets:", se)
+            if not db_written:
+                raise se
 
         return True
     except Exception as e:
@@ -2179,25 +2352,43 @@ def calculate_daily_dispatch_report(target_date_str):
         }
     }
     try:
-        if scan_ws is None and doc:
-            try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
-            except Exception: pass
-        if scan_ws is None:
-            return empty_report
-            
-        rows = scan_ws.get_all_values()
-        if len(rows) < 2:
-            return empty_report
-            
         day_scans = []
-        for r in rows[1:]:
-            if len(r) >= 6:
-                if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection'):
+        db_loaded = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                scans = Scan.query.filter(
+                    Scan.scan_date == target_date_str,
+                    Scan.action.in_(['Delivery', 'Collection'])
+                ).all()
+                for s in scans:
                     day_scans.append({
-                        'action': r[3].strip(),
-                        'uid': r[4].strip().upper(),
-                        'customer': r[5].strip()
+                        'action': s.action,
+                        'uid': s.cylinder_uid.strip().upper(),
+                        'customer': s.customer.strip() if s.customer else ''
                     })
+                db_loaded = True
+            except Exception as dbe:
+                print("[db] Error in calculate_daily_dispatch_report query, falling back to Sheets:", dbe)
+
+        if not db_loaded:
+            if scan_ws is None and doc:
+                try: scan_ws = doc.worksheet(SCAN_SHEET_NAME)
+                except Exception: pass
+            if scan_ws is None:
+                return empty_report
+                
+            rows = scan_ws.get_all_values()
+            if len(rows) < 2:
+                return empty_report
+                
+            for r in rows[1:]:
+                if len(r) >= 6:
+                    if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection'):
+                        day_scans.append({
+                            'action': r[3].strip(),
+                            'uid': r[4].strip().upper(),
+                            'customer': r[5].strip()
+                        })
                     
         if not day_scans:
             return empty_report
@@ -2390,49 +2581,8 @@ def admin_cylinders_add():
                 error=f'Cylinder UID "{uid}" already exists.', form=data,
                 gas_types=gas_types, cylinder_types=cylinder_types)
         try:
-            # Refresh worksheet references if needed
-            if cyl_ws is None and doc:
-                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                except Exception: pass
-            if cyl_maint_ws is None and doc:
-                try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                except Exception: pass
-
-            if cyl_ws is None:
-                return render_template('cylinders_form.html',
-                    user=session['user'], mode='add',
-                    error='Cylinders sheet not found. Please run Setup Registry Sheets from Google Sheets menu first.', form=data,
-                    gas_types=gas_types, cylinder_types=cylinder_types)
-
-            # Write to Cylinders sheet
-            cyl_ws.append_row([
-                uid,
-                data.get('gas_type', '').strip(),
-                data.get('cylinder_type', '').strip(),
-                data.get('owner', 'Depot').strip(),
-                data.get('status', 'Active').strip(),
-                data.get('location', 'Depot').strip(),
-                date.today().strftime('%d-%m-%Y'),
-            ])
-            # Write to Cylinder Maintenance sheet
-            if cyl_maint_ws:
-                cyl_maint_ws.append_row([
-                    uid,
-                    data.get('water_capacity', '').strip(),
-                    data.get('fill_pressure', '').strip(),
-                    data.get('gas_capacity', '').strip(),
-                    data.get('unit', '').strip(),
-                    data.get('is_mixture', 'No').strip(),
-                    data.get('mix_ratio', '').strip(),
-                    data.get('manufacture_date', '').strip(),
-                    data.get('last_hydro_date', '').strip(),
-                    data.get('next_hydro_due', '').strip(),
-                    data.get('hydro_test_status', '').strip(),
-                    data.get('cert_no', '').strip(),
-                    'Yes' if data.get('is_uhp') == 'Yes' else 'No',
-                ])
-
-            # Write to database (PostgreSQL)
+            db_written = False
+            # Write to database (PostgreSQL) first
             if os.environ.get('DATABASE_URL'):
                 try:
                     c_db = Cylinder(
@@ -2463,10 +2613,67 @@ def admin_cylinders_add():
                     )
                     db.session.add(m_db)
                     db.session.commit()
+                    db_written = True
                     print(f"[db] Added cylinder {uid} to PostgreSQL database.")
                 except Exception as dbe:
                     db.session.rollback()
                     print("[db] Error adding cylinder to DB:", dbe)
+                    from sqlalchemy.exc import OperationalError, InterfaceError
+                    is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                    if not is_connection_error:
+                        return render_template('cylinders_form.html',
+                            user=session['user'], mode='add',
+                            error=f"Database validation error: {str(dbe)}", form=data,
+                            gas_types=gas_types, cylinder_types=cylinder_types)
+
+            # Mirror to Google Sheets
+            try:
+                # Refresh worksheet references if needed
+                if cyl_ws is None and doc:
+                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception: pass
+                if cyl_maint_ws is None and doc:
+                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                    except Exception: pass
+
+                if cyl_ws is None:
+                    if not db_written:
+                        return render_template('cylinders_form.html',
+                            user=session['user'], mode='add',
+                            error='Cylinders sheet not found and database offline.', form=data,
+                            gas_types=gas_types, cylinder_types=cylinder_types)
+                else:
+                    # Write to Cylinders sheet
+                    cyl_ws.append_row([
+                        uid,
+                        data.get('gas_type', '').strip(),
+                        data.get('cylinder_type', '').strip(),
+                        data.get('owner', 'Depot').strip(),
+                        data.get('status', 'Active').strip(),
+                        data.get('location', 'Depot').strip(),
+                        date.today().strftime('%d-%m-%Y'),
+                    ])
+                    # Write to Cylinder Maintenance sheet
+                    if cyl_maint_ws:
+                        cyl_maint_ws.append_row([
+                            uid,
+                            data.get('water_capacity', '').strip(),
+                            data.get('fill_pressure', '').strip(),
+                            data.get('gas_capacity', '').strip(),
+                            data.get('unit', '').strip(),
+                            data.get('is_mixture', 'No').strip(),
+                            data.get('mix_ratio', '').strip(),
+                            data.get('manufacture_date', '').strip(),
+                            data.get('last_hydro_date', '').strip(),
+                            data.get('next_hydro_due', '').strip(),
+                            data.get('hydro_test_status', '').strip(),
+                            data.get('cert_no', '').strip(),
+                            'Yes' if data.get('is_uhp') == 'Yes' else 'No',
+                        ])
+            except Exception as se:
+                print("[sheets] Error mirroring cylinder write to Sheets:", se)
+                if not db_written:
+                    raise se
 
             return redirect('/admin/cylinders')
         except Exception as e:
@@ -2495,35 +2702,8 @@ def admin_cylinders_edit(uid):
     if request.method == 'POST':
         data = request.form
         try:
-            cyl_row, maint_row = find_cylinder_rows(uid)
-            if cyl_row and cyl_ws:
-                cyl_ws.update(f'A{cyl_row}:G{cyl_row}', [[
-                    uid,
-                    data.get('gas_type', '').strip(),
-                    data.get('cylinder_type', '').strip(),
-                    data.get('owner', '').strip(),
-                    data.get('status', 'Active').strip(),
-                    data.get('location', '').strip(),
-                    cyl.get('last_activity', ''),
-                ]])
-            if maint_row and cyl_maint_ws:
-                cyl_maint_ws.update(f'A{maint_row}:M{maint_row}', [[
-                    uid,
-                    data.get('water_capacity', '').strip(),
-                    data.get('fill_pressure', '').strip(),
-                    data.get('gas_capacity', '').strip(),
-                    data.get('unit', '').strip(),
-                    data.get('is_mixture', 'No').strip(),
-                    data.get('mix_ratio', '').strip(),
-                    data.get('manufacture_date', '').strip(),
-                    data.get('last_hydro_date', '').strip(),
-                    data.get('next_hydro_due', '').strip(),
-                    data.get('hydro_test_status', '').strip(),
-                    data.get('cert_no', '').strip(),
-                    'Yes' if data.get('is_uhp') == 'Yes' else 'No',
-                ]])
-
-            # Update database
+            db_written = False
+            # Update database first
             if os.environ.get('DATABASE_URL'):
                 try:
                     c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
@@ -2553,10 +2733,53 @@ def admin_cylinders_edit(uid):
                     m_db.is_uhp = 'Yes' if data.get('is_uhp') == 'Yes' else 'No'
                     
                     db.session.commit()
+                    db_written = True
                     print(f"[db] Updated cylinder {uid} in PostgreSQL database.")
                 except Exception as dbe:
                     db.session.rollback()
                     print("[db] Error updating cylinder in DB:", dbe)
+                    from sqlalchemy.exc import OperationalError, InterfaceError
+                    is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                    if not is_connection_error:
+                        merged = {**cyl, **maint}
+                        return render_template('cylinders_form.html',
+                            user=session['user'], mode='edit',
+                            error=f"Database validation error: {str(dbe)}", form=merged, uid=uid,
+                            gas_types=gas_types, cylinder_types=cylinder_types)
+
+            # Mirror edit to Sheets
+            try:
+                cyl_row, maint_row = find_cylinder_rows(uid)
+                if cyl_row and cyl_ws:
+                    cyl_ws.update(f'A{cyl_row}:G{cyl_row}', [[
+                        uid,
+                        data.get('gas_type', '').strip(),
+                        data.get('cylinder_type', '').strip(),
+                        data.get('owner', '').strip(),
+                        data.get('status', 'Active').strip(),
+                        data.get('location', '').strip(),
+                        cyl.get('last_activity', ''),
+                    ]])
+                if maint_row and cyl_maint_ws:
+                    cyl_maint_ws.update(f'A{maint_row}:M{maint_row}', [[
+                        uid,
+                        data.get('water_capacity', '').strip(),
+                        data.get('fill_pressure', '').strip(),
+                        data.get('gas_capacity', '').strip(),
+                        data.get('unit', '').strip(),
+                        data.get('is_mixture', 'No').strip(),
+                        data.get('mix_ratio', '').strip(),
+                        data.get('manufacture_date', '').strip(),
+                        data.get('last_hydro_date', '').strip(),
+                        data.get('next_hydro_due', '').strip(),
+                        data.get('hydro_test_status', '').strip(),
+                        data.get('cert_no', '').strip(),
+                        'Yes' if data.get('is_uhp') == 'Yes' else 'No',
+                    ]])
+            except Exception as se:
+                print("[sheets] Error mirroring cylinder edit to Sheets:", se)
+                if not db_written:
+                    raise se
 
             return redirect('/admin/cylinders')
         except Exception as e:
@@ -2621,32 +2844,8 @@ def admin_mark_collected():
         uid,
         customer
     ]
+    db_written = False
     try:
-        global sheet
-        if sheet:
-            sheets_write_with_retry(sheet.append_rows, [row_to_append])
-            
-        # Update Cylinders registry sheet
-        global cyl_ws
-        if cyl_ws is None and doc:
-            try:
-                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-            except Exception:
-                cyl_ws = None
-        if cyl_ws:
-            cyl_rows = cyl_ws.get_all_values()
-            row_num = None
-            for idx, r in enumerate(cyl_rows):
-                if idx == 0:
-                    continue
-                if r and r[0].strip().upper() == uid.upper():
-                    row_num = idx + 1
-                    break
-            if row_num:
-                today_str = now.strftime('%d-%m-%Y')
-                cyl_ws.update(f'E{row_num}:G{row_num}', [['Empty', 'Depot', today_str]])
-
-        # Database updates
         if os.environ.get('DATABASE_URL'):
             try:
                 scan = Scan(
@@ -2665,12 +2864,48 @@ def admin_mark_collected():
                     c_db.location = 'Depot'
                     c_db.last_activity_date = now.strftime('%d-%m-%Y')
                 db.session.commit()
+                db_written = True
                 print(f"[db] Logged manual collection scan and updated cylinder {uid} status in DB.")
             except Exception as dbe:
                 db.session.rollback()
                 print("[db] Error logging manual collection scan in DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return f"Database error logging manual collection: {str(dbe)}", 500
+
+        # Mirror to Google Sheets
+        try:
+            global sheet
+            if sheet:
+                sheets_write_with_retry(sheet.append_rows, [row_to_append])
+                
+            # Update Cylinders registry sheet
+            global cyl_ws
+            if cyl_ws is None and doc:
+                try:
+                    cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception:
+                    cyl_ws = None
+            if cyl_ws:
+                cyl_rows = cyl_ws.get_all_values()
+                row_num = None
+                for idx, r in enumerate(cyl_rows):
+                    if idx == 0:
+                        continue
+                    if r and r[0].strip().upper() == uid.upper():
+                        row_num = idx + 1
+                        break
+                if row_num:
+                    today_str = now.strftime('%d-%m-%Y')
+                    cyl_ws.update(f'E{row_num}:G{row_num}', [['Empty', 'Depot', today_str]])
+        except Exception as se:
+            print("[sheets] Error mirroring manual collection to Sheets:", se)
+            if not db_written:
+                raise se
     except Exception as e:
         print("Manual collection log write / registry update error:", e)
+        return str(e), 500
         
     clear_cache()
     return redirect(redirect_url)
@@ -2685,7 +2920,21 @@ def admin_mark_collected():
 # ================================================================
 
 def get_all_customer_info():
-    """Returns list of dicts from Customers sheet: {id, name, email, phone, address}"""
+    """Returns list of dicts from Customers database table, falling back to Sheets: {id, name, email, phone, address}"""
+    try:
+        if os.environ.get('DATABASE_URL'):
+            customers = Customer.query.all()
+            if customers:
+                return [{
+                    'id'     : c.customer_id,
+                    'name'   : c.name,
+                    'email'  : c.email or '',
+                    'phone'  : c.phone or '',
+                    'address': c.address or '',
+                } for c in customers]
+    except Exception as e:
+        print('[db] Error getting customer info from DB, falling back to Sheets:', e)
+
     try:
         if customer_ws is None:
             return []
@@ -2705,7 +2954,7 @@ def get_all_customer_info():
             })
         return out
     except Exception as e:
-        print('Error getting customer info:', e)
+        print('Error getting customer info from sheet:', e)
         return []
 
 def build_customer_outstanding_detail(customer_name):
@@ -2966,55 +3215,19 @@ def admin_customers_add():
                 error=f'Customer "{name}" already exists.', form=request.form)
                 
         try:
-            if customer_ws is None and doc:
-                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-                
-            if customer_ws is None:
-                return render_template('customers_form.html',
-                    user=session['user'], mode='add',
-                    error='Customers worksheet not found.', form=request.form)
-                    
-            # Find the first row where Name (Column B) is empty
-            all_rows = customer_ws.get_all_values()
-            empty_row_idx = None
-            for idx, r in enumerate(all_rows):
-                if idx == 0: continue # Skip header
-                # Check if Column B (Name) is empty
-                if len(r) < 2 or not r[1].strip():
-                    empty_row_idx = idx + 1 # 1-based row index
-                    break
-            
-            if empty_row_idx:
-                existing_row = all_rows[empty_row_idx - 1]
-                existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
-                if existing_id:
-                    new_id = existing_id
-                else:
-                    all_info = get_all_customer_info()
-                    max_id = 0
-                    for c in all_info:
-                        id_str = c.get('id', '')
-                        if id_str.startswith('C'):
-                            try:
-                                val = int(id_str[1:])
-                                if val > max_id: max_id = val
-                            except ValueError: pass
-                    new_id = f"C{str(max_id + 1).zfill(3)}"
-                customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id, name, email, phone, address]])
-            else:
-                all_info = get_all_customer_info()
-                max_id = 0
-                for c in all_info:
-                    id_str = c.get('id', '')
-                    if id_str.startswith('C'):
-                        try:
-                            val = int(id_str[1:])
-                            if val > max_id: max_id = val
-                        except ValueError: pass
-                new_id = f"C{str(max_id + 1).zfill(3)}"
-                customer_ws.append_row([new_id, name, email, phone, address])
+            # Generate ID
+            all_info = get_all_customer_info()
+            max_id = 0
+            for c in all_info:
+                id_str = c.get('id', '')
+                if id_str.startswith('C'):
+                    try:
+                        val = int(id_str[1:])
+                        if val > max_id: max_id = val
+                    except ValueError: pass
+            new_id = f"C{str(max_id + 1).zfill(3)}"
 
-            # Write to database (PostgreSQL)
+            db_written = False
             if os.environ.get('DATABASE_URL'):
                 try:
                     cust_db = Customer(
@@ -3026,10 +3239,50 @@ def admin_customers_add():
                     )
                     db.session.add(cust_db)
                     db.session.commit()
+                    db_written = True
                     print(f"[db] Added customer {name} to PostgreSQL.")
                 except Exception as dbe:
                     db.session.rollback()
                     print("[db] Error adding customer to DB:", dbe)
+                    from sqlalchemy.exc import OperationalError, InterfaceError
+                    is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                    if not is_connection_error:
+                        return render_template('customers_form.html',
+                            user=session['user'], mode='add',
+                            error=f"Database validation error: {str(dbe)}", form=request.form)
+
+            # Mirror to Google Sheets
+            try:
+                if customer_ws is None and doc:
+                    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                    
+                if customer_ws is None:
+                    if not db_written:
+                        return render_template('customers_form.html',
+                            user=session['user'], mode='add',
+                            error='Customers worksheet not found and Database offline.', form=request.form)
+                else:
+                    # Find the first row where Name (Column B) is empty
+                    all_rows = customer_ws.get_all_values()
+                    empty_row_idx = None
+                    for idx, r in enumerate(all_rows):
+                        if idx == 0: continue # Skip header
+                        # Check if Column B (Name) is empty
+                        if len(r) < 2 or not r[1].strip():
+                            empty_row_idx = idx + 1 # 1-based row index
+                            break
+                    
+                    if empty_row_idx:
+                        existing_row = all_rows[empty_row_idx - 1]
+                        existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
+                        new_id_sheets = existing_id if existing_id else new_id
+                        customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id_sheets, name, email, phone, address]])
+                    else:
+                        customer_ws.append_row([new_id, name, email, phone, address])
+            except Exception as se:
+                print("[sheets] Error mirroring customer write to Sheets:", se)
+                if not db_written:
+                    raise se
 
             clear_cache()
             return redirect('/admin/customers')
@@ -3074,34 +3327,7 @@ def admin_customers_edit(customer_name):
                     error=f'Customer Name "{name}" is already taken.', form=request.form)
                     
         try:
-            if customer_ws is None and doc:
-                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-                
-            if customer_ws is None:
-                return render_template('customers_form.html',
-                    user=session['user'], mode='edit', uid=customer_name,
-                    error='Customers worksheet not found.', form=request.form)
-                    
-            rows = customer_ws.get_all_values()
-            row_num = None
-            for idx, r in enumerate(rows):
-                if idx == 0: continue
-                if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
-                    row_num = idx + 1
-                    break
-                    
-            if not row_num:
-                return render_template('customers_form.html',
-                    user=session['user'], mode='edit', uid=customer_name,
-                    error=f'Customer "{customer_name}" not found in sheet.', form=request.form)
-                    
-            # If name changed, cascade
-            if name.lower() != customer_name.lower():
-                rename_customer_in_sheets(customer_name, name)
-                
-            customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
-
-            # Update database
+            db_written = False
             if os.environ.get('DATABASE_URL'):
                 try:
                     c_db = Customer.query.filter(Customer.name.ilike(customer_name)).first()
@@ -3111,10 +3337,41 @@ def admin_customers_edit(customer_name):
                         c_db.phone = phone
                         c_db.address = address
                         db.session.commit()
+                        db_written = True
                         print(f"[db] Updated customer {name} in PostgreSQL.")
                 except Exception as dbe:
                     db.session.rollback()
                     print("[db] Error updating customer in DB:", dbe)
+                    from sqlalchemy.exc import OperationalError, InterfaceError
+                    is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                    if not is_connection_error:
+                        return render_template('customers_form.html',
+                            user=session['user'], mode='edit', uid=customer_name,
+                            error=f"Database validation error: {str(dbe)}", form=request.form)
+
+            # Mirror edit to Sheets
+            try:
+                if customer_ws is None and doc:
+                    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                    
+                if customer_ws is not None:
+                    rows = customer_ws.get_all_values()
+                    row_num = None
+                    for idx, r in enumerate(rows):
+                        if idx == 0: continue
+                        if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                            row_num = idx + 1
+                            break
+                            
+                    if row_num:
+                        # If name changed, cascade
+                        if name.lower() != customer_name.lower():
+                            rename_customer_in_sheets(customer_name, name)
+                        customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
+            except Exception as se:
+                print("[sheets] Error mirroring customer edit to Sheets:", se)
+                if not db_written:
+                    raise se
 
             clear_cache()
             return redirect(f'/admin/customers/{name}')
@@ -3133,24 +3390,43 @@ def admin_customers_delete(customer_name):
     customer_name = unquote(customer_name).strip()
     global customer_ws
     try:
-        if customer_ws is None and doc:
-            customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-        if customer_ws is None:
-            return "Error: Customers worksheet not found", 404
-            
-        rows = customer_ws.get_all_values()
-        row_num = None
-        for idx, r in enumerate(rows):
-            if idx == 0: continue
-            if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
-                row_num = idx + 1
-                break
-                
-        if row_num:
-            # Clear columns B, C, D, E of the customer row to mark it deleted
-            customer_ws.update(f'B{row_num}:E{row_num}', [["", "", "", ""]])
-            clear_cache()
-            
+        db_deleted = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                c_db = Customer.query.filter(Customer.name.ilike(customer_name)).first()
+                if c_db:
+                    db.session.delete(c_db)
+                    db.session.commit()
+                    db_deleted = True
+                    print(f"[db] Deleted customer {customer_name} from PostgreSQL.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error deleting customer from DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return f"Database error deleting customer: {str(dbe)}", 500
+
+        # Mirror delete to Sheets
+        try:
+            if customer_ws is None and doc:
+                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+            if customer_ws is not None:
+                rows = customer_ws.get_all_values()
+                row_num = None
+                for idx, r in enumerate(rows):
+                    if idx == 0: continue
+                    if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                        row_num = idx + 1
+                        break
+                if row_num:
+                    customer_ws.update(f'B{row_num}:E{row_num}', [["", "", "", ""]])
+        except Exception as se:
+            print("[sheets] Error mirroring customer deletion to Sheets:", se)
+            if not db_deleted:
+                raise se
+
+        clear_cache()
         return redirect('/admin/customers')
     except Exception as e:
         print("Error deleting customer:", e)
@@ -3626,52 +3902,8 @@ def submit():
                     cust_val
                 ])
     
-    if rows_to_append:
-        sheets_write_with_retry(sheet.append_rows, rows_to_append)
-
-    # Auto-update Cylinders registry sheet for each scanned UID
-    try:
-        global cyl_ws
-        if cyl_ws is None and doc:
-            try:
-                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-            except Exception:
-                cyl_ws = None
-        if cyl_ws:
-            cyl_rows = cyl_ws.get_all_values()
-            # Build UID → row index map
-            uid_row_map = {}
-            for idx, r in enumerate(cyl_rows):
-                if idx == 0:
-                    continue
-                if r and r[0].strip():
-                    uid_row_map[r[0].strip().upper()] = idx + 1
-
-            today_str = datetime.now().strftime('%d-%m-%Y')
-            for row_data in rows_to_append:
-                scan_uid    = row_data[4].strip().upper()
-                scan_action = row_data[3].strip()
-                scan_cust   = row_data[5].strip() if len(row_data) > 5 else ''
-                row_num = uid_row_map.get(scan_uid)
-                if not row_num:
-                    continue  # UID not in registry — skip silently
-                if scan_action == 'Delivery':
-                    new_status   = 'Delivered'
-                    new_location = scan_cust or 'Customer'
-                elif scan_action == 'Collection':
-                    new_status   = 'Empty'
-                    new_location = 'Depot'
-                elif scan_action == 'Filling':
-                    new_status   = 'Filled'
-                    new_location = 'Depot'
-                else:
-                    continue
-                cyl_ws.update(f'E{row_num}:G{row_num}',
-                              [[new_status, new_location, today_str]])
-    except Exception as e:
-        print("Registry auto-update error (non-fatal):", e)
-
-    # Write to database (PostgreSQL)
+    db_written = False
+    # Write to database (PostgreSQL) first
     if os.environ.get('DATABASE_URL'):
         try:
             for row_data in rows_to_append:
@@ -3705,10 +3937,63 @@ def submit():
                         c_db.location = 'Depot'
                     c_db.last_activity_date = s_date
             db.session.commit()
+            db_written = True
             print(f"[db] Logged {len(rows_to_append)} scans and updated cylinder registries in DB.")
         except Exception as dbe:
             db.session.rollback()
             print("[db] Error writing scans to DB:", dbe)
+            from sqlalchemy.exc import OperationalError, InterfaceError
+            is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+            if not is_connection_error:
+                return f"Database error logging scans: {str(dbe)}", 500
+
+    # Mirror to Sheets
+    try:
+        if rows_to_append:
+            sheets_write_with_retry(sheet.append_rows, rows_to_append)
+
+        # Auto-update Cylinders registry sheet for each scanned UID
+        global cyl_ws
+        if cyl_ws is None and doc:
+            try:
+                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+            except Exception:
+                cyl_ws = None
+        if cyl_ws and rows_to_append:
+            cyl_rows = cyl_ws.get_all_values()
+            # Build UID → row index map
+            uid_row_map = {}
+            for idx, r in enumerate(cyl_rows):
+                if idx == 0:
+                    continue
+                if r and r[0].strip():
+                    uid_row_map[r[0].strip().upper()] = idx + 1
+
+            today_str = datetime.now().strftime('%d-%m-%Y')
+            for row_data in rows_to_append:
+                scan_uid    = row_data[4].strip().upper()
+                scan_action = row_data[3].strip()
+                scan_cust   = row_data[5].strip() if len(row_data) > 5 else ''
+                row_num = uid_row_map.get(scan_uid)
+                if not row_num:
+                    continue  # UID not in registry — skip silently
+                if scan_action == 'Delivery':
+                    new_status   = 'Delivered'
+                    new_location = scan_cust or 'Customer'
+                elif scan_action == 'Collection':
+                    new_status   = 'Empty'
+                    new_location = 'Depot'
+                elif scan_action == 'Filling':
+                    new_status   = 'Filled'
+                    new_location = 'Depot'
+                else:
+                    continue
+                cyl_ws.update(f'E{row_num}:G{row_num}',
+                              [[new_status, new_location, today_str]])
+    except Exception as se:
+        print("[sheets] Error mirroring scans to Google Sheets:", se)
+        if not db_written:
+            raise se
 
     clear_cache()
     return f"{len(valid_cylinders)} cylinders saved successfully"
