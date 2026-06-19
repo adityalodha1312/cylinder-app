@@ -1,0 +1,186 @@
+from db import db
+from datetime import datetime
+
+class User(db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(100), unique=True, nullable=False)
+    password = db.Column(db.String(255), nullable=False)
+    role = db.Column(db.String(50), default='driver')
+    name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'Username': self.username,
+            'Password': self.password,
+            'Role': self.role,
+            'Name': self.name or self.username
+        }
+
+class Customer(db.Model):
+    __tablename__ = 'customers'
+    id = db.Column(db.Integer, primary_key=True)
+    customer_id = db.Column(db.String(20), unique=True)
+    name = db.Column(db.String(255), nullable=False)
+    email = db.Column(db.String(255))
+    phone = db.Column(db.String(50))
+    address = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'Customer ID': self.customer_id,
+            'Name': self.name,
+            'Email': self.email or '',
+            'Phone': self.phone or '',
+            'Address': self.address or ''
+        }
+
+class Cylinder(db.Model):
+    __tablename__ = 'cylinders'
+    id = db.Column(db.Integer, primary_key=True)
+    uid = db.Column(db.String(100), unique=True, nullable=False)
+    gas_type = db.Column(db.String(50))
+    cylinder_type = db.Column(db.String(50))
+    owner = db.Column(db.String(100), default='Depot')
+    status = db.Column(db.String(20), default='Active')
+    location = db.Column(db.String(255), default='Depot')
+    last_activity_date = db.Column(db.String(50)) # Keep as string to match sheet format 'dd-mm-yyyy'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'uid': self.uid,
+            'gas_type': self.gas_type or '',
+            'cylinder_type': self.cylinder_type or '',
+            'owner': self.owner or '',
+            'status': self.status or 'Active',
+            'location': self.location or 'Depot',
+            'last_activity': self.last_activity_date or ''
+        }
+
+class CylinderMaintenance(db.Model):
+    __tablename__ = 'cylinder_maintenance'
+    id = db.Column(db.Integer, primary_key=True)
+    cylinder_uid = db.Column(db.String(100), unique=True, nullable=False)
+    water_capacity = db.Column(db.String(50))
+    fill_pressure = db.Column(db.String(50))
+    gas_capacity = db.Column(db.String(50))
+    unit = db.Column(db.String(20))
+    is_mixture = db.Column(db.String(20), default='No')
+    mix_ratio = db.Column(db.String(100))
+    manufacture_date = db.Column(db.String(50))
+    last_hydro_date = db.Column(db.String(50))
+    next_hydro_due = db.Column(db.String(50))
+    hydro_test_status = db.Column(db.String(50))
+    cert_no = db.Column(db.String(100))
+    is_uhp = db.Column(db.String(20), default='No')
+
+    def to_dict(self):
+        return {
+            'uid': self.cylinder_uid,
+            'water_capacity': self.water_capacity or '',
+            'fill_pressure': self.fill_pressure or '',
+            'gas_capacity': self.gas_capacity or '',
+            'unit': self.unit or '',
+            'is_mixture': self.is_mixture or 'No',
+            'mix_ratio': self.mix_ratio or '',
+            'manufacture_date': self.manufacture_date or '',
+            'last_hydro_date': self.last_hydro_date or '',
+            'next_hydro_due': self.next_hydro_due or '',
+            'hydro_test_status': self.hydro_test_status or '',
+            'cert_no': self.cert_no or '',
+            'is_uhp': self.is_uhp or 'No'
+        }
+
+class Scan(db.Model):
+    __tablename__ = 'scans'
+    id = db.Column(db.Integer, primary_key=True)
+    scan_date = db.Column(db.String(50), nullable=False)
+    scan_time = db.Column(db.String(50))
+    driver = db.Column(db.String(100))
+    action = db.Column(db.String(50), nullable=False)
+    cylinder_uid = db.Column(db.String(100), nullable=False)
+    customer = db.Column(db.String(255))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'date': self.scan_date,
+            'time': self.scan_time or '',
+            'driver': self.driver or '',
+            'action': self.action,
+            'uid': self.cylinder_uid,
+            'customer': self.customer or ''
+        }
+
+class CustomerMap(db.Model):
+    __tablename__ = 'customer_map'
+    id = db.Column(db.Integer, primary_key=True)
+    scan_date = db.Column(db.String(50))
+    scan_time = db.Column(db.String(50))
+    driver = db.Column(db.String(100))
+    action = db.Column(db.String(50))
+    count = db.Column(db.Integer, default=0)
+    uids = db.Column(db.Text)
+    customer = db.Column(db.String(255))
+    send_receipt = db.Column(db.Boolean, default=False)
+    receipt_status = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'date': self.scan_date,
+            'time': self.scan_time or '',
+            'driver': self.driver or '',
+            'action': self.action or '',
+            'count': self.count or 0,
+            'uids': self.uids or '',
+            'customer': self.customer or '',
+            'send_receipt': self.send_receipt,
+            'receipt_status': self.receipt_status or ''
+        }
+
+class BulkTank(db.Model):
+    __tablename__ = 'bulk_tanks'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(50), nullable=False)
+    gas = db.Column(db.String(50), nullable=False)
+    opening = db.Column(db.Float, default=0.0)
+    dead_volume = db.Column(db.Float, default=0.0)
+    capacity = db.Column(db.Float, default=0.0)
+    unit = db.Column(db.String(20))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'date': self.date,
+            'gas': self.gas,
+            'opening': self.opening,
+            'dead_volume': self.dead_volume,
+            'capacity': self.capacity,
+            'unit': self.unit or ''
+        }
+
+class Product(db.Model):
+    __tablename__ = 'products'
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(db.String(50), unique=True, nullable=False)
+    name = db.Column(db.String(100))
+    gas_type = db.Column(db.String(50))
+    cylinder_type = db.Column(db.String(50))
+    gas_per_cyl = db.Column(db.Float, default=0.0)
+    unit = db.Column(db.String(20))
+    is_virtual = db.Column(db.Boolean, default=False)
+
+    def to_dict(self):
+        return {
+            'id': self.product_id,
+            'name': self.name or '',
+            'gas_type': self.gas_type or '',
+            'cylinder_type': self.cylinder_type or '',
+            'gas_per_cyl': self.gas_per_cyl,
+            'unit': self.unit or '',
+            'is_virtual': self.is_virtual
+        }

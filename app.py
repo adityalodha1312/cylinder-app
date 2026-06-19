@@ -8,12 +8,20 @@ import time
 from dotenv import load_dotenv
 import os
 import re
-
+from db import db
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product
+from apscheduler.schedulers.background import BackgroundScheduler
 
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'cyl-tracker-secret-2026'
+
+# SQLAlchemy Database Configuration
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
@@ -89,8 +97,23 @@ DEFAULT_PRODUCTS_CONFIG = [
 ]
 
 def get_products_config():
-    """Reads product rows from the 'Products' Google Sheet.
-    Falls back to DEFAULT_PRODUCTS_CONFIG if the sheet is missing or unreadable."""
+    """Reads product rows from the Products database table, falling back to Google Sheets."""
+    try:
+        if os.environ.get('DATABASE_URL'):
+            products = Product.query.all()
+            if products:
+                return [{
+                    'id':            p.product_id,
+                    'name':          p.name,
+                    'gas_type':      p.gas_type,
+                    'cylinder_type': p.cylinder_type,
+                    'gas_per_cyl':   p.gas_per_cyl,
+                    'unit':          p.unit,
+                    'is_virtual':    p.is_virtual,
+                } for p in products]
+    except Exception as e:
+        print("[db] get_products_config read error, falling back to Sheets:", e)
+
     global products_ws
     try:
         if products_ws is None and doc:
@@ -136,6 +159,18 @@ def get_customer_names():
     if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
         return _data_cache['customer_names']
     try:
+        if os.environ.get('DATABASE_URL'):
+            customers = Customer.query.all()
+            if customers:
+                names = [c.name.strip() for c in customers if c.name.strip()]
+                result = sorted(list(set(names)))
+                _data_cache['customer_names']      = result
+                _data_cache['customer_names_time'] = now
+                return result
+    except Exception as e:
+        print("[db] Error getting customer names from DB, falling back to Sheets:", e)
+
+    try:
         if customer_ws is None:
             return []
         values = customer_ws.get_all_values()
@@ -159,6 +194,20 @@ def get_customer_emails():
     now = time.time()
     if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
         return _data_cache['customer_emails']
+    try:
+        if os.environ.get('DATABASE_URL'):
+            customers = Customer.query.all()
+            if customers:
+                out = {}
+                for c in customers:
+                    if c.name.strip():
+                        out[c.name.strip()] = c.email.strip() if c.email else ''
+                _data_cache['customer_emails']      = out
+                _data_cache['customer_emails_time'] = now
+                return out
+    except Exception as e:
+        print("[db] Error getting customer emails from DB, falling back to Sheets:", e)
+
     try:
         if customer_ws is None:
             return {}
@@ -209,11 +258,31 @@ def ensure_phone_column():
     ensure_customer_columns()
 
 def rename_customer_in_sheets(old_name, new_name):
-    """Cascades a customer name change across registry, log, and map sheets"""
+    """Cascades a customer name change across registry, log, and map sheets, and database."""
     global cyl_ws, map_ws, scan_ws
     old_u = old_name.strip().upper()
     new_n = new_name.strip()
     
+    if os.environ.get('DATABASE_URL'):
+        try:
+            cust = Customer.query.filter(Customer.name.ilike(old_name.strip())).first()
+            if cust:
+                cust.name = new_n
+            cyls = Cylinder.query.filter(Cylinder.location.ilike(old_name.strip())).all()
+            for c in cyls:
+                c.location = new_n
+            scans = Scan.query.filter(Scan.customer.ilike(old_name.strip())).all()
+            for s in scans:
+                s.customer = new_n
+            cmaps = CustomerMap.query.filter(CustomerMap.customer.ilike(old_name.strip())).all()
+            for cm in cmaps:
+                cm.customer = new_n
+            db.session.commit()
+            print(f"[db] Cascaded customer rename from '{old_name}' to '{new_name}' in DB.")
+        except Exception as e:
+            db.session.rollback()
+            print("[db] Error cascading customer rename in DB:", e)
+
     # 1. Update Cylinders Registry (Column F: Current Location)
     try:
         if cyl_ws is None and doc:
@@ -259,11 +328,30 @@ def rename_customer_in_sheets(old_name, new_name):
 
 # ── Cylinder Registry helpers ──────────────────────────────────────────────
 def get_all_cylinders():
-    """Returns list of dicts from Cylinders sheet."""
+    """Returns list of dicts from Cylinders table, falling back to Sheets."""
     global cyl_ws
     now = time.time()
     if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
         return _data_cache['cylinders']
+    try:
+        if os.environ.get('DATABASE_URL'):
+            cyls = Cylinder.query.all()
+            if cyls:
+                out = [{
+                    'uid'           : c.uid,
+                    'gas_type'      : c.gas_type or '',
+                    'cylinder_type' : c.cylinder_type or '',
+                    'owner'         : c.owner or '',
+                    'status'        : c.status or 'Active',
+                    'location'      : c.location or 'Depot',
+                    'last_activity' : c.last_activity_date or '',
+                } for c in cyls]
+                _data_cache['cylinders']      = out
+                _data_cache['cylinders_time'] = now
+                return out
+    except Exception as e:
+        print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
+
     try:
         if cyl_ws is None:
             if doc:
@@ -299,11 +387,39 @@ def get_all_cylinders():
         return []
 
 def get_all_maintenance():
-    """Returns dict of {uid: maintenance_dict} from Cylinder Maintenance sheet."""
+    """Returns dict of {uid: maintenance_dict} from Cylinder Maintenance table, falling back to Sheets."""
     global cyl_maint_ws
     now = time.time()
     if _data_cache['maintenance'] is not None and (now - _data_cache['maintenance_time']) < CACHE_TTL:
         return _data_cache['maintenance']
+    try:
+        if os.environ.get('DATABASE_URL'):
+            maints = CylinderMaintenance.query.all()
+            if maints:
+                out = {}
+                for m in maints:
+                    if m.cylinder_uid:
+                        out[m.cylinder_uid] = {
+                            'uid'              : m.cylinder_uid,
+                            'water_capacity'   : m.water_capacity or '',
+                            'fill_pressure'    : m.fill_pressure or '',
+                            'gas_capacity'     : m.gas_capacity or '',
+                            'unit'             : m.unit or '',
+                            'is_mixture'       : m.is_mixture or 'No',
+                            'mix_ratio'        : m.mix_ratio or '',
+                            'manufacture_date' : m.manufacture_date or '',
+                            'last_hydro_date'  : m.last_hydro_date or '',
+                            'next_hydro_due'   : m.next_hydro_due or '',
+                            'hydro_test_status': m.hydro_test_status or '',
+                            'cert_no'          : m.cert_no or '',
+                            'is_uhp'           : m.is_uhp or 'No',
+                        }
+                _data_cache['maintenance']      = out
+                _data_cache['maintenance_time'] = now
+                return out
+    except Exception as e:
+        print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
+
     try:
         if cyl_maint_ws is None:
             if doc:
@@ -344,6 +460,7 @@ def get_all_maintenance():
         # Return stale data if available
         if _data_cache['maintenance'] is not None:
             return _data_cache['maintenance']
+        return {}
         return {}
 
 def compute_hydro_badge(next_hydro_due_str):
@@ -466,6 +583,18 @@ def admin_required(f):
 
 def check_login(username, password):
     try:
+        if os.environ.get('DATABASE_URL'):
+            u = User.query.filter(db.func.lower(User.username) == username.lower()).first()
+            if u and u.password == password:
+                return {
+                    'username': u.username,
+                    'role': u.role.lower() if u.role else 'driver',
+                    'name': u.name or u.username
+                }
+    except Exception as e:
+        print("[db] Login check error, falling back to Sheets:", e)
+
+    try:
         if users_ws is None:
             return None
         records  = users_ws.get_all_records()
@@ -522,6 +651,23 @@ def get_scan_rows():
     if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
         return _data_cache['scans']
     try:
+        if os.environ.get('DATABASE_URL'):
+            scans = Scan.query.all()
+            if scans:
+                out = [{
+                    'date': s.scan_date,
+                    'time': s.scan_time or '',
+                    'driver': s.driver or '',
+                    'action': s.action,
+                    'uid': s.cylinder_uid
+                } for s in scans]
+                _data_cache['scans'] = out
+                _data_cache['scans_time'] = now
+                return out
+    except Exception as e:
+        print("[db] Error reading scans from DB, falling back to Sheets:", e)
+
+    try:
         if scan_ws is None:
             return []
         rows = scan_ws.get_all_values()
@@ -549,6 +695,23 @@ def get_map_rows():
     now = time.time()
     if _data_cache['map'] is not None and (now - _data_cache['map_time']) < CACHE_TTL:
         return _data_cache['map']
+    try:
+        if os.environ.get('DATABASE_URL'):
+            maps = CustomerMap.query.all()
+            if maps:
+                out = [{
+                    'date': m.scan_date,
+                    'time': m.scan_time or '',
+                    'driver': m.driver or '',
+                    'action': m.action or '',
+                    'customer': m.customer or ''
+                } for m in maps]
+                _data_cache['map'] = out
+                _data_cache['map_time'] = now
+                return out
+    except Exception as e:
+        print("[db] Error reading map from DB, falling back to Sheets:", e)
+
     try:
         if map_ws is None:
             return []
@@ -1407,6 +1570,24 @@ def admin_update_mapping():
                     r[2].strip() == driver_val and 
                     r[3].strip() == action_val):
                     map_ws.update_cell(idx + 1, 7, customer_val) # Column G is 7
+
+                    # Database updates
+                    if os.environ.get('DATABASE_URL'):
+                        try:
+                            cmap = CustomerMap.query.filter_by(
+                                scan_date=date_val,
+                                scan_time=time_val,
+                                driver=driver_val,
+                                action=action_val
+                            ).first()
+                            if cmap:
+                                cmap.customer = customer_val
+                                db.session.commit()
+                                print(f"[db] Mapped customer {customer_val} to batch scan in DB.")
+                        except Exception as dbe:
+                            db.session.rollback()
+                            print("[db] Error mapping customer in DB:", dbe)
+
                     clear_cache()
                     return jsonify({'status': 'Success', 'message': 'Customer mapped successfully'})
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})
@@ -1452,6 +1633,25 @@ def admin_send_receipt():
                     # Batch update Column H (Send Receipt? = TRUE) and Column I (Status = Sending...)
                     # Column H is 8, Column I is 9. This single call executes instantly.
                     map_ws.update(f"H{idx + 1}:I{idx + 1}", [[True, "Sending..."]], value_input_option='USER_ENTERED')
+
+                    # Database updates
+                    if os.environ.get('DATABASE_URL'):
+                        try:
+                            cmap = CustomerMap.query.filter_by(
+                                scan_date=date_val,
+                                scan_time=time_val,
+                                driver=driver_val,
+                                action=action_val
+                            ).first()
+                            if cmap:
+                                cmap.send_receipt = True
+                                cmap.receipt_status = "Sending..."
+                                db.session.commit()
+                                print("[db] Triggered send receipt in database.")
+                        except Exception as dbe:
+                            db.session.rollback()
+                            print("[db] Error triggering send receipt in DB:", dbe)
+
                     clear_cache()
                     return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})
@@ -1550,31 +1750,51 @@ def get_tank_data_for_date(target_date_str):
         'Oxygen': {'opening': 9215.30, 'dead_volume': 400.0, 'capacity': 12000.0, 'unit': 'Cum'}
     }
     try:
-        if bulk_tanks_ws is None and doc:
-            try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
-            except Exception: pass
-        if bulk_tanks_ws is None:
-            return defaults
-        
-        rows = bulk_tanks_ws.get_all_values()
-        if len(rows) < 2:
-            return defaults
-            
         records = []
-        for r in rows[1:]:
-            if len(r) >= 6 and r[0].strip():
-                try:
-                    records.append({
-                        'date': r[0].strip(),
-                        'date_obj': parse_date(r[0]),
-                        'gas': r[1].strip(),
-                        'opening': float(r[2].strip() or 0.0),
-                        'dead_volume': float(r[3].strip() or 0.0),
-                        'capacity': float(r[4].strip() or 0.0),
-                        'unit': r[5].strip()
-                    })
-                except ValueError:
-                    continue
+        db_loaded = False
+        if os.environ.get('DATABASE_URL'):
+            try:
+                tanks = BulkTank.query.all()
+                if tanks:
+                    for t in tanks:
+                        records.append({
+                            'date': t.date,
+                            'date_obj': parse_date(t.date),
+                            'gas': t.gas,
+                            'opening': t.opening,
+                            'dead_volume': t.dead_volume,
+                            'capacity': t.capacity,
+                            'unit': t.unit
+                        })
+                    db_loaded = True
+            except Exception as dbe:
+                print("[db] Error reading bulk tanks from DB, falling back to Sheets:", dbe)
+
+        if not db_loaded:
+            if bulk_tanks_ws is None and doc:
+                try: bulk_tanks_ws = doc.worksheet(BULK_TANKS_NAME)
+                except Exception: pass
+            if bulk_tanks_ws is None:
+                return defaults
+            
+            rows = bulk_tanks_ws.get_all_values()
+            if len(rows) < 2:
+                return defaults
+                
+            for r in rows[1:]:
+                if len(r) >= 6 and r[0].strip():
+                    try:
+                        records.append({
+                            'date': r[0].strip(),
+                            'date_obj': parse_date(r[0]),
+                            'gas': r[1].strip(),
+                            'opening': float(r[2].strip() or 0.0),
+                            'dead_volume': float(r[3].strip() or 0.0),
+                            'capacity': float(r[4].strip() or 0.0),
+                            'unit': r[5].strip()
+                        })
+                    except ValueError:
+                        continue
                     
         target_records = [rec for rec in records if rec['date'] == target_date_str]
         if target_records:
@@ -1870,6 +2090,32 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
             bulk_tanks_ws.update(f'A{row_num}:F{row_num}', [row_data])
         else:
             bulk_tanks_ws.append_row(row_data)
+
+        # Database updates
+        if os.environ.get('DATABASE_URL'):
+            try:
+                bt = BulkTank.query.filter_by(date=date_str, gas=gas_name).first()
+                if bt:
+                    bt.opening = float(opening)
+                    bt.dead_volume = float(dead_volume)
+                    bt.capacity = float(capacity)
+                    bt.unit = unit
+                else:
+                    bt = BulkTank(
+                        date=date_str,
+                        gas=gas_name,
+                        opening=float(opening),
+                        dead_volume=float(dead_volume),
+                        capacity=float(capacity),
+                        unit=unit
+                    )
+                    db.session.add(bt)
+                db.session.commit()
+                print(f"[db] Updated bulk tank stock for {gas_name} on {date_str} in DB.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error updating bulk tank stock in DB:", dbe)
+
         return True
     except Exception as e:
         print("Error updating tank opening stock:", e)
@@ -2153,6 +2399,43 @@ def admin_cylinders_add():
                     data.get('cert_no', '').strip(),
                     'Yes' if data.get('is_uhp') == 'Yes' else 'No',
                 ])
+
+            # Write to database (PostgreSQL)
+            if os.environ.get('DATABASE_URL'):
+                try:
+                    c_db = Cylinder(
+                        uid=uid,
+                        gas_type=data.get('gas_type', '').strip(),
+                        cylinder_type=data.get('cylinder_type', '').strip(),
+                        owner=data.get('owner', 'Depot').strip(),
+                        status=data.get('status', 'Active').strip(),
+                        location=data.get('location', 'Depot').strip(),
+                        last_activity_date=date.today().strftime('%d-%m-%Y')
+                    )
+                    db.session.add(c_db)
+                    
+                    m_db = CylinderMaintenance(
+                        cylinder_uid=uid,
+                        water_capacity=data.get('water_capacity', '').strip(),
+                        fill_pressure=data.get('fill_pressure', '').strip(),
+                        gas_capacity=data.get('gas_capacity', '').strip(),
+                        unit=data.get('unit', '').strip(),
+                        is_mixture=data.get('is_mixture', 'No').strip(),
+                        mix_ratio=data.get('mix_ratio', '').strip(),
+                        manufacture_date=data.get('manufacture_date', '').strip(),
+                        last_hydro_date=data.get('last_hydro_date', '').strip(),
+                        next_hydro_due=data.get('next_hydro_due', '').strip(),
+                        hydro_test_status=data.get('hydro_test_status', '').strip(),
+                        cert_no=data.get('cert_no', '').strip(),
+                        is_uhp='Yes' if data.get('is_uhp') == 'Yes' else 'No'
+                    )
+                    db.session.add(m_db)
+                    db.session.commit()
+                    print(f"[db] Added cylinder {uid} to PostgreSQL database.")
+                except Exception as dbe:
+                    db.session.rollback()
+                    print("[db] Error adding cylinder to DB:", dbe)
+
             return redirect('/admin/cylinders')
         except Exception as e:
             return render_template('cylinders_form.html',
@@ -2207,6 +2490,42 @@ def admin_cylinders_edit(uid):
                     data.get('cert_no', '').strip(),
                     'Yes' if data.get('is_uhp') == 'Yes' else 'No',
                 ]])
+
+            # Update database
+            if os.environ.get('DATABASE_URL'):
+                try:
+                    c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                    if c_db:
+                        c_db.gas_type = data.get('gas_type', '').strip()
+                        c_db.cylinder_type = data.get('cylinder_type', '').strip()
+                        c_db.owner = data.get('owner', '').strip()
+                        c_db.status = data.get('status', 'Active').strip()
+                        c_db.location = data.get('location', '').strip()
+                    
+                    m_db = CylinderMaintenance.query.filter(CylinderMaintenance.cylinder_uid.ilike(uid)).first()
+                    if not m_db:
+                        m_db = CylinderMaintenance(cylinder_uid=uid)
+                        db.session.add(m_db)
+                    
+                    m_db.water_capacity = data.get('water_capacity', '').strip()
+                    m_db.fill_pressure = data.get('fill_pressure', '').strip()
+                    m_db.gas_capacity = data.get('gas_capacity', '').strip()
+                    m_db.unit = data.get('unit', '').strip()
+                    m_db.is_mixture = data.get('is_mixture', 'No').strip()
+                    m_db.mix_ratio = data.get('mix_ratio', '').strip()
+                    m_db.manufacture_date = data.get('manufacture_date', '').strip()
+                    m_db.last_hydro_date = data.get('last_hydro_date', '').strip()
+                    m_db.next_hydro_due = data.get('next_hydro_due', '').strip()
+                    m_db.hydro_test_status = data.get('hydro_test_status', '').strip()
+                    m_db.cert_no = data.get('cert_no', '').strip()
+                    m_db.is_uhp = 'Yes' if data.get('is_uhp') == 'Yes' else 'No'
+                    
+                    db.session.commit()
+                    print(f"[db] Updated cylinder {uid} in PostgreSQL database.")
+                except Exception as dbe:
+                    db.session.rollback()
+                    print("[db] Error updating cylinder in DB:", dbe)
+
             return redirect('/admin/cylinders')
         except Exception as e:
             merged = {**cyl, **maint}
@@ -2294,6 +2613,30 @@ def admin_mark_collected():
             if row_num:
                 today_str = now.strftime('%d-%m-%Y')
                 cyl_ws.update(f'E{row_num}:G{row_num}', [['Empty', 'Depot', today_str]])
+
+        # Database updates
+        if os.environ.get('DATABASE_URL'):
+            try:
+                scan = Scan(
+                    scan_date=now.strftime('%d-%m-%Y'),
+                    scan_time=now.strftime('%H:%M:%S'),
+                    driver=driver,
+                    action='Collection',
+                    cylinder_uid=uid,
+                    customer=customer
+                )
+                db.session.add(scan)
+                
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                if c_db:
+                    c_db.status = 'Empty'
+                    c_db.location = 'Depot'
+                    c_db.last_activity_date = now.strftime('%d-%m-%Y')
+                db.session.commit()
+                print(f"[db] Logged manual collection scan and updated cylinder {uid} status in DB.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error logging manual collection scan in DB:", dbe)
     except Exception as e:
         print("Manual collection log write / registry update error:", e)
         
@@ -2638,6 +2981,24 @@ def admin_customers_add():
                         except ValueError: pass
                 new_id = f"C{str(max_id + 1).zfill(3)}"
                 customer_ws.append_row([new_id, name, email, phone, address])
+
+            # Write to database (PostgreSQL)
+            if os.environ.get('DATABASE_URL'):
+                try:
+                    cust_db = Customer(
+                        customer_id=new_id,
+                        name=name,
+                        email=email,
+                        phone=phone,
+                        address=address
+                    )
+                    db.session.add(cust_db)
+                    db.session.commit()
+                    print(f"[db] Added customer {name} to PostgreSQL.")
+                except Exception as dbe:
+                    db.session.rollback()
+                    print("[db] Error adding customer to DB:", dbe)
+
             clear_cache()
             return redirect('/admin/customers')
         except Exception as e:
@@ -2707,6 +3068,22 @@ def admin_customers_edit(customer_name):
                 rename_customer_in_sheets(customer_name, name)
                 
             customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
+
+            # Update database
+            if os.environ.get('DATABASE_URL'):
+                try:
+                    c_db = Customer.query.filter(Customer.name.ilike(customer_name)).first()
+                    if c_db:
+                        c_db.name = name
+                        c_db.email = email
+                        c_db.phone = phone
+                        c_db.address = address
+                        db.session.commit()
+                        print(f"[db] Updated customer {name} in PostgreSQL.")
+                except Exception as dbe:
+                    db.session.rollback()
+                    print("[db] Error updating customer in DB:", dbe)
+
             clear_cache()
             return redirect(f'/admin/customers/{name}')
         except Exception as e:
@@ -2795,6 +3172,31 @@ def admin_collect_all(customer_name):
                     updates.append({'range': f'E{idx+1}:G{idx+1}', 'values': [['Empty', 'Depot', date_str]]})
             for upd in updates:
                 cyl_ws.update(upd['range'], upd['values'])
+
+        # Database updates
+        if os.environ.get('DATABASE_URL'):
+            try:
+                for uid in uids:
+                    scan = Scan(
+                        scan_date=date_str,
+                        scan_time=time_str,
+                        driver=driver,
+                        action='Collection',
+                        cylinder_uid=uid,
+                        customer=customer_name
+                    )
+                    db.session.add(scan)
+                    
+                    c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                    if c_db:
+                        c_db.status = 'Empty'
+                        c_db.location = 'Depot'
+                        c_db.last_activity_date = date_str
+                db.session.commit()
+                print(f"[db] Logged collection batch of {len(uids)} cylinders in DB.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error logging collection batch in DB:", dbe)
     except Exception as e:
         print('Collect all error:', e)
 
@@ -3236,6 +3638,45 @@ def submit():
                               [[new_status, new_location, today_str]])
     except Exception as e:
         print("Registry auto-update error (non-fatal):", e)
+
+    # Write to database (PostgreSQL)
+    if os.environ.get('DATABASE_URL'):
+        try:
+            for row_data in rows_to_append:
+                s_date = row_data[0]
+                s_time = row_data[1]
+                scan_driver = row_data[2]
+                scan_action = row_data[3]
+                scan_uid = row_data[4]
+                scan_cust = row_data[5] if len(row_data) > 5 else ''
+                
+                scan_db = Scan(
+                    scan_date=s_date,
+                    scan_time=s_time,
+                    driver=scan_driver,
+                    action=scan_action,
+                    cylinder_uid=scan_uid,
+                    customer=scan_cust
+                )
+                db.session.add(scan_db)
+                
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
+                if c_db:
+                    if scan_action == 'Delivery':
+                        c_db.status = 'Delivered'
+                        c_db.location = scan_cust or 'Customer'
+                    elif scan_action == 'Collection':
+                        c_db.status = 'Empty'
+                        c_db.location = 'Depot'
+                    elif scan_action == 'Filling':
+                        c_db.status = 'Filled'
+                        c_db.location = 'Depot'
+                    c_db.last_activity_date = s_date
+            db.session.commit()
+            print(f"[db] Logged {len(rows_to_append)} scans and updated cylinder registries in DB.")
+        except Exception as dbe:
+            db.session.rollback()
+            print("[db] Error writing scans to DB:", dbe)
 
     clear_cache()
     return f"{len(valid_cylinders)} cylinders saved successfully"
@@ -3951,7 +4392,24 @@ def export_pdf():
     filename = f"Inventory_Report_{target_date}.pdf"
     from flask import send_file
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
-
+def start_scheduler():
+    from sync import sync_sheets_to_db
+    scheduler = BackgroundScheduler(daemon=True)
+    def run_sync():
+        with app.app_context():
+            try:
+                sync_sheets_to_db(doc)
+            except Exception as e:
+                print("Scheduler sync error:", e)
+    # Run sync job every 5 minutes
+    scheduler.add_job(run_sync, 'interval', minutes=5)
+    scheduler.start()
+    print("Background sync scheduler started successfully.")
 
 if __name__ == '__main__':
+    start_scheduler()
     app.run(debug=True)
+else:
+    # Also start scheduler when running under WSGI server (like Gunicorn), but not during migrations
+    if not os.environ.get('RUN_MIGRATION') == '1':
+        start_scheduler()

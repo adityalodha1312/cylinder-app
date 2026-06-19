@@ -5,3 +5,7 @@ openpyxl
 gunicorn
 python-dotenv
 reportlab
+SQLAlchemy
+Flask-SQLAlchemy
+psycopg2-binary
+APScheduler
