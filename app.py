@@ -2848,21 +2848,22 @@ def admin_mark_collected():
     try:
         if os.environ.get('DATABASE_URL'):
             try:
-                scan = Scan(
-                    scan_date=now.strftime('%d-%m-%Y'),
-                    scan_time=now.strftime('%H:%M:%S'),
-                    driver=driver,
-                    action='Collection',
-                    cylinder_uid=uid,
-                    customer=customer
-                )
-                db.session.add(scan)
-                
-                c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
-                if c_db:
-                    c_db.status = 'Empty'
-                    c_db.location = 'Depot'
-                    c_db.last_activity_date = now.strftime('%d-%m-%Y')
+                with db.session.no_autoflush:
+                    scan = Scan(
+                        scan_date=now.strftime('%d-%m-%Y'),
+                        scan_time=now.strftime('%H:%M:%S'),
+                        driver=driver,
+                        action='Collection',
+                        cylinder_uid=uid,
+                        customer=customer
+                    )
+                    db.session.add(scan)
+                    
+                    c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                    if c_db:
+                        c_db.status = 'Empty'
+                        c_db.location = 'Depot'
+                        c_db.last_activity_date = now.strftime('%d-%m-%Y')
                 db.session.commit()
                 db_written = True
                 print(f"[db] Logged manual collection scan and updated cylinder {uid} status in DB.")
@@ -3484,22 +3485,23 @@ def admin_collect_all(customer_name):
         # Database updates
         if os.environ.get('DATABASE_URL'):
             try:
-                for uid in uids:
-                    scan = Scan(
-                        scan_date=date_str,
-                        scan_time=time_str,
-                        driver=driver,
-                        action='Collection',
-                        cylinder_uid=uid,
-                        customer=customer_name
-                    )
-                    db.session.add(scan)
-                    
-                    c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
-                    if c_db:
-                        c_db.status = 'Empty'
-                        c_db.location = 'Depot'
-                        c_db.last_activity_date = date_str
+                with db.session.no_autoflush:
+                    for uid in uids:
+                        scan = Scan(
+                            scan_date=date_str,
+                            scan_time=time_str,
+                            driver=driver,
+                            action='Collection',
+                            cylinder_uid=uid,
+                            customer=customer_name
+                        )
+                        db.session.add(scan)
+                        
+                        c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                        if c_db:
+                            c_db.status = 'Empty'
+                            c_db.location = 'Depot'
+                            c_db.last_activity_date = date_str
                 db.session.commit()
                 print(f"[db] Logged collection batch of {len(uids)} cylinders in DB.")
             except Exception as dbe:
@@ -3906,36 +3908,37 @@ def submit():
     # Write to database (PostgreSQL) first
     if os.environ.get('DATABASE_URL'):
         try:
-            for row_data in rows_to_append:
-                s_date = row_data[0]
-                s_time = row_data[1]
-                scan_driver = row_data[2]
-                scan_action = row_data[3]
-                scan_uid = row_data[4]
-                scan_cust = row_data[5] if len(row_data) > 5 else ''
-                
-                scan_db = Scan(
-                    scan_date=s_date,
-                    scan_time=s_time,
-                    driver=scan_driver,
-                    action=scan_action,
-                    cylinder_uid=scan_uid,
-                    customer=scan_cust
-                )
-                db.session.add(scan_db)
-                
-                c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
-                if c_db:
-                    if scan_action == 'Delivery':
-                        c_db.status = 'Delivered'
-                        c_db.location = scan_cust or 'Customer'
-                    elif scan_action == 'Collection':
-                        c_db.status = 'Empty'
-                        c_db.location = 'Depot'
-                    elif scan_action == 'Filling':
-                        c_db.status = 'Filled'
-                        c_db.location = 'Depot'
-                    c_db.last_activity_date = s_date
+            with db.session.no_autoflush:
+                for row_data in rows_to_append:
+                    s_date = row_data[0]
+                    s_time = row_data[1]
+                    scan_driver = row_data[2]
+                    scan_action = row_data[3]
+                    scan_uid = row_data[4]
+                    scan_cust = row_data[5] if len(row_data) > 5 else ''
+                    
+                    scan_db = Scan(
+                        scan_date=s_date,
+                        scan_time=s_time,
+                        driver=scan_driver,
+                        action=scan_action,
+                        cylinder_uid=scan_uid,
+                        customer=scan_cust
+                    )
+                    db.session.add(scan_db)
+                    
+                    c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
+                    if c_db:
+                        if scan_action == 'Delivery':
+                            c_db.status = 'Delivered'
+                            c_db.location = scan_cust or 'Customer'
+                        elif scan_action == 'Collection':
+                            c_db.status = 'Empty'
+                            c_db.location = 'Depot'
+                        elif scan_action == 'Filling':
+                            c_db.status = 'Filled'
+                            c_db.location = 'Depot'
+                        c_db.last_activity_date = s_date
             db.session.commit()
             db_written = True
             print(f"[db] Logged {len(rows_to_append)} scans and updated cylinder registries in DB.")
