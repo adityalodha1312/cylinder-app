@@ -167,19 +167,18 @@ def get_products_config():
 
 # Helper functions to fetch customer details from Google Sheets
 def get_customer_names():
-    now = time.time()
-    if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
-        return _data_cache['customer_names']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             customers = Customer.query.all()
             if customers:
                 names = [c.name.strip() for c in customers if c.name.strip()]
-                result = sorted(list(set(names)))
-                _data_cache['customer_names']      = result
-                _data_cache['customer_names_time'] = now
-                return result
-    except Exception as e:
+                return sorted(list(set(names)))
+        except Exception as e:
+            print("[db] Error getting customer names from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
+        return _data_cache['customer_names']
         print("[db] Error getting customer names from DB, falling back to Sheets:", e)
 
     try:
@@ -203,21 +202,21 @@ def get_customer_names():
 
 def get_customer_emails():
     """Returns a dict of {customer_name: email}"""
-    now = time.time()
-    if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
-        return _data_cache['customer_emails']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             customers = Customer.query.all()
             if customers:
                 out = {}
                 for c in customers:
                     if c.name.strip():
                         out[c.name.strip()] = c.email.strip() if c.email else ''
-                _data_cache['customer_emails']      = out
-                _data_cache['customer_emails_time'] = now
                 return out
-    except Exception as e:
+        except Exception as e:
+            print("[db] Error getting customer emails from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
+        return _data_cache['customer_emails']
         print("[db] Error getting customer emails from DB, falling back to Sheets:", e)
 
     try:
@@ -342,14 +341,11 @@ def rename_customer_in_sheets(old_name, new_name):
 def get_all_cylinders():
     """Returns list of dicts from Cylinders table, falling back to Sheets."""
     global cyl_ws
-    now = time.time()
-    if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
-        return _data_cache['cylinders']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             cyls = Cylinder.query.all()
             if cyls:
-                out = [{
+                return [{
                     'uid'           : c.uid,
                     'gas_type'      : c.gas_type or '',
                     'cylinder_type' : c.cylinder_type or '',
@@ -358,10 +354,12 @@ def get_all_cylinders():
                     'location'      : c.location or 'Depot',
                     'last_activity' : c.last_activity_date or '',
                 } for c in cyls]
-                _data_cache['cylinders']      = out
-                _data_cache['cylinders_time'] = now
-                return out
-    except Exception as e:
+        except Exception as e:
+            print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
+        return _data_cache['cylinders']
         print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
 
     try:
@@ -401,11 +399,8 @@ def get_all_cylinders():
 def get_all_maintenance():
     """Returns dict of {uid: maintenance_dict} from Cylinder Maintenance table, falling back to Sheets."""
     global cyl_maint_ws
-    now = time.time()
-    if _data_cache['maintenance'] is not None and (now - _data_cache['maintenance_time']) < CACHE_TTL:
-        return _data_cache['maintenance']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             maints = CylinderMaintenance.query.all()
             if maints:
                 out = {}
@@ -426,10 +421,13 @@ def get_all_maintenance():
                             'cert_no'          : m.cert_no or '',
                             'is_uhp'           : m.is_uhp or 'No',
                         }
-                _data_cache['maintenance']      = out
-                _data_cache['maintenance_time'] = now
                 return out
-    except Exception as e:
+        except Exception as e:
+            print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['maintenance'] is not None and (now - _data_cache['maintenance_time']) < CACHE_TTL:
+        return _data_cache['maintenance']
         print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
 
     try:
@@ -678,24 +676,23 @@ def fmt_date(value):
 
 def get_scan_rows():
     """List of dicts from Sheet1: date, time, driver, action, uid (cached)"""
-    now = time.time()
-    if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
-        return _data_cache['scans']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             scans = Scan.query.all()
             if scans:
-                out = [{
+                return [{
                     'date': s.scan_date,
                     'time': s.scan_time or '',
                     'driver': s.driver or '',
                     'action': s.action,
                     'uid': s.cylinder_uid
                 } for s in scans]
-                _data_cache['scans'] = out
-                _data_cache['scans_time'] = now
-                return out
-    except Exception as e:
+        except Exception as e:
+            print("[db] Error reading scans from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
+        return _data_cache['scans']
         print("[db] Error reading scans from DB, falling back to Sheets:", e)
 
     try:
@@ -723,24 +720,23 @@ def get_scan_rows():
 
 def get_map_rows():
     """List of dicts from Customer Map: date, time, driver, action, customer (cached)"""
-    now = time.time()
-    if _data_cache['map'] is not None and (now - _data_cache['map_time']) < CACHE_TTL:
-        return _data_cache['map']
-    try:
-        if os.environ.get('DATABASE_URL'):
+    if os.environ.get('DATABASE_URL'):
+        try:
             maps = CustomerMap.query.all()
             if maps:
-                out = [{
+                return [{
                     'date': m.scan_date,
                     'time': m.scan_time or '',
                     'driver': m.driver or '',
                     'action': m.action or '',
                     'customer': m.customer or ''
                 } for m in maps]
-                _data_cache['map'] = out
-                _data_cache['map_time'] = now
-                return out
-    except Exception as e:
+        except Exception as e:
+            print("[db] Error reading map from DB, falling back to Sheets:", e)
+
+    now = time.time()
+    if _data_cache['map'] is not None and (now - _data_cache['map_time']) < CACHE_TTL:
+        return _data_cache['map']
         print("[db] Error reading map from DB, falling back to Sheets:", e)
 
     try:
