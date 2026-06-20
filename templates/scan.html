@@ -734,6 +734,7 @@
 <script>
 const validCustomers = {{ customers | tojson }};
 let invalidRows = new Set();
+let isRevalidating = false;
 
 function showCustomerDropdown() {
   let dropdown = document.getElementById("customer-dropdown");
@@ -1085,8 +1086,16 @@ async function validateRow(inputEl) {
         inputEl.dataset.action = "Collection";
         if (owner) {
           let custSelect = document.getElementById("customer-select");
-          if (!custSelect.value) {
+          let currentCustomer = custSelect.value.trim();
+          if (!currentCustomer) {
             custSelect.value = owner;
+            revalidateAllRows();
+          } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
+            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            if (change) {
+              custSelect.value = owner;
+              revalidateAllRows();
+            }
           }
         }
       } else if (currentStatus === "Empty") {
@@ -1108,8 +1117,16 @@ async function validateRow(inputEl) {
         inputEl.dataset.action = "Collection";
         if (owner) {
           let custSelect = document.getElementById("customer-select");
-          if (!custSelect.value) {
+          let currentCustomer = custSelect.value.trim();
+          if (!currentCustomer) {
             custSelect.value = owner;
+            revalidateAllRows();
+          } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
+            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            if (change) {
+              custSelect.value = owner;
+              revalidateAllRows();
+            }
           }
         }
       } else {
@@ -1142,9 +1159,15 @@ async function validateRow(inputEl) {
 }
 
 function revalidateAllRows() {
-  let inputs = document.getElementsByName("cylinders");
-  for (let i = 0; i < inputs.length; i++) {
-    validateRow(inputs[i]);
+  if (isRevalidating) return;
+  isRevalidating = true;
+  try {
+    let inputs = document.getElementsByName("cylinders");
+    for (let i = 0; i < inputs.length; i++) {
+      validateRow(inputs[i]);
+    }
+  } finally {
+    isRevalidating = false;
   }
 }
 

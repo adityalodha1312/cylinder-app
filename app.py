@@ -873,6 +873,46 @@ def get_activity_events():
         print("Error getting activity events:", e)
         return []
 
+def get_mapping_mismatches():
+    """
+    Finds mismatches between Delivery and Collection customers for all cylinders.
+    A mismatch occurs when a cylinder is collected from Customer B, but was last
+    delivered to Customer A (where A != B).
+    """
+    events = build_events()
+    cylinder_owner = {}
+    mismatches = []
+
+    for ev in events:
+        uid = ev['uid']
+        cust = ev['customer']
+        
+        if ev['action'] == 'Delivery':
+            cylinder_owner[uid] = {
+                'customer': cust,
+                'date': ev['date'],
+                'time': ev['time'],
+                'driver': ev['driver']
+            }
+        elif ev['action'] == 'Collection':
+            prev = cylinder_owner.pop(uid, None)
+            if prev and prev['customer'].lower() != cust.lower():
+                mismatches.append({
+                    'uid': uid,
+                    'delivery': prev,
+                    'collection': {
+                        'customer': cust,
+                        'date': ev['date'],
+                        'time': ev['time'],
+                        'driver': ev['driver']
+                    }
+                })
+        elif ev['action'] == 'Filling':
+            cylinder_owner.pop(uid, None)
+
+    return mismatches
+
+
 def build_outstanding():
     """Outstanding cylinders per customer"""
     events          = build_events()
@@ -1162,6 +1202,13 @@ def get_cylinder_status(uid):
 def api_cylinder_status(uid):
     status_data = get_cylinder_status(uid)
     return jsonify(status_data)
+
+
+@app.route('/admin/api/mapping_mismatches')
+@admin_required
+def admin_api_mapping_mismatches():
+    mismatches = get_mapping_mismatches()
+    return jsonify({'mismatches': mismatches})
 
 
 # ================================================================

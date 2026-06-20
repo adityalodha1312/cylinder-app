@@ -660,6 +660,28 @@
   </div>
 </nav>
 
+<!-- Mismatch Modal -->
+<div id="mismatch-modal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); z-index: 9999; align-items: center; justify-content: center; padding: 16px;">
+  <div style="background: white; border-radius: 12px; max-width: 580px; width: 100%; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 1.5px solid var(--gray-border, #d8d9d4); display: flex; flex-direction: column; max-height: 85vh; font-family: 'DM Sans', sans-serif;">
+    <div style="padding: 16px 20px; border-bottom: 1.5px solid var(--gray-border, #d8d9d4); display: flex; align-items: center; justify-content: space-between; background: #fff;">
+      <div style="display: flex; align-items: center; gap: 8px; font-weight: 700; color: #dc3545; font-size: 16px;">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        Mapping Mismatch Warning
+      </div>
+      <button onclick="closeMismatchModal()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: var(--gray-text, #5F5E5A); line-height: 1;">&times;</button>
+    </div>
+    <div style="padding: 16px 20px; font-size: 13.5px; color: var(--dark-text, #2C2C2A); border-bottom: 1px solid #f1f2ee; background: #fffefb;">
+      The system detected cylinder delivery/collection customer mapping discrepancies. If the mapping is incorrect, please align them using the quick-fix actions below.
+    </div>
+    <div id="mismatch-cards-container" style="padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; background: #fcfcfb;">
+      <!-- JavaScript will inject cards here -->
+    </div>
+    <div style="padding: 16px 20px; border-top: 1.5px solid var(--gray-border, #d8d9d4); display: flex; justify-content: flex-end; gap: 12px; background: #f7f8f6;">
+      <button onclick="closeMismatchModal()" style="padding: 8px 16px; border-radius: 8px; border: 1.5px solid var(--gray-border, #d8d9d4); background: white; color: var(--dark-text, #2C2C2A); font-weight: 500; cursor: pointer; font-size: 13.5px;">Close</button>
+    </div>
+  </div>
+</div>
+
 <script>
   function toggleSidebar() {
     const s = document.getElementById('sidebar');
@@ -671,6 +693,121 @@
     document.getElementById('sidebar').classList.remove('open');
     document.getElementById('sidebarOverlay').classList.remove('active');
   }
+
+  // Close mismatch modal
+  function closeMismatchModal() {
+    document.getElementById('mismatch-modal').style.display = 'none';
+  }
+
+  // Load mapping mismatches asynchronously
+  async function loadMappingMismatches() {
+    // Only check on Dashboard or Receipts pages to avoid intrusive alerts on reports
+    const path = window.location.pathname;
+    if (path !== '/admin' && path !== '/admin/dashboard' && path !== '/admin/receipts') {
+      return;
+    }
+
+    try {
+      const res = await fetch('/admin/api/mapping_mismatches');
+      if (!res.ok) return;
+      const data = await res.json();
+      
+      const mismatches = data.mismatches || [];
+      if (mismatches.length === 0) {
+        document.getElementById('mismatch-modal').style.display = 'none';
+        return;
+      }
+
+      const container = document.getElementById('mismatch-cards-container');
+      container.innerHTML = '';
+
+      mismatches.forEach(m => {
+        const card = document.createElement('div');
+        card.style.background = 'white';
+        card.style.border = '1.5px solid var(--gray-border, #d8d9d4)';
+        card.style.borderRadius = '10px';
+        card.style.padding = '14px';
+        card.style.display = 'flex';
+        card.style.flexDirection = 'column';
+        card.style.gap = '10px';
+        card.style.boxShadow = '0 1px 3px rgba(0,0,0,0.05)';
+        
+        card.innerHTML = `
+          <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f2ee; padding-bottom: 6px;">
+            <span style="font-weight: 700; color: #0F6E56; font-size: 14px;">🛢 Cylinder: ${m.uid}</span>
+            <span style="font-size: 11.5px; color: var(--gray-text, #5F5E5A); background: #f1f2ee; padding: 2px 8px; border-radius: 4px;">Discrepancy</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px;">
+            <div>
+              <div style="font-weight: 600; color: #16a34a; margin-bottom: 2px;">📥 Delivered To:</div>
+              <div style="font-weight: 700; color: var(--dark-text);">${m.delivery.customer}</div>
+              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;">On ${m.delivery.date} by ${m.delivery.driver}</div>
+            </div>
+            <div>
+              <div style="font-weight: 600; color: #d97706; margin-bottom: 2px;">📤 Collected From:</div>
+              <div style="font-weight: 700; color: var(--dark-text);">${m.collection.customer}</div>
+              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;">On ${m.collection.date} by ${m.collection.driver}</div>
+            </div>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 4px; border-top: 1px solid #f1f2ee; padding-top: 8px;">
+            <button onclick="quickFixMapping('${m.collection.date}', '${m.collection.time}', '${m.collection.driver}', '${m.collection.action}', '${m.delivery.customer}', this)" 
+                    style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #16a34a; background: #f0fdf4; color: #16a34a; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              Align Collection to "${m.delivery.customer}"
+            </button>
+            <button onclick="quickFixMapping('${m.delivery.date}', '${m.delivery.time}', '${m.delivery.driver}', '${m.delivery.action}', '${m.collection.customer}', this)" 
+                    style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #d97706; background: #fffbeb; color: #d97706; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+              Align Delivery to "${m.collection.customer}"
+            </button>
+          </div>
+        `;
+        container.appendChild(card);
+      });
+
+      document.getElementById('mismatch-modal').style.display = 'flex';
+    } catch (e) {
+      console.error("Error loading mapping mismatches:", e);
+    }
+  }
+
+  // Quick fix mapping update
+  async function quickFixMapping(date, time, driver, action, customer, btn) {
+    const originalText = btn.innerText;
+    btn.disabled = true;
+    btn.innerText = 'Updating...';
+
+    try {
+      const res = await fetch('/admin/update_mapping', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ date, time, driver, action, customer })
+      });
+      const data = await res.json();
+      if (data.status === 'Success') {
+        // Remove the mismatch card visually
+        const card = btn.closest('div').parentNode;
+        card.style.opacity = '0.5';
+        card.style.pointerEvents = 'none';
+        
+        // Reload list in a second to refresh modal contents
+        setTimeout(() => {
+          loadMappingMismatches();
+        }, 500);
+      } else {
+        alert('Failed to update mapping: ' + data.message);
+        btn.disabled = false;
+        btn.innerText = originalText;
+      }
+    } catch (err) {
+      alert('Error updating mapping. Connection error.');
+      btn.disabled = false;
+      btn.innerText = originalText;
+    }
+  }
+
+  // Run on page load
+  window.addEventListener('DOMContentLoaded', loadMappingMismatches);
 </script>
 
 </body>
