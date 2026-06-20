@@ -798,15 +798,26 @@
       });
       const data = await res.json();
       if (data.status === 'Success') {
-        // Remove the mismatch card visually
         const card = btn.closest('div').parentNode;
-        card.style.opacity = '0.5';
+        
+        // Show clear success state on the button
+        btn.innerHTML = '✓ Updated successfully';
+        btn.style.background = '#d1fae5';
+        btn.style.color = '#065f46';
+        btn.style.borderColor = '#34d399';
+        
+        // Hide the other button in the card to keep the design clean
+        card.querySelectorAll('button').forEach(b => {
+          if (b !== btn) b.style.display = 'none';
+        });
+        
+        card.style.opacity = '0.7';
         card.style.pointerEvents = 'none';
         
         // Reload list in a second to refresh modal contents
         setTimeout(() => {
           loadMappingMismatches();
-        }, 500);
+        }, 1200);
       } else {
         alert('Failed to update mapping: ' + data.message);
         btn.disabled = false;

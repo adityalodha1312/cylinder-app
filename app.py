@@ -1748,6 +1748,7 @@ def admin_update_mapping():
         db_written = False
         if os.environ.get('DATABASE_URL'):
             try:
+                # 1. Update CustomerMap
                 cmap = CustomerMap.query.filter_by(
                     scan_date=date_val,
                     scan_time=time_val,
@@ -1756,9 +1757,33 @@ def admin_update_mapping():
                 ).first()
                 if cmap:
                     cmap.customer = customer_val
-                    db.session.commit()
-                    db_written = True
-                    print(f"[db] Mapped customer {customer_val} to batch scan in DB.")
+
+                # 2. Update individual Scan records
+                scans_to_update = Scan.query.filter_by(
+                    scan_date=date_val,
+                    scan_time=time_val,
+                    driver=driver_val,
+                    action=action_val
+                ).all()
+                for s in scans_to_update:
+                    s.customer = customer_val
+
+                # 3. If Delivery, update location of UIDs in Cylinder registry table
+                if action_val == 'Delivery':
+                    uids = []
+                    if cmap and cmap.uids:
+                        uids = [u.strip().upper() for u in cmap.uids.split(',') if u.strip()]
+                    else:
+                        uids = [s.cylinder_uid.upper() for s in scans_to_update]
+                    
+                    for uid in uids:
+                        c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                        if c_db:
+                            c_db.location = customer_val
+
+                db.session.commit()
+                db_written = True
+                print(f"[db] Mapped customer {customer_val} to batch, individual scans, and cylinders in DB.")
             except Exception as dbe:
                 db.session.rollback()
                 print("[db] Error mapping customer in DB:", dbe)
