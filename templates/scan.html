@@ -1214,9 +1214,12 @@ async function submitForm() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
     });
-    if (!res.ok) throw new Error("Server error");
+    if (!res.ok) {
+      let errMsg = await res.text();
+      throw new Error(errMsg || "Server error");
+    }
 
-    document.getElementById("success-sub").innerText = "Data saved to Google Sheets";
+    document.getElementById("success-sub").innerText = "Data saved successfully";
 
     let details = document.getElementById("success-details");
     let deliveryCount = scans.filter(s => s.action === "Delivery").length;
@@ -1241,7 +1244,7 @@ async function submitForm() {
     document.getElementById("success-screen").classList.add("show");
 
   } catch (err) {
-    alert("Submission failed. Check your connection.");
+    alert(err.message.includes("Validation Error") ? err.message : "Submission failed. Check your connection.");
     btn.disabled = false;
     btn.innerText = "Submit Scan";
   }

@@ -3847,6 +3847,7 @@ def scan_app():
 
 @app.route('/submit', methods=['POST'])
 def submit():
+    global cyl_ws
     now = datetime.now()
     valid_cylinders = []
     rows_to_append = []
@@ -3904,6 +3905,48 @@ def submit():
                     cust_val
                 ])
     
+    # ── VALIDATE SCANS ──────────────────────────────────────────
+    if os.environ.get('DATABASE_URL'):
+        # Database-first validation: Check if we are collecting a cylinder that is already in stock/empty at the Depot
+        for row_data in rows_to_append:
+            scan_action = row_data[3]
+            scan_uid    = row_data[4]
+            if scan_action == 'Collection':
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
+                if c_db:
+                    if c_db.status in ['Empty', 'Filled'] or c_db.location == 'Depot':
+                        return f"Validation Error: Cylinder '{scan_uid}' is already at the Depot (status: {c_db.status or 'Empty'}). Cannot collect twice.", 400
+    else:
+        # Fallback validation using Google Sheets
+        if cyl_ws is None and doc:
+            try:
+                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+            except Exception:
+                cyl_ws = None
+        if cyl_ws:
+            try:
+                cyl_rows = cyl_ws.get_all_values()
+                cyl_status_map = {}
+                for idx, r in enumerate(cyl_rows):
+                    if idx == 0:
+                        continue
+                    if r and r[0].strip():
+                        # Col E = status (index 4), Col F = location (index 5)
+                        status   = r[4].strip() if len(r) > 4 else 'Active'
+                        location = r[5].strip() if len(r) > 5 else 'Depot'
+                        cyl_status_map[r[0].strip().upper()] = (status, location)
+                
+                for row_data in rows_to_append:
+                    scan_action = row_data[3]
+                    scan_uid    = row_data[4].strip().upper()
+                    if scan_action == 'Collection' and scan_uid in cyl_status_map:
+                        status, location = cyl_status_map[scan_uid]
+                        if status in ['Empty', 'Filled'] or location == 'Depot':
+                            return f"Validation Error: Cylinder '{row_data[4]}' is already at the Depot (status: {status}). Cannot collect twice.", 400
+            except Exception as se:
+                print("[validation] Error validating against Google Sheets registry:", se)
+    # ────────────────────────────────────────────────────────────
+
     db_written = False
     # Write to database (PostgreSQL) first
     if os.environ.get('DATABASE_URL'):
@@ -3956,7 +3999,6 @@ def submit():
             sheets_write_with_retry(sheet.append_rows, rows_to_append)
 
         # Auto-update Cylinders registry sheet for each scanned UID
-        global cyl_ws
         if cyl_ws is None and doc:
             try:
                 cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
