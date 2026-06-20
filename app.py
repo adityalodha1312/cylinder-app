@@ -889,9 +889,10 @@ def build_outstanding():
             cylinder_owner[ev['uid']] = c
             customer_stats[c]['total_delivered'] += 1
         elif ev['action'] == 'Collection':
-            if cylinder_owner.get(ev['uid']) == c:
-                del cylinder_owner[ev['uid']]
+            cylinder_owner.pop(ev['uid'], None)
             customer_stats[c]['total_collected'] += 1
+        elif ev['action'] == 'Filling':
+            cylinder_owner.pop(ev['uid'], None)
 
     customer_outstanding = {}
     for uid, cust in cylinder_owner.items():
@@ -923,10 +924,9 @@ def build_aging():
         if ev['action'] == 'Delivery':
             cylinder_owner[ev['uid']]         = ev['customer']
             cylinder_delivery_date[ev['uid']] = ev['date_obj']
-        elif ev['action'] == 'Collection':
-            if cylinder_owner.get(ev['uid']) == ev['customer']:
-                cylinder_owner.pop(ev['uid'], None)
-                cylinder_delivery_date.pop(ev['uid'], None)
+        elif ev['action'] in ('Collection', 'Filling'):
+            cylinder_owner.pop(ev['uid'], None)
+            cylinder_delivery_date.pop(ev['uid'], None)
 
     today  = date.today()
     result = []
@@ -2968,12 +2968,10 @@ def build_customer_outstanding_detail(customer_name):
     cylinder_delivery_date = {}
 
     for ev in events:
-        if ev['customer'].lower() != customer_name.lower():
-            continue
         if ev['action'] == 'Delivery':
             cylinder_owner[ev['uid']] = ev['customer']
             cylinder_delivery_date[ev['uid']] = ev['date_obj']
-        elif ev['action'] == 'Collection':
+        elif ev['action'] in ('Collection', 'Filling'):
             cylinder_owner.pop(ev['uid'], None)
             cylinder_delivery_date.pop(ev['uid'], None)
 
@@ -2987,7 +2985,9 @@ def build_customer_outstanding_detail(customer_name):
 
     today = date.today()
     result = []
-    for uid in cylinder_owner:
+    for uid, cust in cylinder_owner.items():
+        if cust.lower() != customer_name.lower():
+            continue
         d_date   = cylinder_delivery_date.get(uid)
         days_out = (today - d_date).days if d_date else None
         result.append({
@@ -3433,85 +3433,6 @@ def admin_customers_delete(customer_name):
         print("Error deleting customer:", e)
         return str(e), 500
 
-
-@app.route('/admin/customers/<path:customer_name>/collect_all', methods=['POST'])
-@admin_required
-def admin_collect_all(customer_name):
-    from urllib.parse import unquote
-    customer_name = unquote(customer_name)
-    redirect_url  = request.form.get('redirect_url', f'/admin/customers/{customer_name}').strip()
-
-    driver_type = request.form.get('driver_type', 'select')
-    if driver_type == 'custom':
-        driver = request.form.get('driver_custom', '').strip() or 'Admin (Manual)'
-    else:
-        driver = request.form.get('driver_select', '').strip() or 'Admin (Manual)'
-
-    outstanding_detail = build_customer_outstanding_detail(customer_name)
-    uids = [c['uid'] for c in outstanding_detail]
-    if not uids:
-        return redirect(redirect_url)
-
-    now = datetime.now()
-    date_str = now.strftime('%d-%m-%Y')
-    time_str = now.strftime('%H:%M:%S')
-
-    rows_to_append = []
-    for uid in uids:
-        rows_to_append.append([date_str, time_str, driver, 'Collection', uid, customer_name])
-
-    try:
-        global sheet, cyl_ws
-        if sheet:
-            sheets_write_with_retry(sheet.append_rows, rows_to_append)
-
-        if cyl_ws is None and doc:
-            try:
-                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-            except Exception:
-                cyl_ws = None
-        if cyl_ws:
-            cyl_rows = cyl_ws.get_all_values()
-            uid_set = {u.upper() for u in uids}
-            updates = []
-            for idx, r in enumerate(cyl_rows):
-                if idx == 0:
-                    continue
-                if r and r[0].strip().upper() in uid_set:
-                    updates.append({'range': f'E{idx+1}:G{idx+1}', 'values': [['Empty', 'Depot', date_str]]})
-            for upd in updates:
-                cyl_ws.update(upd['range'], upd['values'])
-
-        # Database updates
-        if os.environ.get('DATABASE_URL'):
-            try:
-                with db.session.no_autoflush:
-                    for uid in uids:
-                        scan = Scan(
-                            scan_date=date_str,
-                            scan_time=time_str,
-                            driver=driver,
-                            action='Collection',
-                            cylinder_uid=uid,
-                            customer=customer_name
-                        )
-                        db.session.add(scan)
-                        
-                        c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
-                        if c_db:
-                            c_db.status = 'Empty'
-                            c_db.location = 'Depot'
-                            c_db.last_activity_date = date_str
-                db.session.commit()
-                print(f"[db] Logged collection batch of {len(uids)} cylinders in DB.")
-            except Exception as dbe:
-                db.session.rollback()
-                print("[db] Error logging collection batch in DB:", dbe)
-    except Exception as e:
-        print('Collect all error:', e)
-
-    clear_cache()
-    return redirect(redirect_url)
 
 
 @app.route('/admin/customers/<path:customer_name>/offer')

@@ -282,19 +282,13 @@
 
 <!-- Current Outstanding -->
 <div class="section-card">
-  <div class="section-header" style="display:flex; justify-content:space-between; align-items:center;">
+  <div class="section-header">
     <span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
       </svg>
       Currently With Customer ({{ outstanding_count }})
     </span>
-    {% if outstanding_count > 0 %}
-    <button class="back-btn" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer; padding:6px 12px; font-size:12px; border-radius:6px; display:inline-flex; align-items:center; gap:6px;" onclick="openCollectAllModal()">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-      Collect All
-    </button>
-    {% endif %}
   </div>
   {% if outstanding_detail %}
   <div class="table-wrap">
@@ -510,53 +504,6 @@
   </div>
 </div>
 
-<!-- Collect All Modal -->
-<div class="modal-overlay" id="collect-all-modal" onclick="closeCollectAllModal(event)">
-  <div class="modal-box">
-    <div class="modal-header">
-      <div class="modal-title">📥 Collect All Outstanding</div>
-      <button class="modal-close" onclick="closeAllModal()">&times;</button>
-    </div>
-    <form action="/admin/customers/{{ customer_name | urlencode }}/collect_all" method="POST">
-      <div class="modal-body">
-        <div style="margin-bottom: 16px; font-size: 14px; color: var(--dark-text);">
-          You are marking <strong>ALL {{ outstanding_count }} outstanding cylinders</strong> as collected from <strong style="color: var(--green-700);">{{ customer_name }}</strong>.
-        </div>
-        
-        <div style="margin-bottom: 16px;">
-          <label style="display: block; font-size: 13px; font-weight: 600; color: var(--gray-text); margin-bottom: 8px;">Collected By:</label>
-          <div style="display: flex; gap: 16px; margin-bottom: 12px;">
-            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-              <input type="radio" name="driver_type" value="select" checked onchange="toggleAllDriverInput()">
-              Select Driver
-            </label>
-            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
-              <input type="radio" name="driver_type" value="custom" onchange="toggleAllDriverInput()">
-              Custom Entry
-            </label>
-          </div>
-          
-          <div id="driver-all-select-container">
-            <select name="driver_select" id="driver-all-select" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; background: white; font-family: inherit;">
-              <option value="">-- Choose Driver --</option>
-              {% for d in drivers %}
-                <option value="{{ d }}">{{ d }}</option>
-              {% endfor %}
-            </select>
-          </div>
-          
-          <div id="driver-all-custom-container" style="display: none;">
-            <input type="text" name="driver_custom" id="driver-all-custom" placeholder="e.g. Returned by Customer" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit;">
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="back-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text); cursor:pointer;" onclick="closeAllModal()">Cancel</button>
-        <button type="submit" class="back-btn" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer;" id="confirm-collect-all-btn">Confirm Return</button>
-      </div>
-    </form>
-  </div>
-</div>
 
 <script>
   function switchTab(tab) {
@@ -597,31 +544,6 @@
     document.getElementById('driver-custom-container').style.display = isSelect ? 'none' : 'block';
   }
 
-  function openCollectAllModal() {
-    // reset form
-    document.querySelector('#collect-all-modal input[name="driver_type"][value="select"]').checked = true;
-    document.getElementById('driver-all-select').value = "";
-    document.getElementById('driver-all-custom').value = "";
-    toggleAllDriverInput();
-    
-    document.getElementById('collect-all-modal').classList.add('open');
-  }
-  
-  function closeAllModal() {
-    document.getElementById('collect-all-modal').classList.remove('open');
-  }
-  
-  function closeCollectAllModal(e) {
-    if (e.target === document.getElementById('collect-all-modal')) {
-      closeAllModal();
-    }
-  }
-  
-  function toggleAllDriverInput() {
-    const isSelect = document.querySelector('#collect-all-modal input[name="driver_type"]:checked').value === 'select';
-    document.getElementById('driver-all-select-container').style.display = isSelect ? 'block' : 'none';
-    document.getElementById('driver-all-custom-container').style.display = isSelect ? 'none' : 'block';
-  }
 </script>
 
 {% endblock %}

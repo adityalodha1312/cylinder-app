@@ -762,9 +762,11 @@ function refreshLedger(silent = false) {
     if (action === 'Delivery') {
       cylinderOwner[uid] = customer;
       customerStats[customer].totalDelivered++;
-    } else if (action === 'Collection') {
-      if (cylinderOwner[uid] === customer) delete cylinderOwner[uid];
-      customerStats[customer].totalCollected++;
+    } else if (action === 'Collection' || action === 'Filling') {
+      delete cylinderOwner[uid];
+      if (action === 'Collection') {
+        customerStats[customer].totalCollected++;
+      }
     }
   }
 
