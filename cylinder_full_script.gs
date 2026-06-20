@@ -675,6 +675,9 @@ function applyCustomerDropdown(mapSheet, rowNum) {
 
 // silent = true when called from onEdit (no alert popup)
 function refreshLedger(silent = false) {
+  // Automatically refresh Sheet 2 batches first to map the latest scans
+  refreshBatches(true);
+
   const ss        = SpreadsheetApp.getActiveSpreadsheet();
   const scanSheet = ss.getSheetByName(SCAN_SHEET_NAME);
   const mapSheet  = ss.getSheetByName(MAP_SHEET_NAME);
