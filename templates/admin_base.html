@@ -734,32 +734,45 @@
         
         card.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #f1f2ee; padding-bottom: 6px;">
-            <span style="font-weight: 700; color: #0F6E56; font-size: 14px;">🛢 Cylinder: ${m.uid}</span>
+            <span style="font-weight: 700; color: #0F6E56; font-size: 14px;">🛢 Cylinder: <span class="mismatch-uid"></span></span>
             <span style="font-size: 11.5px; color: var(--gray-text, #5F5E5A); background: #f1f2ee; padding: 2px 8px; border-radius: 4px;">Discrepancy</span>
           </div>
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 12.5px;">
             <div>
               <div style="font-weight: 600; color: #16a34a; margin-bottom: 2px;">📥 Delivered To:</div>
-              <div style="font-weight: 700; color: var(--dark-text);">${m.delivery.customer}</div>
-              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;">On ${m.delivery.date} by ${m.delivery.driver}</div>
+              <div style="font-weight: 700; color: var(--dark-text);" class="mismatch-del-cust"></div>
+              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;" class="mismatch-del-meta"></div>
             </div>
             <div>
               <div style="font-weight: 600; color: #d97706; margin-bottom: 2px;">📤 Collected From:</div>
-              <div style="font-weight: 700; color: var(--dark-text);">${m.collection.customer}</div>
-              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;">On ${m.collection.date} by ${m.collection.driver}</div>
+              <div style="font-weight: 700; color: var(--dark-text);" class="mismatch-coll-cust"></div>
+              <div style="color: var(--gray-text); font-size: 11.5px; margin-top: 2px;" class="mismatch-coll-meta"></div>
             </div>
           </div>
           <div style="display: flex; gap: 8px; margin-top: 4px; border-top: 1px solid #f1f2ee; padding-top: 8px;">
-            <button onclick="quickFixMapping('${m.collection.date}', '${m.collection.time}', '${m.collection.driver}', '${m.collection.action}', '${m.delivery.customer}', this)" 
-                    style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #16a34a; background: #f0fdf4; color: #16a34a; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
-              Align Collection to "${m.delivery.customer}"
-            </button>
-            <button onclick="quickFixMapping('${m.delivery.date}', '${m.delivery.time}', '${m.delivery.driver}', '${m.delivery.action}', '${m.collection.customer}', this)" 
-                    style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #d97706; background: #fffbeb; color: #d97706; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
-              Align Delivery to "${m.collection.customer}"
-            </button>
+            <button class="align-coll-btn" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #16a34a; background: #f0fdf4; color: #16a34a; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;"></button>
+            <button class="align-del-btn" style="flex: 1; padding: 6px 10px; border-radius: 6px; border: 1px solid #d97706; background: #fffbeb; color: #d97706; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;"></button>
           </div>
         `;
+        
+        card.querySelector('.mismatch-uid').textContent = m.uid;
+        card.querySelector('.mismatch-del-cust').textContent = m.delivery.customer;
+        card.querySelector('.mismatch-del-meta').textContent = `On ${m.delivery.date} by ${m.delivery.driver}`;
+        card.querySelector('.mismatch-coll-cust').textContent = m.collection.customer;
+        card.querySelector('.mismatch-coll-meta').textContent = `On ${m.collection.date} by ${m.collection.driver}`;
+        
+        const btnColl = card.querySelector('.align-coll-btn');
+        btnColl.textContent = `Align Collection to "${m.delivery.customer}"`;
+        btnColl.addEventListener('click', () => {
+          quickFixMapping(m.collection.date, m.collection.time, m.collection.driver, m.collection.action, m.delivery.customer, btnColl);
+        });
+
+        const btnDel = card.querySelector('.align-del-btn');
+        btnDel.textContent = `Align Delivery to "${m.collection.customer}"`;
+        btnDel.addEventListener('click', () => {
+          quickFixMapping(m.delivery.date, m.delivery.time, m.delivery.driver, m.delivery.action, m.collection.customer, btnDel);
+        });
+
         container.appendChild(card);
       });
 
