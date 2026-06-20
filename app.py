@@ -685,7 +685,8 @@ def get_scan_rows():
                     'time': s.scan_time or '',
                     'driver': s.driver or '',
                     'action': s.action,
-                    'uid': s.cylinder_uid
+                    'uid': s.cylinder_uid,
+                    'customer': s.customer or ''
                 } for s in scans]
         except Exception as e:
             print("[db] Error reading scans from DB, falling back to Sheets:", e)
@@ -707,7 +708,8 @@ def get_scan_rows():
                     'time'  : r[1].strip(),
                     'driver': r[2].strip(),
                     'action': r[3].strip(),
-                    'uid'   : r[4].strip()
+                    'uid'   : r[4].strip(),
+                    'customer': r[5].strip() if len(r) > 5 else ''
                 })
         _data_cache['scans'] = out
         _data_cache['scans_time'] = now
@@ -775,8 +777,10 @@ def build_events():
     batch_map = build_batch_map()
     events    = []
     for r in get_scan_rows():
-        key      = f"{r['date']}||{r['time']}||{r['driver']}||{r['action']}"
-        customer = batch_map.get(key)
+        customer = r.get('customer', '').strip()
+        if not customer:
+            key      = f"{r['date']}||{r['time']}||{r['driver']}||{r['action']}"
+            customer = batch_map.get(key)
         if not customer:
             continue
         events.append({**r, 'customer': customer, 'date_obj': parse_date(r['date'])})
