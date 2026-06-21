@@ -20,6 +20,63 @@
     gap: 6px;
   }
   .customer-link:hover { color: var(--green-700, #0F6E56); text-decoration: underline; }
+
+  /* ── UID links ── */
+  .uid-link {
+    color: #1a7a5e;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+  .uid-link:hover { text-decoration: underline; }
+
+  /* ── +N more toggle ── */
+  .uid-more-toggle {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--green-700, #0F6E56);
+    cursor: pointer;
+    font-family: inherit;
+    text-decoration: none;
+  }
+  .uid-more-toggle:hover { text-decoration: underline; }
+
+  .uid-extra {
+    display: none;
+  }
+  .uid-extra.expanded {
+    display: inline;
+  }
+
+  /* ── Full empty state ── */
+  .empty-state-full {
+    padding: 72px 24px;
+    text-align: center;
+    background: #fff;
+    border-radius: 14px;
+  }
+  .empty-state-icon {
+    margin: 0 auto 20px;
+    width: 64px; height: 64px;
+    border-radius: 50%;
+    background: var(--green-50, #E1F5EE);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .empty-state-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--dark-text, #2C2C2A);
+    margin-bottom: 8px;
+  }
+  .empty-state-sub {
+    font-size: 13.5px;
+    color: var(--gray-text, #5F5E5A);
+  }
 </style>
 {% endblock %}
 
@@ -27,9 +84,11 @@
 <div class="page-header">
   <div class="page-title">Outstanding Ledger</div>
   <div class="page-sub">
-    <strong>{{ total_out }}</strong> cylinders currently out across <strong>{{ data | length }}</strong> customer{{ 's' if data | length != 1 else '' }}
+    <strong>{{ total_out }}</strong> cylinder{{ 's' if total_out != 1 else '' }} currently out across <strong>{{ data | length }}</strong> customer{{ 's' if data | length != 1 else '' }}
   </div>
 </div>
+
+{% if data %}
 
 <!-- ── TOOLBAR ── -->
 <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 16px;">
@@ -46,7 +105,6 @@
 
 <!-- ── TABLE ── -->
 <div class="table-wrap">
-  {% if data %}
   <table id="outstandingTable">
     <thead>
       <tr>
@@ -81,16 +139,33 @@
             <span class="badge badge-green">{{ row.outstanding }}</span>
           {% endif %}
         </td>
-        <td>
+        <td onclick="event.stopPropagation()">
           {% if row.cylinder_uids %}
             {% set uid_list = row.cylinder_uids %}
-            {% if uid_list | length > 3 %}
-              <span title="{{ uid_list | join(', ') }}" style="cursor: help; font-size: 13px; color: var(--gray-text);">
-                {{ uid_list[:3] | join(', ') }}… <span style="color: var(--green-700); font-weight: 600;">+{{ uid_list | length - 3 }} more</span>
+            {% set uid_count = uid_list | length %}
+            {% set row_idx = loop.index %}
+
+            {# First 3 UIDs — always visible #}
+            {% for uid in uid_list[:3] %}
+              <a class="uid-link" href="/admin/cylinders/{{ uid | urlencode }}" title="View cylinder {{ uid }}">{{ uid }}</a>{% if not loop.last %}, {% endif %}
+            {% endfor %}
+
+            {# Extra UIDs — toggled #}
+            {% if uid_count > 3 %}
+              {# Separator before "+N more" button #}
+              <span class="uid-extra" id="uid-extra-{{ row_idx }}">
+                {% for uid in uid_list[3:] %}
+                  , <a class="uid-link" href="/admin/cylinders/{{ uid | urlencode }}" title="View cylinder {{ uid }}">{{ uid }}</a>
+                {% endfor %}
               </span>
-            {% else %}
-              <span style="font-size: 13px; color: var(--gray-text);">{{ uid_list | join(', ') }}</span>
+              <button
+                class="uid-more-toggle"
+                id="uid-btn-{{ row_idx }}"
+                onclick="toggleUids({{ row_idx }}, {{ uid_count - 3 }})"
+                title="Show all {{ uid_count }} UIDs"
+              > +{{ uid_count - 3 }} more</button>
             {% endif %}
+
           {% else %}
             <span style="color: var(--gray-bd);">—</span>
           {% endif %}
@@ -108,21 +183,27 @@
     </svg>
     <div style="font-size: 14px; color: var(--gray-text);">No customers match your search.</div>
   </div>
-
-  {% else %}
-  <!-- Full empty state -->
-  <div style="padding: 64px 24px; text-align: center; background: #fff; border-radius: 14px;">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#d8d9d4" stroke-width="1.5" style="margin-bottom: 14px;">
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-    </svg>
-    <div style="font-size: 16px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px;">No Outstanding Cylinders</div>
-    <div style="font-size: 13.5px; color: var(--gray-text);">All cylinders have been collected. Great work!</div>
-  </div>
-  {% endif %}
 </div>
 
+{% else %}
+
+<!-- ── FULL EMPTY STATE ── -->
+<div class="table-wrap">
+  <div class="empty-state-full">
+    <div class="empty-state-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="20 6 9 17 4 12"/>
+      </svg>
+    </div>
+    <div class="empty-state-title">All cylinders accounted for ✅</div>
+    <div class="empty-state-sub">No outstanding cylinders at this time.</div>
+  </div>
+</div>
+
+{% endif %}
+
 <script>
+  /* ── Search filter ── */
   function filterTable() {
     const q = document.getElementById('outstandingSearch').value.trim().toLowerCase();
     const rows = document.querySelectorAll('#outstandingTable .table-row');
@@ -134,6 +215,22 @@
     });
     document.getElementById('resultCount').textContent = `Showing ${visible} record${visible !== 1 ? 's' : ''}`;
     document.getElementById('emptySearch').style.display = (visible === 0 && q) ? 'block' : 'none';
+  }
+
+  /* ── UID expand/collapse toggle ── */
+  function toggleUids(idx, extraCount) {
+    const extra = document.getElementById('uid-extra-' + idx);
+    const btn   = document.getElementById('uid-btn-' + idx);
+    const isOpen = extra.classList.contains('expanded');
+    if (isOpen) {
+      extra.classList.remove('expanded');
+      btn.textContent = ' +' + extraCount + ' more';
+      btn.title = 'Show all';
+    } else {
+      extra.classList.add('expanded');
+      btn.textContent = ' show less';
+      btn.title = 'Collapse';
+    }
   }
 </script>
 {% endblock %}
