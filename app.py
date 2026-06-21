@@ -1361,21 +1361,31 @@ def admin_daily_summary():
     scan_rows = get_scan_rows()
     today_rows = [r for r in scan_rows if r['date'] == selected_date_str]
 
-    # Group by driver
+    # Group by driver — track counts AND UID lists per action
     driver_stats = {}
     for r in today_rows:
         d = r['driver'].strip()
         if not d:
             continue
         if d not in driver_stats:
-            driver_stats[d] = {'deliveries': 0, 'collections': 0, 'fillings': 0, 'total': 0}
+            driver_stats[d] = {
+                'deliveries': 0, 'collections': 0, 'fillings': 0, 'total': 0,
+                'uid_deliveries': [], 'uid_collections': [], 'uid_fillings': []
+            }
         action = r['action'].strip()
+        uid    = r.get('uid', '').strip()
         if action == 'Delivery':
             driver_stats[d]['deliveries'] += 1
+            if uid:
+                driver_stats[d]['uid_deliveries'].append(uid)
         elif action == 'Collection':
             driver_stats[d]['collections'] += 1
+            if uid:
+                driver_stats[d]['uid_collections'].append(uid)
         elif action == 'Filling':
             driver_stats[d]['fillings'] += 1
+            if uid:
+                driver_stats[d]['uid_fillings'].append(uid)
         driver_stats[d]['total'] += 1
 
     total_deliveries  = sum(v['deliveries']  for v in driver_stats.values())

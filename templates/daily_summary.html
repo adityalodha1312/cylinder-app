@@ -81,6 +81,65 @@
     color: var(--gray-text); font-size: 14px; font-style: italic;
   }
   .driver-row td:first-child { font-weight: 600; color: var(--dark-text); }
+
+  /* ── Expandable driver rows ── */
+  .driver-expand-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: inherit;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--dark-text);
+  }
+  .driver-expand-btn .chevron {
+    color: #1a7a5e;
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+    flex-shrink: 0;
+  }
+  .driver-expand-btn.open .chevron {
+    transform: rotate(90deg);
+  }
+  .driver-detail-row {
+    display: none;
+  }
+  .driver-detail-row.open {
+    display: table-row;
+  }
+  .driver-detail-row td {
+    background: #f0f7f4 !important;
+    border-bottom: 1px solid #d1e9df !important;
+    padding: 14px 20px 14px 46px !important;
+  }
+  .detail-section {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 6px;
+    margin-right: 24px;
+    margin-bottom: 4px;
+  }
+  .detail-label {
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--gray-text);
+  }
+  .detail-label.delivery  { color: #0f6e56; }
+  .detail-label.collection { color: #856404; }
+  .detail-label.filling   { color: #c2410c; }
+  .uid-link {
+    color: #1a7a5e;
+    text-decoration: none;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .uid-link:hover { text-decoration: underline; }
+  .uid-dash { color: var(--gray-bd); font-size: 13px; }
 </style>
 {% endblock %}
 
@@ -135,12 +194,13 @@
       </svg>
       Driver Breakdown — {{ today }}
     </span>
-    <span style="font-size:11px; font-weight:500; color:var(--gray-text);">{{ total_scans }} total cylinder scans</span>
+    <span style="font-size:11px; font-weight:500; color:var(--gray-text);">{{ total_scans }} total cylinder scans · click a row to expand UIDs</span>
   </div>
   {% if driver_stats %}
   <table class="tbl">
     <thead>
       <tr>
+        <th style="width:36px;"></th>
         <th>Driver</th>
         <th>Deliveries</th>
         <th>Collections</th>
@@ -150,12 +210,78 @@
     </thead>
     <tbody>
       {% for driver, stats in driver_stats.items() | sort(attribute='1.total', reverse=True) %}
-      <tr class="driver-row">
-        <td>{{ driver }}</td>
+      {% set row_id = 'dr-' ~ loop.index %}
+      {# Summary row #}
+      <tr class="driver-row" id="{{ row_id }}-row">
+        <td style="padding-left:14px; padding-right:0; width:36px;">
+          <button
+            class="driver-expand-btn"
+            id="{{ row_id }}-btn"
+            onclick="toggleDriver('{{ row_id }}')"
+            aria-expanded="false"
+            title="Expand UID detail"
+          >
+            <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 18 15 12 9 6"/>
+            </svg>
+          </button>
+        </td>
+        <td style="font-weight:600;">{{ driver }}</td>
         <td class="num" style="color:#0f6e56;">{{ stats.deliveries }}</td>
         <td class="num" style="color:#856404;">{{ stats.collections }}</td>
         <td class="num" style="color:#c2410c;">{{ stats.fillings }}</td>
         <td class="num">{{ stats.total }}</td>
+      </tr>
+      {# Expanded detail row #}
+      <tr class="driver-detail-row" id="{{ row_id }}-detail">
+        <td colspan="6">
+          <div style="display:flex; flex-wrap:wrap; gap:20px; line-height:1.9;">
+
+            {# Deliveries #}
+            <div>
+              <span class="detail-label delivery">Deliveries ({{ stats.deliveries }})</span>
+              <span style="margin-left:6px; font-size:13px;">
+              {% if stats.uid_deliveries %}
+                {% for uid in stats.uid_deliveries %}
+                  <a class="uid-link" href="/admin/cylinders/{{ uid | urlencode }}">{{ uid }}</a>{% if not loop.last %},&nbsp;{% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="uid-dash">—</span>
+              {% endif %}
+              </span>
+            </div>
+
+            {# Collections #}
+            <div>
+              <span class="detail-label collection">Collections ({{ stats.collections }})</span>
+              <span style="margin-left:6px; font-size:13px;">
+              {% if stats.uid_collections %}
+                {% for uid in stats.uid_collections %}
+                  <a class="uid-link" href="/admin/cylinders/{{ uid | urlencode }}">{{ uid }}</a>{% if not loop.last %},&nbsp;{% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="uid-dash">—</span>
+              {% endif %}
+              </span>
+            </div>
+
+            {# Fillings #}
+            <div>
+              <span class="detail-label filling">Fillings ({{ stats.fillings }})</span>
+              <span style="margin-left:6px; font-size:13px;">
+              {% if stats.uid_fillings %}
+                {% for uid in stats.uid_fillings %}
+                  <a class="uid-link" href="/admin/cylinders/{{ uid | urlencode }}">{{ uid }}</a>{% if not loop.last %},&nbsp;{% endif %}
+                {% endfor %}
+              {% else %}
+                <span class="uid-dash">—</span>
+              {% endif %}
+              </span>
+            </div>
+
+          </div>
+        </td>
       </tr>
       {% endfor %}
     </tbody>
@@ -164,6 +290,17 @@
   <div class="empty-day">No scan activity recorded on this date.</div>
   {% endif %}
 </div>
+
+<script>
+  function toggleDriver(id) {
+    const btn    = document.getElementById(id + '-btn');
+    const detail = document.getElementById(id + '-detail');
+    const open   = detail.classList.contains('open');
+    detail.classList.toggle('open', !open);
+    btn.classList.toggle('open', !open);
+    btn.setAttribute('aria-expanded', String(!open));
+  }
+</script>
 
 <!-- Outstanding Snapshot -->
 <div class="section-card">
