@@ -892,7 +892,8 @@ def get_mapping_mismatches():
                 'customer': cust,
                 'date': ev['date'],
                 'time': ev['time'],
-                'driver': ev['driver']
+                'driver': ev['driver'],
+                'action': 'Delivery'
             }
         elif ev['action'] == 'Collection':
             prev = cylinder_owner.pop(uid, None)
@@ -904,7 +905,8 @@ def get_mapping_mismatches():
                         'customer': cust,
                         'date': ev['date'],
                         'time': ev['time'],
-                        'driver': ev['driver']
+                        'driver': ev['driver'],
+                        'action': 'Collection'
                     }
                 })
         elif ev['action'] == 'Filling':
