@@ -219,51 +219,150 @@
 
 <!-- ── KPI CARDS ── -->
 <div class="rot-kpi-grid">
-  <div class="rot-kpi">
-    <div class="rot-kpi-icon" style="background: #dbeafe;">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/>
-      </svg>
-    </div>
-    <div>
-      <div class="rot-kpi-val">{{ out_count }}</div>
-      <div class="rot-kpi-lbl">🚛 Cylinders Out</div>
-    </div>
-  </div>
-  <div class="rot-kpi">
-    <div class="rot-kpi-icon" style="background: #dcfce7;">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
-      </svg>
-    </div>
-    <div>
-      <div class="rot-kpi-val">{{ in_count }}</div>
-      <div class="rot-kpi-lbl">📦 Cylinders In</div>
-    </div>
-  </div>
-  <div class="rot-kpi">
-    <div class="rot-kpi-icon" style="background: {% if net_movement > 0 %}#fef9c3{% elif net_movement < 0 %}#fee2e2{% else %}#f3f4f6{% endif %};">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}#6b7280{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
-        <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
-      </svg>
-    </div>
-    <div>
-      <div class="rot-kpi-val" style="color: {% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}var(--dark-text){% endif %};">
-        {% if net_movement > 0 %}+{% endif %}{{ net_movement }}
+  <!-- Cylinders Out -->
+  <div class="kpi-wrap">
+    <div class="rot-kpi">
+      <div class="rot-kpi-icon" style="background: #dbeafe;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#1e40af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M5 12h14"/><polyline points="12 5 19 12 12 19"/>
+        </svg>
       </div>
-      <div class="rot-kpi-lbl">🔄 Net Movement</div>
+      <div>
+        <div class="rot-kpi-val">{{ out_count }}</div>
+        <div class="rot-kpi-lbl">🚛 Cylinders Out</div>
+      </div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Top destinations</div>
+      {% set out_by_cust = {} %}
+      {% for m in movements %}
+        {% if m.direction == 'out' and m.customer %}
+          {% set c = m.customer %}
+          {% if c not in out_by_cust %}{% set _ = out_by_cust.update({c: 0}) %}{% endif %}
+          {% set _ = out_by_cust.update({c: out_by_cust[c] + 1}) %}
+        {% endif %}
+      {% endfor %}
+      {% set out_sorted = out_by_cust.items() | sort(attribute='1', reverse=True) %}
+      {% if out_sorted %}
+        {% for cust, cnt in out_sorted[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ cust }}</span>
+          <span class="pop-val">{{ cnt }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No outbound movement</div>
+      {% endif %}
     </div>
   </div>
-  <div class="rot-kpi">
-    <div class="rot-kpi-icon" style="background: #f3e8ff;">
-      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b21a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
+
+  <!-- Cylinders In -->
+  <div class="kpi-wrap">
+    <div class="rot-kpi">
+      <div class="rot-kpi-icon" style="background: #dcfce7;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#166534" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5"/><polyline points="12 19 5 12 12 5"/>
+        </svg>
+      </div>
+      <div>
+        <div class="rot-kpi-val">{{ in_count }}</div>
+        <div class="rot-kpi-lbl">📦 Cylinders In</div>
+      </div>
     </div>
-    <div>
-      <div class="rot-kpi-val">{{ avg_days }}</div>
-      <div class="rot-kpi-lbl">⏱ Avg Days Out</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Top returners</div>
+      {% set in_by_cust = {} %}
+      {% for m in movements %}
+        {% if m.direction == 'in' and m.customer %}
+          {% set c = m.customer %}
+          {% if c not in in_by_cust %}{% set _ = in_by_cust.update({c: 0}) %}{% endif %}
+          {% set _ = in_by_cust.update({c: in_by_cust[c] + 1}) %}
+        {% endif %}
+      {% endfor %}
+      {% set in_sorted = in_by_cust.items() | sort(attribute='1', reverse=True) %}
+      {% if in_sorted %}
+        {% for cust, cnt in in_sorted[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ cust }}</span>
+          <span class="pop-val">{{ cnt }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No inbound movement</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Net Movement -->
+  <div class="kpi-wrap">
+    <div class="rot-kpi">
+      <div class="rot-kpi-icon" style="background: {% if net_movement > 0 %}#fef9c3{% elif net_movement < 0 %}#fee2e2{% else %}#f3f4f6{% endif %};">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="{% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}#6b7280{% endif %}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/>
+          <polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>
+        </svg>
+      </div>
+      <div>
+        <div class="rot-kpi-val" style="color: {% if net_movement > 0 %}#854d0e{% elif net_movement < 0 %}#991b1b{% else %}var(--dark-text){% endif %};">
+          {% if net_movement > 0 %}+{% endif %}{{ net_movement }}
+        </div>
+        <div class="rot-kpi-lbl">🔄 Net Movement</div>
+      </div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Net by gas type</div>
+      {% set net_by_gas = {} %}
+      {% for m in movements %}
+        {% set g = m.gas_type or 'Unknown' %}
+        {% if g not in net_by_gas %}{% set _ = net_by_gas.update({g: 0}) %}{% endif %}
+        {% if m.direction == 'out' %}
+          {% set _ = net_by_gas.update({g: net_by_gas[g] + 1}) %}
+        {% else %}
+          {% set _ = net_by_gas.update({g: net_by_gas[g] - 1}) %}
+        {% endif %}
+      {% endfor %}
+      {% set gas_sorted = net_by_gas.items() | sort(attribute='0') %}
+      {% if gas_sorted %}
+        {% for gas, net in gas_sorted %}
+        <div class="pop-row">
+          <span class="pop-name">{{ gas }}</span>
+          <span class="pop-val {% if net > 0 %}orange{% elif net < 0 %}red{% endif %}">
+            {% if net > 0 %}+{% endif %}{{ net }}
+          </span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No net activity</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Avg Days Out -->
+  <div class="kpi-wrap">
+    <div class="rot-kpi">
+      <div class="rot-kpi-icon" style="background: #f3e8ff;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#6b21a8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div>
+        <div class="rot-kpi-val">{{ avg_days }}</div>
+        <div class="rot-kpi-lbl">⏱ Avg Days Out</div>
+      </div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Longest turnarounds</div>
+      {% set with_days = movements | selectattr('days_out', 'ne', None) | sort(attribute='days_out', reverse=True) | list %}
+      {% if with_days %}
+        {% for m in with_days[:3] %}
+        <div class="pop-row">
+          <span class="pop-name" style="font-family:monospace;font-size:12.5px;">{{ m.uid }}</span>
+          <span class="pop-val" style="font-weight:600;color:#5F5E5A;font-size:12px;">{{ m.days_out }}d</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No turnaround data</div>
+      {% endif %}
     </div>
   </div>
 </div>

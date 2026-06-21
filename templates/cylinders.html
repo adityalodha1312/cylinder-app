@@ -82,20 +82,7 @@
   .status-delivered { background: #dbeafe; color: #1e40af; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
   .status-empty     { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
   .status-filled    { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-
   /* Clickable KPI cards */
-  .kpi-card.kpi-clickable {
-    cursor: pointer;
-    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
-  }
-  .kpi-card.kpi-clickable:hover {
-    box-shadow: 0 6px 20px rgba(15, 110, 86, 0.13);
-    border-color: #1a7a5e;
-    transform: translateY(-2px);
-  }
-  .kpi-card.kpi-clickable:hover .kpi-label {
-    color: #1a7a5e;
-  }
   .kpi-card.kpi-active-filter {
     border-color: #1a7a5e;
     box-shadow: 0 0 0 3px rgba(26,122,94,0.12);
@@ -216,46 +203,125 @@
 
 <!-- KPI Cards -->
 <div class="kpi-grid" style="margin-bottom: 24px;">
+
   <!-- Total Cylinders: clear all filters -->
-  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('total')" title="Show all cylinders">
-    <div class="kpi-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
-        <rect x="10" y="2" width="4" height="20" rx="2"/><ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
-      </svg>
+  <div class="kpi-wrap">
+    <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('total')" title="Show all cylinders">
+      <div class="kpi-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+          <rect x="10" y="2" width="4" height="20" rx="2"/><ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-total">{{ total }}</div>
+      <div class="kpi-label">Total Cylinders</div>
     </div>
-    <div class="kpi-value" id="kpi-total">{{ total }}</div>
-    <div class="kpi-label">Total Cylinders</div>
+    <div class="kpi-popover">
+      <div class="pop-title">By status</div>
+      {% set by_status = {} %}
+      {% for c in cylinders %}
+        {% set s = c.status or 'Unknown' %}
+        {% if s not in by_status %}{% set _ = by_status.update({s: 0}) %}{% endif %}
+        {% set _ = by_status.update({s: by_status[s] + 1}) %}
+      {% endfor %}
+      {% for s, cnt in by_status.items() | sort(attribute='1', reverse=True) %}
+      <div class="pop-row">
+        <span class="pop-name" style="font-family:'DM Sans',sans-serif;">{{ s }}</span>
+        <span class="pop-val">{{ cnt }}</span>
+      </div>
+      {% endfor %}
+      {% if not by_status %}<div class="pop-empty">No cylinders</div>{% endif %}
+    </div>
   </div>
+
   <!-- Active: clear status/gas/hydro filters -->
-  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('active')" title="Show all active cylinders">
-    <div class="kpi-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
+  <div class="kpi-wrap">
+    <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('active')" title="Show all active cylinders">
+      <div class="kpi-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-active">{{ active }}</div>
+      <div class="kpi-label">Active</div>
     </div>
-    <div class="kpi-value" id="kpi-active">{{ active }}</div>
-    <div class="kpi-label">Active</div>
+    <div class="kpi-popover">
+      <div class="pop-title">By gas type</div>
+      {% set by_gas = {} %}
+      {% for c in cylinders %}
+        {% set g = c.gas_type or 'Unknown' %}
+        {% if g not in by_gas %}{% set _ = by_gas.update({g: 0}) %}{% endif %}
+        {% set _ = by_gas.update({g: by_gas[g] + 1}) %}
+      {% endfor %}
+      {% for g, cnt in by_gas.items() | sort(attribute='1', reverse=True) %}
+      <div class="pop-row">
+        <span class="pop-name" style="font-family:'DM Sans',sans-serif;">{{ g }}</span>
+        <span class="pop-val">{{ cnt }}</span>
+      </div>
+      {% endfor %}
+      {% if not by_gas %}<div class="pop-empty">No cylinders</div>{% endif %}
+    </div>
   </div>
+
   <!-- Hydro Overdue -->
-  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('overdue')" title="Show hydro-overdue cylinders">
-    <div class="kpi-icon red">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
+  <div class="kpi-wrap">
+    <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('overdue')" title="Show hydro-overdue cylinders">
+      <div class="kpi-icon red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-overdue">{{ overdue }}</div>
+      <div class="kpi-label">Hydro Overdue</div>
     </div>
-    <div class="kpi-value" id="kpi-overdue">{{ overdue }}</div>
-    <div class="kpi-label">Hydro Overdue</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Overdue UIDs</div>
+      {% set overdue_cyls = cylinders | selectattr('hydro_badge', 'equalto', 'Overdue') | list %}
+      {% if overdue_cyls %}
+        {% for c in overdue_cyls[:5] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ c.uid }}</span>
+          <span class="pop-val red" style="font-size:11px;">{{ c.gas_type or '—' }}</span>
+        </div>
+        {% endfor %}
+        {% if overdue_cyls | length > 5 %}
+          <div class="pop-empty" style="margin-top:6px;">+{{ overdue_cyls|length - 5 }} more → click to filter</div>
+        {% endif %}
+      {% else %}
+        <div class="pop-empty">✅ None overdue</div>
+      {% endif %}
+    </div>
   </div>
+
   <!-- Hydro Due Soon -->
-  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('due-soon')" title="Show hydro due-soon cylinders">
-    <div class="kpi-icon orange">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
-      </svg>
+  <div class="kpi-wrap">
+    <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('due-soon')" title="Show hydro due-soon cylinders">
+      <div class="kpi-icon orange">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-due-soon">{{ due_soon }}</div>
+      <div class="kpi-label">Hydro Due Soon</div>
     </div>
-    <div class="kpi-value" id="kpi-due-soon">{{ due_soon }}</div>
-    <div class="kpi-label">Hydro Due Soon</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Due soon UIDs</div>
+      {% set duesoon_cyls = cylinders | selectattr('hydro_badge', 'equalto', 'Due Soon') | list %}
+      {% if duesoon_cyls %}
+        {% for c in duesoon_cyls[:5] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ c.uid }}</span>
+          <span class="pop-val orange" style="font-size:11px;">{{ c.gas_type or '—' }}</span>
+        </div>
+        {% endfor %}
+        {% if duesoon_cyls | length > 5 %}
+          <div class="pop-empty" style="margin-top:6px;">+{{ duesoon_cyls|length - 5 }} more → click to filter</div>
+        {% endif %}
+      {% else %}
+        <div class="pop-empty">✅ All hydro tests current</div>
+      {% endif %}
+    </div>
   </div>
+
 </div>
 
 <!-- Filter Bar -->

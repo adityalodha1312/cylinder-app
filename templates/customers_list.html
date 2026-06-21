@@ -119,36 +119,93 @@
 
 <!-- KPI cards -->
 <div class="kpi-grid" style="margin-bottom: 24px;">
-  <div class="kpi-card">
-    <div class="kpi-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
+
+  <!-- Total Customers -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ total }}</div>
+      <div class="kpi-label">Total Customers</div>
     </div>
-    <div class="kpi-value">{{ total }}</div>
-    <div class="kpi-label">Total Customers</div>
-  </div>
-  <div class="kpi-card">
-    <div class="kpi-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-      </svg>
+    <div class="kpi-popover">
+      <div class="pop-title">Top by outstanding</div>
+      {% set top3 = customers | sort(attribute='outstanding', reverse=True) | selectattr('outstanding', 'gt', 0) | list %}
+      {% if top3 %}
+        {% for c in top3[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ c.name }}</span>
+          <span class="pop-val">{{ c.outstanding }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No outstanding cylinders</div>
+      {% endif %}
     </div>
-    <div class="kpi-value">{{ with_outstanding }}</div>
-    <div class="kpi-label">With Outstanding</div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-icon red">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/>
-        <polyline points="12 6 12 12 16 14"/>
-      </svg>
+
+  <!-- With Outstanding -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ with_outstanding }}</div>
+      <div class="kpi-label">With Outstanding</div>
     </div>
-    <div class="kpi-value" style="{{ 'color:#dc3545' if overdue_count > 0 else '' }}">{{ overdue_count }}</div>
-    <div class="kpi-label">With Overdue (&gt;30d)</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Most recently active</div>
+      {% set recent3 = customers | sort(attribute='last_activity', reverse=True) | selectattr('outstanding', 'gt', 0) | list %}
+      {% if recent3 %}
+        {% for c in recent3[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ c.name }}</span>
+          <span class="pop-val" style="font-size:11.5px;font-weight:500;color:#5F5E5A;">{{ c.last_activity }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">None outstanding</div>
+      {% endif %}
+    </div>
   </div>
+
+  <!-- With Overdue -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div class="kpi-value" style="{{ 'color:#dc3545' if overdue_count > 0 else '' }}">{{ overdue_count }}</div>
+      <div class="kpi-label">With Overdue (&gt;30d)</div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Overdue customers</div>
+      {% if overdue_customers_list %}
+        {% for name in overdue_customers_list[:5] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ name }}</span>
+          <span class="pop-val red">⚠</span>
+        </div>
+        {% endfor %}
+        {% if overdue_customers_list | length > 5 %}
+          <div class="pop-empty" style="margin-top:6px;">+{{ overdue_customers_list|length - 5 }} more</div>
+        {% endif %}
+      {% else %}
+        <div class="pop-empty">✅ No overdue customers</div>
+      {% endif %}
+    </div>
+  </div>
+
 </div>
 
 {% if customers %}

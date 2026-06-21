@@ -3293,12 +3293,17 @@ def admin_customers():
                 'has_overdue'    : False,
             })
 
+    overdue_customers_list = sorted([
+        c['name'] for c in result if c['has_overdue']
+    ])
+
     return render_template('customers_list.html',
         user      = session['user'],
         customers = result,
         total     = len(result),
         with_outstanding = sum(1 for c in result if c['outstanding'] > 0),
         overdue_count    = len(overdue_customers),
+        overdue_customers_list = overdue_customers_list,
     )
 
 

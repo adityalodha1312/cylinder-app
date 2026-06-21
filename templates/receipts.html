@@ -207,43 +207,128 @@
 
 <!-- KPI Cards -->
 <div class="kpi-grid">
-  <div class="kpi-card">
-    <div class="kpi-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
-        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-      </svg>
+  <!-- Total Batches -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
+          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ batches|length }}</div>
+      <div class="kpi-label">Total Batches</div>
     </div>
-    <div class="kpi-value">{{ batches|length }}</div>
-    <div class="kpi-label">Total Batches</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Recent batches</div>
+      {% if batches %}
+        {% for b in batches[:3] %}
+        <div class="pop-row">
+          <span class="pop-name" style="font-family:'DM Sans',sans-serif;">{{ b.date }} ({{ b.driver }})</span>
+          <span class="pop-val">{{ b.count }} cyls</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No batches</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-        <polyline points="22 4 12 14.01 9 11.01"/>
-      </svg>
+
+  <!-- Receipts Sent -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-sent">{{ sent_count }}</div>
+      <div class="kpi-label">Receipts Sent</div>
     </div>
-    <div class="kpi-value" id="kpi-sent">{{ sent_count }}</div>
-    <div class="kpi-label">Receipts Sent</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Recent sent</div>
+      {% set sent_batches = [] %}
+      {% for b in batches %}
+        {% if b.status and b.status.startswith('Sent') %}
+          {% set _ = sent_batches.append(b) %}
+        {% endif %}
+      {% endfor %}
+      {% if sent_batches %}
+        {% for b in sent_batches[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ b.customer }}</span>
+          <span class="pop-val">{{ b.count }} cyls</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">None sent</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-icon orange">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
-        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-      </svg>
+
+  <!-- Pending Receipts -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon orange">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-pending">{{ pending_count }}</div>
+      <div class="kpi-label">Pending Receipts</div>
     </div>
-    <div class="kpi-value" id="kpi-pending">{{ pending_count }}</div>
-    <div class="kpi-label">Pending Receipts</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Recent pending</div>
+      {% set pending_batches = [] %}
+      {% for b in batches %}
+        {% if b.customer and not b.status.startswith('Sent') %}
+          {% set _ = pending_batches.append(b) %}
+        {% endif %}
+      {% endfor %}
+      {% if pending_batches %}
+        {% for b in pending_batches[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ b.customer }}</span>
+          <span class="pop-val orange">{{ b.count }} cyls</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">None pending</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="kpi-card">
-    <div class="kpi-icon red">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
+
+  <!-- Unmapped Batches -->
+  <div class="kpi-wrap">
+    <div class="kpi-card">
+      <div class="kpi-icon red">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div class="kpi-value" id="kpi-unmapped">{{ unmapped_count }}</div>
+      <div class="kpi-label">Unmapped Batches</div>
     </div>
-    <div class="kpi-value" id="kpi-unmapped">{{ unmapped_count }}</div>
-    <div class="kpi-label">Unmapped Batches</div>
+    <div class="kpi-popover">
+      <div class="pop-title">Recent unmapped</div>
+      {% set unmapped_batches = [] %}
+      {% for b in batches %}
+        {% if not b.customer %}
+          {% set _ = unmapped_batches.append(b) %}
+        {% endif %}
+      {% endfor %}
+      {% if unmapped_batches %}
+        {% for b in unmapped_batches[:3] %}
+        <div class="pop-row">
+          <span class="pop-name" style="font-family:'DM Sans',sans-serif;">{{ b.date }} ({{ b.driver }})</span>
+          <span class="pop-val red">{{ b.count }} cyls</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">All mapped</div>
+      {% endif %}
+    </div>
   </div>
 </div>
 

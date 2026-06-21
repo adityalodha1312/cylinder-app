@@ -166,21 +166,97 @@
 
 <!-- KPI Row -->
 <div class="summary-grid">
-  <div class="sum-kpi delivery">
-    <div class="sum-kpi-val">{{ total_deliveries }}</div>
-    <div class="sum-kpi-lbl">Deliveries</div>
+  <!-- Deliveries -->
+  <div class="kpi-wrap">
+    <div class="sum-kpi delivery">
+      <div class="sum-kpi-val">{{ total_deliveries }}</div>
+      <div class="sum-kpi-lbl">Deliveries</div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Deliveries by driver</div>
+      {% set has_del = false %}
+      {% for d, stats in driver_stats.items() %}
+        {% if stats.deliveries > 0 %}
+          {% set has_del = true %}
+          <div class="pop-row">
+            <span class="pop-name">{{ d }}</span>
+            <span class="pop-val">{{ stats.deliveries }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+      {% if not has_del %}
+        <div class="pop-empty">No deliveries today</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="sum-kpi collection">
-    <div class="sum-kpi-val">{{ total_collections }}</div>
-    <div class="sum-kpi-lbl">Collections</div>
+
+  <!-- Collections -->
+  <div class="kpi-wrap">
+    <div class="sum-kpi collection">
+      <div class="sum-kpi-val">{{ total_collections }}</div>
+      <div class="sum-kpi-lbl">Collections</div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Collections by driver</div>
+      {% set has_coll = false %}
+      {% for d, stats in driver_stats.items() %}
+        {% if stats.collections > 0 %}
+          {% set has_coll = true %}
+          <div class="pop-row">
+            <span class="pop-name">{{ d }}</span>
+            <span class="pop-val">{{ stats.collections }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+      {% if not has_coll %}
+        <div class="pop-empty">No collections today</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="sum-kpi filling">
-    <div class="sum-kpi-val">{{ total_fillings }}</div>
-    <div class="sum-kpi-lbl">Fillings</div>
+
+  <!-- Fillings -->
+  <div class="kpi-wrap">
+    <div class="sum-kpi filling">
+      <div class="sum-kpi-val">{{ total_fillings }}</div>
+      <div class="sum-kpi-lbl">Fillings</div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Fillings by driver</div>
+      {% set has_fill = false %}
+      {% for d, stats in driver_stats.items() %}
+        {% if stats.fillings > 0 %}
+          {% set has_fill = true %}
+          <div class="pop-row">
+            <span class="pop-name">{{ d }}</span>
+            <span class="pop-val">{{ stats.fillings }}</span>
+          </div>
+        {% endif %}
+      {% endfor %}
+      {% if not has_fill %}
+        <div class="pop-empty">No fillings today</div>
+      {% endif %}
+    </div>
   </div>
-  <div class="sum-kpi outstanding">
-    <div class="sum-kpi-val">{{ total_out }}</div>
-    <div class="sum-kpi-lbl">Total Outstanding</div>
+
+  <!-- Total Outstanding -->
+  <div class="kpi-wrap">
+    <div class="sum-kpi outstanding">
+      <div class="sum-kpi-val">{{ total_out }}</div>
+      <div class="sum-kpi-lbl">Total Outstanding</div>
+    </div>
+    <div class="kpi-popover">
+      <div class="pop-title">Top outstanding</div>
+      {% if outstanding_snapshot %}
+        {% for c in outstanding_snapshot[:3] %}
+        <div class="pop-row">
+          <span class="pop-name">{{ c.customer }}</span>
+          <span class="pop-val">{{ c.outstanding }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No outstanding cylinders</div>
+      {% endif %}
+    </div>
   </div>
 </div>
 
