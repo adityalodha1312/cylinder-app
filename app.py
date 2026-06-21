@@ -2210,6 +2210,7 @@ def get_tank_data_for_date(target_date_str):
 
 def calculate_used_today(target_date_str):
     """Calculates used gas today from fillings logged in scan log."""
+    used = {'Argon': 0.0, 'CO2': 0.0, 'N2': 0.0, 'Oxygen': 0.0}
     try:
         fillings = []
         db_loaded = False
