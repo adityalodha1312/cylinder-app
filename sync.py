@@ -51,10 +51,12 @@ def sync_sheets_to_db(doc):
         records = users_ws.get_all_records()
         existing_users = {u.username: u for u in User.query.all()}
         
+        sheet_usernames = set()
         for r in records:
             username = str(r.get('Username', '')).strip()
             if not username:
                 continue
+            sheet_usernames.add(username)
             password = str(r.get('Password', '')).strip()
             role = str(r.get('Role', 'driver')).strip().lower()
             name = str(r.get('Name', username)).strip()
@@ -76,6 +78,13 @@ def sync_sheets_to_db(doc):
                 user = User(username=username, password=db_password, role=role, name=name)
                 db.session.add(user)
                 print(f"[sync] Added user: {username}")
+                
+        # Deletions
+        for username, user_obj in existing_users.items():
+            if username not in sheet_usernames:
+                print(f"[sync] Deleting user from DB: {username}")
+                db.session.delete(user_obj)
+                
         db.session.commit()
     except Exception as e:
         db.session.rollback()
@@ -87,12 +96,14 @@ def sync_sheets_to_db(doc):
         rows = customer_ws.get_all_values()
         existing_customers = {c.name: c for c in Customer.query.all()}
         
+        sheet_customer_names = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if len(r) < 2 or not r[1].strip():
                     continue
                 cust_id = r[0].strip()
                 name = r[1].strip()
+                sheet_customer_names.add(name)
                 email = r[2].strip() if len(r) > 2 else ''
                 phone = r[3].strip() if len(r) > 3 else ''
                 address = r[4].strip() if len(r) > 4 else ''
@@ -109,7 +120,14 @@ def sync_sheets_to_db(doc):
                     customer = Customer(customer_id=cust_id, name=name, email=email, phone=phone, address=address)
                     db.session.add(customer)
                     print(f"[sync] Added customer: {name}")
-            db.session.commit()
+                    
+        # Deletions
+        for name, cust_obj in existing_customers.items():
+            if name not in sheet_customer_names:
+                print(f"[sync] Deleting customer from DB: {name}")
+                db.session.delete(cust_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Customers sheet:", e)
@@ -120,11 +138,13 @@ def sync_sheets_to_db(doc):
         rows = cyl_ws.get_all_values()
         existing_cylinders = {cyl.uid: cyl for cyl in Cylinder.query.all()}
         
+        sheet_uids = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if not r or not r[0].strip():
                     continue
                 uid = r[0].strip()
+                sheet_uids.add(uid)
                 gas_type = r[1].strip() if len(r) > 1 else ''
                 cyl_type = r[2].strip() if len(r) > 2 else ''
                 owner = r[3].strip() if len(r) > 3 else 'Depot'
@@ -151,7 +171,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(cylinder)
                     print(f"[sync] Added cylinder: {uid}")
-            db.session.commit()
+                    
+        # Deletions
+        for uid, cyl_obj in existing_cylinders.items():
+            if uid not in sheet_uids:
+                print(f"[sync] Deleting cylinder from DB: {uid}")
+                db.session.delete(cyl_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Cylinders sheet:", e)
@@ -162,11 +189,13 @@ def sync_sheets_to_db(doc):
         rows = cyl_maint_ws.get_all_values()
         existing_maint = {m.cylinder_uid: m for m in CylinderMaintenance.query.all()}
         
+        sheet_maint_uids = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if not r or not r[0].strip():
                     continue
                 uid = r[0].strip()
+                sheet_maint_uids.add(uid)
                 w_cap = r[1].strip() if len(r) > 1 else ''
                 f_pres = r[2].strip() if len(r) > 2 else ''
                 g_cap = r[3].strip() if len(r) > 3 else ''
@@ -210,7 +239,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(maint)
                     print(f"[sync] Added maintenance for: {uid}")
-            db.session.commit()
+                    
+        # Deletions
+        for uid, maint_obj in existing_maint.items():
+            if uid not in sheet_maint_uids:
+                print(f"[sync] Deleting maintenance from DB: {uid}")
+                db.session.delete(maint_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Cylinder Maintenance sheet:", e)
@@ -224,6 +260,7 @@ def sync_sheets_to_db(doc):
             for s in Scan.query.all()
         }
         
+        sheet_keys = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if len(r) < 5 or not r[4].strip():
@@ -236,6 +273,7 @@ def sync_sheets_to_db(doc):
                 customer = r[5].strip() if len(r) > 5 else ''
                 
                 key = (s_date, s_time, driver, action, uid, customer)
+                sheet_keys.add(key)
                 if key not in existing_scans:
                     scan = Scan(
                         scan_date=s_date, scan_time=s_time, driver=driver,
@@ -243,7 +281,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(scan)
                     print(f"[sync] Added scan event: {uid} at {s_date} {s_time}")
-            db.session.commit()
+                    
+        # Deletions
+        for key, scan_obj in existing_scans.items():
+            if key not in sheet_keys:
+                print(f"[sync] Deleting scan event from DB: {key[4]} at {key[0]} {key[1]}")
+                db.session.delete(scan_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing scans:", e)
@@ -257,6 +302,7 @@ def sync_sheets_to_db(doc):
             for m in CustomerMap.query.all()
         }
         
+        sheet_map_keys = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if len(r) < 7 or not r[6].strip():
@@ -272,6 +318,7 @@ def sync_sheets_to_db(doc):
                 rec_status = r[8].strip() if len(r) > 8 else ''
                 
                 key = (s_date, s_time, driver, action, customer)
+                sheet_map_keys.add(key)
                 if key in existing_maps:
                     cmap = existing_maps[key]
                     if cmap.count != count or cmap.uids != uids or cmap.send_receipt != send_rec or cmap.receipt_status != rec_status:
@@ -288,7 +335,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(cmap)
                     print(f"[sync] Added Customer Map row: {customer} - {s_date}")
-            db.session.commit()
+                    
+        # Deletions
+        for key, map_obj in existing_maps.items():
+            if key not in sheet_map_keys:
+                print(f"[sync] Deleting Customer Map row from DB: {key[4]} - {key[0]}")
+                db.session.delete(map_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Customer Map sheet:", e)
@@ -299,6 +353,7 @@ def sync_sheets_to_db(doc):
         rows = bulk_tanks_ws.get_all_values()
         existing_tanks = {(bt.date, bt.gas): bt for bt in BulkTank.query.all()}
         
+        sheet_tank_keys = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if len(r) < 6 or not r[0].strip():
@@ -311,6 +366,7 @@ def sync_sheets_to_db(doc):
                 unit = r[5].strip()
                 
                 key = (b_date, gas)
+                sheet_tank_keys.add(key)
                 if key in existing_tanks:
                     bt = existing_tanks[key]
                     if bt.opening != opening or bt.dead_volume != dead_volume or bt.capacity != capacity or bt.unit != unit:
@@ -326,7 +382,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(bt)
                     print(f"[sync] Added Bulk Tank stock for: {gas} - {b_date}")
-            db.session.commit()
+                    
+        # Deletions
+        for key, tank_obj in existing_tanks.items():
+            if key not in sheet_tank_keys:
+                print(f"[sync] Deleting Bulk Tank stock from DB: {key[1]} - {key[0]}")
+                db.session.delete(tank_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Bulk Tanks sheet:", e)
@@ -337,11 +400,13 @@ def sync_sheets_to_db(doc):
         rows = products_ws.get_all_values()
         existing_products = {p.product_id: p for p in Product.query.all()}
         
+        sheet_prod_ids = set()
         if len(rows) > 1:
             for r in rows[1:]:
                 if len(r) < 6 or not r[0].strip():
                     continue
                 prod_id = r[0].strip()
+                sheet_prod_ids.add(prod_id)
                 name = r[1].strip()
                 gas_type = r[2].strip().upper()
                 cyl_type = r[3].strip().capitalize()
@@ -368,7 +433,14 @@ def sync_sheets_to_db(doc):
                     )
                     db.session.add(prod)
                     print(f"[sync] Added Product config: {prod_id}")
-            db.session.commit()
+                    
+        # Deletions
+        for prod_id, prod_obj in existing_products.items():
+            if prod_id not in sheet_prod_ids:
+                print(f"[sync] Deleting Product config from DB: {prod_id}")
+                db.session.delete(prod_obj)
+                
+        db.session.commit()
     except Exception as e:
         db.session.rollback()
         print("[sync] Error syncing Products sheet:", e)
