@@ -282,23 +282,36 @@
 
 <!-- Current Outstanding -->
 <div class="section-card">
-  <div class="section-header">
+  <div class="section-header" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
     <span>
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
       </svg>
       Currently With Customer ({{ outstanding_count }})
     </span>
+    {% if outstanding_detail %}
+    <button class="back-btn" onclick="openBulkCollectModal()" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer; padding:6px 12px; font-size:12.5px; border-radius:6px; display:inline-flex; align-items:center; gap:6px;">
+      📥 Mark Collected
+    </button>
+    {% endif %}
   </div>
   {% if outstanding_detail %}
   <div class="table-wrap">
-    <table class="tbl">
+    <table class="tbl" id="outstanding-table">
       <thead>
-        <tr><th>Cylinder UID</th><th>Gas Type</th><th>Delivered On</th><th>Days Out</th><th>Status</th><th>Action</th></tr>
+        <tr>
+          <th style="width: 40px; text-align: center;">
+            <input type="checkbox" id="select-all-cyls" onclick="toggleSelectAllCylinders(this)" style="cursor: pointer; width: 16px; height: 16px;">
+          </th>
+          <th>Cylinder UID</th><th>Gas Type</th><th>Delivered On</th><th>Days Out</th><th>Status</th><th>Action</th>
+        </tr>
       </thead>
       <tbody>
         {% for c in outstanding_detail %}
         <tr {% if c.overdue %}class="overdue-row"{% endif %}>
+          <td style="text-align: center; vertical-align: middle;">
+            <input type="checkbox" class="cyl-select-checkbox" value="{{ c.uid }}" style="cursor: pointer; width: 16px; height: 16px;" onclick="onCylinderCheckboxChange()">
+          </td>
           <td class="uid">
             <a href="/admin/search?uid={{ c.uid }}" style="color:var(--green-700); text-decoration:none; font-weight:700;">
               {{ c.uid }}
@@ -348,14 +361,21 @@
   <div class="tab-panel active" id="tab-stmt" style="padding:0;">
     {% if statement %}
     <div class="table-wrap">
-      <table class="tbl">
+      <table class="tbl" id="stmt-table">
         <thead>
           <tr><th>Date</th><th>Time</th><th>Action</th><th>Driver</th><th>Count</th><th>Change</th><th>Balance</th></tr>
         </thead>
         <tbody>
           {% for s in statement %}
-          <tr>
-            <td>{{ s.date }}</td>
+          <tr style="cursor: pointer;" onclick="toggleStmtRow({{ loop.index }})">
+            <td>
+              <button style="background:none; border:none; padding:2px; cursor:pointer; vertical-align:middle; display:inline-flex; align-items:center; outline:none;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="chevron-icon" id="chevron-{{ loop.index }}" style="transform: rotate(0deg); transition: transform 0.15s; vertical-align: middle; margin-right: 4px; color: var(--green-700);">
+                  <polyline points="9 18 15 12 9 6"/>
+                </svg>
+              </button>
+              {{ s.date }}
+            </td>
             <td style="color:var(--gray-text); font-size:12px;">{{ s.time }}</td>
             <td>
               {% if s.action == 'Delivery' %}
@@ -371,6 +391,20 @@
             </td>
             <td class="balance-cell">{{ s.balance }}</td>
           </tr>
+          <tr class="stmt-detail-row" id="stmt-detail-{{ loop.index }}" style="display:none; background:#fcfcfa;">
+            <td colspan="7" style="padding: 12px 24px; border-bottom: 1px solid #eeeee9;">
+              <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+                <span style="font-weight:600; font-size:12px; color:var(--gray-text);">Cylinder UIDs:</span>
+                {% if s.uids %}
+                  {% for uid in s.uids %}
+                    <a href="/admin/cylinders/{{ uid | urlencode }}" style="color: #1a7a5e; font-weight: 600; text-decoration: none; font-family: monospace; font-size: 13px;" onmouseover="this.style.textDecoration='underline'" onmouseout="this.style.textDecoration='none'">{{ uid }}</a>{% if not loop.last %}<span style="color:var(--gray-bd)">,</span>{% endif %}
+                  {% endfor %}
+                {% else %}
+                  <span style="color:var(--gray-text); font-style:italic;">No UIDs recorded</span>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
           {% endfor %}
         </tbody>
       </table>
@@ -384,7 +418,7 @@
   <div class="tab-panel" id="tab-hist" style="padding:0;">
     {% if history %}
     <div class="table-wrap">
-      <table class="tbl">
+      <table class="tbl" id="hist-table">
         <thead>
           <tr><th>Date</th><th>Time</th><th>Action</th><th>Driver</th><th>Cylinders</th><th>UIDs</th></tr>
         </thead>
@@ -505,6 +539,59 @@
 </div>
 
 
+<!-- Bulk Collection Modal -->
+<div class="modal-overlay" id="bulk-collect-modal" onclick="closeBulkCollectModal(event)">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div class="modal-title">📥 Mark Selected as Collected</div>
+      <button class="modal-close" onclick="closeBulkModal()">&times;</button>
+    </div>
+    <form action="/admin/customers/bulk_collect" method="POST">
+      <div class="modal-body">
+        <input type="hidden" name="uids" id="bulk-modal-uids">
+        <input type="hidden" name="customer" value="{{ customer_name }}">
+        <input type="hidden" name="redirect_url" value="{{ request.path }}">
+        
+        <div style="margin-bottom: 16px; font-size: 14px; color: var(--dark-text);">
+          You are marking <strong id="bulk-modal-count-text" style="color: var(--green-700);"></strong> cylinders as collected from <strong>{{ customer_name }}</strong>.
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; color: var(--gray-text); margin-bottom: 8px;">Collected By:</label>
+          <div style="display: flex; gap: 16px; margin-bottom: 12px;">
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="driver_type" value="select" checked onchange="toggleBulkDriverInput()">
+              Select Driver
+            </label>
+            <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer;">
+              <input type="radio" name="driver_type" value="custom" onchange="toggleBulkDriverInput()">
+              Custom Entry
+            </label>
+          </div>
+          
+          <div id="bulk-driver-select-container">
+            <select name="driver_select" id="bulk-driver-select" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; background: white; font-family: inherit;">
+              <option value="">-- Choose Driver --</option>
+              {% for d in drivers %}
+                <option value="{{ d }}">{{ d }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div id="bulk-driver-custom-container" style="display: none;">
+            <input type="text" name="driver_custom" id="bulk-driver-custom" placeholder="e.g. Returned by Customer" style="width: 100%; padding: 8px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-size: 14px; outline: none; box-sizing: border-box; font-family: inherit;">
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="back-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text); cursor:pointer;" onclick="closeBulkModal()">Cancel</button>
+        <button type="submit" class="back-btn" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer;">Confirm Return</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+
 <script>
   function switchTab(tab) {
     document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
@@ -520,7 +607,7 @@
     document.getElementById('modal-customer-text').innerText = customer;
     
     // reset form
-    document.querySelector('input[name="driver_type"][value="select"]').checked = true;
+    document.querySelector('#collect-modal input[name="driver_type"][value="select"]').checked = true;
     document.getElementById('driver-select').value = "";
     document.getElementById('driver-custom').value = "";
     toggleDriverInput();
@@ -544,6 +631,121 @@
     document.getElementById('driver-custom-container').style.display = isSelect ? 'none' : 'block';
   }
 
+  // --- Bulk mark collected handlers ---
+  function toggleSelectAllCylinders(master) {
+    const checkboxes = document.querySelectorAll('.cyl-select-checkbox');
+    checkboxes.forEach(cb => {
+      cb.checked = master.checked;
+    });
+  }
+  
+  function onCylinderCheckboxChange() {
+    const master = document.getElementById('select-all-cyls');
+    const checkboxes = document.querySelectorAll('.cyl-select-checkbox');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    if (master) master.checked = allChecked;
+  }
+
+  function openBulkCollectModal() {
+    const selectedCheckboxes = document.querySelectorAll('.cyl-select-checkbox:checked');
+    if (selectedCheckboxes.length === 0) {
+      alert("Please select at least one cylinder to collect.");
+      return;
+    }
+    
+    const uids = Array.from(selectedCheckboxes).map(cb => cb.value);
+    document.getElementById('bulk-modal-uids').value = uids.join(',');
+    document.getElementById('bulk-modal-count-text').innerText = uids.length;
+    
+    // reset form
+    document.querySelector('#bulk-collect-modal input[name="driver_type"][value="select"]').checked = true;
+    document.getElementById('bulk-driver-select').value = "";
+    document.getElementById('bulk-driver-custom').value = "";
+    toggleBulkDriverInput();
+    
+    document.getElementById('bulk-collect-modal').classList.add('open');
+  }
+  
+  function closeBulkModal() {
+    document.getElementById('bulk-collect-modal').classList.remove('open');
+  }
+  
+  function closeBulkCollectModal(e) {
+    if (e.target === document.getElementById('bulk-collect-modal')) {
+      closeBulkModal();
+    }
+  }
+  
+  function toggleBulkDriverInput() {
+    const isSelect = document.querySelector('#bulk-collect-modal input[name="driver_type"]:checked').value === 'select';
+    document.getElementById('bulk-driver-select-container').style.display = isSelect ? 'block' : 'none';
+    document.getElementById('bulk-driver-custom-container').style.display = isSelect ? 'none' : 'block';
+  }
+
+  // --- Expand/collapse statement toggles ---
+  function toggleStmtRow(index) {
+    const detail = document.getElementById('stmt-detail-' + index);
+    const chevron = document.getElementById('chevron-' + index);
+    if (!detail || !chevron) return;
+    if (detail.style.display === 'none') {
+      detail.style.display = '';
+      chevron.style.transform = 'rotate(90deg)';
+    } else {
+      detail.style.display = 'none';
+      chevron.style.transform = 'rotate(0deg)';
+    }
+  }
+
+  // --- Client-side lightweight pagination ---
+  function paginateTable(tableId, maxRows) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    
+    // Filter out expanded detail rows
+    const rows = Array.from(tbody.children).filter(r => !r.classList.contains('stmt-detail-row'));
+    if (rows.length <= maxRows) return;
+    
+    // Hide extra rows
+    for (let i = maxRows; i < rows.length; i++) {
+      rows[i].style.display = 'none';
+      const detailRow = rows[i].nextElementSibling;
+      if (detailRow && detailRow.classList.contains('stmt-detail-row')) {
+        detailRow.style.display = 'none';
+      }
+    }
+    
+    // Append a simple show more button below the table wrapper
+    const tableWrap = table.closest('.table-wrap');
+    if (!tableWrap) return;
+    
+    const btn = document.createElement('button');
+    btn.innerText = 'Show More (' + (rows.length - maxRows) + ' more)';
+    btn.className = 'back-btn';
+    btn.style.margin = '14px auto';
+    btn.style.display = 'block';
+    btn.style.background = '#fff';
+    btn.style.borderColor = 'var(--gray-bd)';
+    btn.style.color = 'var(--green-700)';
+    btn.style.cursor = 'pointer';
+    btn.style.padding = '6px 16px';
+    btn.style.fontSize = '13px';
+    btn.style.borderRadius = '8px';
+    btn.onclick = function() {
+      rows.forEach(r => {
+        r.style.display = '';
+      });
+      btn.remove();
+    };
+    tableWrap.appendChild(btn);
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    paginateTable('outstanding-table', 15);
+    paginateTable('stmt-table', 15);
+    paginateTable('hist-table', 15);
+  });
 </script>
 
 {% endblock %}

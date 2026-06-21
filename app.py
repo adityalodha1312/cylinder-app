@@ -3036,6 +3036,21 @@ def admin_mark_collected():
                         c_db.status = 'Empty'
                         c_db.location = 'Depot'
                         c_db.last_activity_date = now.strftime('%d-%m-%Y')
+                        
+                    # Save CustomerMap batch record
+                    cmap = CustomerMap(
+                        scan_date=now.strftime('%d-%m-%Y'),
+                        scan_time=now.strftime('%H:%M:%S'),
+                        driver=driver,
+                        action='Collection',
+                        count=1,
+                        uids=uid,
+                        customer=customer,
+                        send_receipt=False,
+                        receipt_status=''
+                    )
+                    db.session.add(cmap)
+                    
                 db.session.commit()
                 db_written = True
                 print(f"[db] Logged manual collection scan and updated cylinder {uid} status in DB.")
@@ -3049,9 +3064,23 @@ def admin_mark_collected():
 
         # Mirror to Google Sheets
         try:
-            global sheet
+            global sheet, map_ws
             if sheet:
                 sheets_write_with_retry(sheet.append_rows, [row_to_append])
+                
+            if map_ws:
+                map_row = [
+                    now.strftime('%d-%m-%Y'),
+                    now.strftime('%H:%M:%S'),
+                    driver,
+                    'Collection',
+                    1,
+                    uid,
+                    customer,
+                    'FALSE',
+                    ''
+                ]
+                sheets_write_with_retry(map_ws.append_rows, [map_row])
                 
             # Update Cylinders registry sheet
             global cyl_ws
@@ -3078,6 +3107,144 @@ def admin_mark_collected():
                 raise se
     except Exception as e:
         print("Manual collection log write / registry update error:", e)
+        return str(e), 500
+        
+    clear_cache()
+    return redirect(redirect_url)
+
+
+@app.route('/admin/customers/bulk_collect', methods=['POST'])
+@admin_required
+def admin_bulk_collect():
+    customer = request.form.get('customer', '').strip()
+    uids_raw = request.form.get('uids', '').strip()
+    redirect_url = request.form.get('redirect_url', '/admin/dashboard').strip()
+    
+    if not uids_raw or not customer:
+        return redirect(redirect_url)
+        
+    uids = [u.strip().upper() for u in uids_raw.split(',') if u.strip()]
+    if not uids:
+        return redirect(redirect_url)
+        
+    driver_type = request.form.get('driver_type', 'select')
+    if driver_type == 'custom':
+        driver = request.form.get('driver_custom', '').strip()
+        if not driver:
+            driver = "Admin (Manual)"
+    else:
+        driver = request.form.get('driver_select', '').strip()
+        if not driver:
+            driver = "Admin (Manual)"
+            
+    now = datetime.now()
+    today_str = now.strftime('%d-%m-%Y')
+    time_str = now.strftime('%H:%M:%S')
+    
+    # 1. Create Scan rows to append
+    rows_to_append = []
+    for uid in uids:
+        rows_to_append.append([
+            today_str,
+            time_str,
+            driver,
+            'Collection',
+            uid,
+            customer
+        ])
+        
+    # 2. CustomerMap batch row to append
+    # Columns in Sheet 2: Date, Time, Driver, Action, Count, UIDs, Customer, Send Receipt?, Status
+    map_row = [
+        today_str,
+        time_str,
+        driver,
+        'Collection',
+        len(uids),
+        ', '.join(uids),
+        customer,
+        'FALSE',
+        ''
+    ]
+    
+    db_written = False
+    try:
+        if os.environ.get('DATABASE_URL'):
+            try:
+                with db.session.no_autoflush:
+                    # Save individual scans
+                    for uid in uids:
+                        scan = Scan(
+                            scan_date=today_str,
+                            scan_time=time_str,
+                            driver=driver,
+                            action='Collection',
+                            cylinder_uid=uid,
+                            customer=customer
+                        )
+                        db.session.add(scan)
+                        
+                        # Update Cylinder registry
+                        c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                        if c_db:
+                            c_db.status = 'Empty'
+                            c_db.location = 'Depot'
+                            c_db.last_activity_date = today_str
+                            
+                    # Save CustomerMap batch record
+                    cmap = CustomerMap(
+                        scan_date=today_str,
+                        scan_time=time_str,
+                        driver=driver,
+                        action='Collection',
+                        count=len(uids),
+                        uids=', '.join(uids),
+                        customer=customer,
+                        send_receipt=False,
+                        receipt_status=''
+                    )
+                    db.session.add(cmap)
+                    
+                db.session.commit()
+                db_written = True
+                print(f"[db] Logged bulk collection scans ({len(uids)}) and updated cylinder status in DB.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error logging bulk collection in DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return f"Database error logging bulk collection: {str(dbe)}", 500
+                    
+        # Mirror to Google Sheets
+        try:
+            global sheet, map_ws, cyl_ws
+            if sheet and rows_to_append:
+                sheets_write_with_retry(sheet.append_rows, rows_to_append)
+            if map_ws:
+                sheets_write_with_retry(map_ws.append_rows, [map_row])
+                
+            # Update Cylinders registry sheet
+            if cyl_ws is None and doc:
+                try:
+                    cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception:
+                    cyl_ws = None
+            if cyl_ws:
+                cyl_rows = cyl_ws.get_all_values()
+                uid_row_map = {r[0].strip().upper(): idx + 1 for idx, r in enumerate(cyl_rows) if r and r[0].strip()}
+                
+                # Perform cell updates
+                for uid in uids:
+                    row_num = uid_row_map.get(uid)
+                    if row_num:
+                        cyl_ws.update(f'E{row_num}:G{row_num}', [['Empty', 'Depot', today_str]])
+        except Exception as se:
+            print("[sheets] Error mirroring bulk collection to Sheets:", se)
+            if not db_written:
+                raise se
+    except Exception as e:
+        print("Bulk collection log write / registry update error:", e)
         return str(e), 500
         
     clear_cache()
