@@ -49,9 +49,18 @@
     border-radius: 20px; font-size: 13px; font-weight: 700;
     flex-shrink: 0;
   }
-  .badge-outstanding.zero  { background: #d4edda; color: #155724; }
-  .badge-outstanding.low   { background: #fff3cd; color: #856404; }
-  .badge-outstanding.high  { background: #f8d7da; color: #721c24; }
+  .badge-outstanding.status-zero  { background: #eeeee9; color: #5F5E5A; }
+  .badge-outstanding.status-amber { background: #fef3c7; color: #b45309; }
+  .badge-outstanding.status-red   { background: #fee2e2; color: #b91c1c; }
+
+  /* Clickable KPI cards */
+  .kpi-card.kpi-clickable {
+    cursor: pointer;
+  }
+  .kpi-card.kpi-active-filter {
+    border-color: #1a7a5e !important;
+    box-shadow: 0 0 0 3px rgba(26,122,94,0.12) !important;
+  }
 
   .cust-contact { font-size: 12.5px; color: var(--gray-text); display: flex; flex-direction: column; gap: 3px; }
   .cust-contact span { display: flex; align-items: center; gap: 6px; }
@@ -122,7 +131,7 @@
 
   <!-- Total Customers -->
   <div class="kpi-wrap">
-    <div class="kpi-card">
+    <div class="kpi-card kpi-clickable kpi-active-filter" id="kpi-total" onclick="applyCustomerFilter('total')">
       <div class="kpi-icon blue">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
           <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
@@ -150,7 +159,7 @@
 
   <!-- With Outstanding -->
   <div class="kpi-wrap">
-    <div class="kpi-card">
+    <div class="kpi-card kpi-clickable" id="kpi-outstanding" onclick="applyCustomerFilter('outstanding')">
       <div class="kpi-icon green">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
           <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
@@ -178,7 +187,7 @@
 
   <!-- With Overdue -->
   <div class="kpi-wrap">
-    <div class="kpi-card">
+    <div class="kpi-card kpi-clickable" id="kpi-overdue" onclick="applyCustomerFilter('overdue')">
       <div class="kpi-icon red">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
           <circle cx="12" cy="12" r="10"/>
@@ -214,7 +223,9 @@
   <a href="/admin/customers/{{ c.name | urlencode }}"
      class="cust-card {{ 'has-overdue' if c.has_overdue else '' }}"
      id="cust-card-{{ loop.index }}"
-     data-search="{{ (c.name ~ ' ' ~ c.email ~ ' ' ~ c.phone) | lower }}">
+     data-search="{{ (c.name ~ ' ' ~ c.email ~ ' ' ~ c.phone) | lower }}"
+     data-outstanding="{{ c.outstanding }}"
+     data-overdue="{{ 'true' if c.has_overdue else 'false' }}">
 
     <div class="cust-card-top">
       <div>
@@ -224,7 +235,7 @@
           <span class="overdue-tag" style="margin-top:5px; display:inline-flex">⚠ Overdue cylinders</span>
         {% endif %}
       </div>
-      <span class="badge-outstanding {{ 'zero' if c.outstanding == 0 else ('high' if c.outstanding > 10 else 'low') }}">
+      <span class="badge-outstanding {% if c.has_overdue %}status-red{% elif c.outstanding > 0 %}status-amber{% else %}status-zero{% endif %}">
         {{ c.outstanding }}
       </span>
     </div>
@@ -265,7 +276,13 @@
         Outstanding
       </div>
       <div class="cust-stat" style="margin-left:auto; text-align:right;">
-        <strong style="font-size:12px;">{{ c.last_activity }}</strong>
+        <strong style="font-size:12px; {% if c.last_activity == '—' or not c.last_activity %}font-style:italic; font-weight:normal; color:var(--gray-text);{% endif %}">
+          {% if c.last_activity == '—' or not c.last_activity %}
+            No activity yet
+          {% else %}
+            {{ c.last_activity }}
+          {% endif %}
+        </strong>
         Last activity
       </div>
     </div>
@@ -286,17 +303,49 @@
 {% endif %}
 
 <script>
+  let currentKpiFilter = 'total';
+
+  function applyCustomerFilter(filterType) {
+    currentKpiFilter = filterType;
+    
+    // Update active filter card outline
+    document.querySelectorAll('.kpi-card').forEach(card => {
+      card.classList.remove('kpi-active-filter');
+    });
+    
+    const activeCard = document.getElementById('kpi-' + filterType);
+    if (activeCard) {
+      activeCard.classList.add('kpi-active-filter');
+    }
+    
+    filterCustomers();
+  }
+
   function filterCustomers() {
     const q = document.getElementById('cust-search').value.toLowerCase();
     const cards = document.querySelectorAll('#cust-grid .cust-card');
     let visible = 0;
+    
     cards.forEach(card => {
-      const match = !q || card.dataset.search.includes(q);
-      card.style.display = match ? '' : 'none';
-      if (match) visible++;
+      const matchesSearch = !q || card.dataset.search.includes(q);
+      
+      let matchesKpi = true;
+      if (currentKpiFilter === 'outstanding') {
+        const outstandingCount = parseInt(card.dataset.outstanding || '0', 10);
+        matchesKpi = (outstandingCount > 0);
+      } else if (currentKpiFilter === 'overdue') {
+        matchesKpi = (card.dataset.overdue === 'true');
+      }
+      
+      const show = matchesSearch && matchesKpi;
+      card.style.display = show ? '' : 'none';
+      if (show) visible++;
     });
+    
     const countEl = document.getElementById('visible-cust-count');
-    if (countEl) countEl.textContent = 'Showing ' + visible + ' customer' + (visible !== 1 ? 's' : '');
+    if (countEl) {
+      countEl.textContent = 'Showing ' + visible + ' customer' + (visible !== 1 ? 's' : '');
+    }
   }
 </script>
 

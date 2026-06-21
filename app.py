@@ -1003,6 +1003,10 @@ def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter=
     events = build_events()
     all_scan_rows = get_scan_rows()  # for Filling events (no customer in batch_map)
 
+    # Master registry lookup for gas types
+    cyls = get_all_cylinders()
+    cyl_gas_map = {c['uid'].strip().upper(): c['gas_type'].strip().upper() for c in cyls if c.get('gas_type')}
+
     # Build a delivery-date lookup per UID so we can compute days_out for returns
     # uid -> list of (delivery_date, customer) tuples, chronological
     delivery_log = {}
@@ -1023,7 +1027,11 @@ def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter=
 
         action = ev.get('action', '')
         uid    = ev.get('uid', '')
-        gas    = uid.split('-')[0].upper() if '-' in uid else ''
+        uid_upper = uid.strip().upper()
+        if uid_upper in cyl_gas_map:
+            gas = cyl_gas_map[uid_upper]
+        else:
+            gas = uid.split('-')[0].upper() if '-' in uid else ''
 
         if gas_filter and gas != gas_filter.upper():
             continue
