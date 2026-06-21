@@ -1275,13 +1275,49 @@ def admin_dashboard():
 
     top_customers = [c for c in outstanding if c['outstanding'] > 0][:5]
 
+    # ── Hover-insight hints (derived in-memory, no extra DB queries) ──
+
+    # Card 1: top 3 customers by outstanding count
+    hint_top_cylinders = [
+        {'customer': c['customer'], 'count': c['outstanding']}
+        for c in outstanding if c['outstanding'] > 0
+    ][:3]
+
+    # Card 2: top 3 most recently active customers (outstanding > 0)
+    recent = sorted(
+        [c for c in outstanding if c['outstanding'] > 0],
+        key=lambda x: x['last_activity'], reverse=True
+    )[:3]
+    hint_recent_customers = [
+        {'customer': c['customer'], 'last_activity': c['last_activity']}
+        for c in recent
+    ]
+
+    # Card 3: customers with outstanding > 10
+    hint_high_customers = [
+        {'customer': c['customer'], 'count': c['outstanding']}
+        for c in outstanding if c['outstanding'] > 10
+    ][:5]
+
+    # Card 4: today's delivery vs collection split
+    today_rows = [r for r in scan_rows if r['date'] == today_str]
+    hint_today_split = {
+        'deliveries' : sum(1 for r in today_rows if r.get('action') == 'Delivery'),
+        'collections': sum(1 for r in today_rows if r.get('action') == 'Collection'),
+        'fillings'   : sum(1 for r in today_rows if r.get('action') == 'Filling'),
+    }
+
     return render_template('dashboard.html',
-        user          = session['user'],
-        total_out     = total_out,
-        cust_count    = cust_count,
-        high_count    = high_count,
-        today_scans   = today_scans,
-        top_customers = top_customers
+        user                  = session['user'],
+        total_out             = total_out,
+        cust_count            = cust_count,
+        high_count            = high_count,
+        today_scans           = today_scans,
+        top_customers         = top_customers,
+        hint_top_cylinders    = hint_top_cylinders,
+        hint_recent_customers = hint_recent_customers,
+        hint_high_customers   = hint_high_customers,
+        hint_today_split      = hint_today_split,
     )
 
 @app.route('/admin/activity')

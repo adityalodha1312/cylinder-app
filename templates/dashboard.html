@@ -4,7 +4,11 @@
 
 {% block head %}
 <style>
-  /* ── Clickable KPI cards ── */
+  /* ── Clickable KPI card wrapper ── */
+  .kpi-wrap {
+    position: relative;
+  }
+
   a.kpi-card {
     display: block;
     text-decoration: none;
@@ -12,13 +16,100 @@
     transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
   }
   a.kpi-card:hover {
-    box-shadow: 0 6px 20px rgba(15, 110, 86, 0.13);
+    box-shadow: 0 6px 20px rgba(15, 110, 86, 0.14);
     border-color: #1a7a5e;
     transform: translateY(-2px);
   }
   a.kpi-card:hover .kpi-label {
     color: #1a7a5e;
   }
+
+  /* ── Hover popover ── */
+  .kpi-popover {
+    display: none;
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    width: 220px;
+    background: #fff;
+    border: 1.5px solid #d8d9d4;
+    border-radius: 12px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.10);
+    padding: 14px 16px;
+    z-index: 500;
+    pointer-events: none;   /* pass clicks through to the card link */
+    animation: popFadeIn 0.15s ease;
+  }
+  @keyframes popFadeIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(4px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+  .kpi-wrap:hover .kpi-popover {
+    display: block;
+  }
+
+  .pop-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: #5F5E5A;
+    margin-bottom: 10px;
+    padding-bottom: 7px;
+    border-bottom: 1px solid #eeeee9;
+  }
+  .pop-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 13px;
+    color: #2C2C2A;
+    padding: 4px 0;
+  }
+  .pop-row + .pop-row {
+    border-top: 1px solid #f3f3f0;
+  }
+  .pop-name {
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+  }
+  .pop-val {
+    font-weight: 700;
+    color: #0F6E56;
+    flex-shrink: 0;
+  }
+  .pop-val.red  { color: #b91c1c; }
+  .pop-val.orange { color: #c2410c; }
+  .pop-val.blue { color: #1d4ed8; }
+  .pop-empty {
+    font-size: 12.5px;
+    color: #5F5E5A;
+    text-align: center;
+    padding: 4px 0 2px;
+  }
+  .pop-split-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 0;
+    font-size: 13px;
+    color: #2C2C2A;
+  }
+  .pop-split-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .pop-split-dot.green  { background: #0F6E56; }
+  .pop-split-dot.orange { background: #f97316; }
+  .pop-split-dot.blue   { background: #3b82f6; }
+  .pop-split-label { flex: 1; font-weight: 500; }
+  .pop-split-count { font-weight: 700; }
 </style>
 {% endblock %}
 
@@ -31,53 +122,128 @@
 <!-- ── KPI CARDS ── -->
 <div class="kpi-grid">
 
-  <!-- Total Out → /admin/outstanding -->
-  <a class="kpi-card" href="/admin/outstanding" title="View Outstanding Ledger">
-    <div class="kpi-icon green">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
-        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
-      </svg>
+  <!-- ① Total Cylinders Out → /admin/outstanding -->
+  <div class="kpi-wrap">
+    <a class="kpi-card" href="/admin/outstanding" title="View Outstanding Ledger">
+      <div class="kpi-icon green">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+          <polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ total_out }}</div>
+      <div class="kpi-label">Total Cylinders Out</div>
+    </a>
+    <!-- Popover -->
+    <div class="kpi-popover">
+      <div class="pop-title">Top holders</div>
+      {% if hint_top_cylinders %}
+        {% for h in hint_top_cylinders %}
+        <div class="pop-row">
+          <span class="pop-name">{{ h.customer }}</span>
+          <span class="pop-val">{{ h.count }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No cylinders out</div>
+      {% endif %}
     </div>
-    <div class="kpi-value">{{ total_out }}</div>
-    <div class="kpi-label">Total Cylinders Out</div>
-  </a>
+  </div>
 
-  <!-- Active Customers → /admin/customers -->
-  <a class="kpi-card" href="/admin/customers" title="View All Customers">
-    <div class="kpi-icon blue">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
-        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-      </svg>
+  <!-- ② Active Customers → /admin/customers -->
+  <div class="kpi-wrap">
+    <a class="kpi-card" href="/admin/customers" title="View All Customers">
+      <div class="kpi-icon blue">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ cust_count }}</div>
+      <div class="kpi-label">Active Customers</div>
+    </a>
+    <!-- Popover -->
+    <div class="kpi-popover">
+      <div class="pop-title">Recently active</div>
+      {% if hint_recent_customers %}
+        {% for h in hint_recent_customers %}
+        <div class="pop-row">
+          <span class="pop-name">{{ h.customer }}</span>
+          <span class="pop-val blue" style="font-size:11.5px; font-weight:500; color:#5F5E5A;">{{ h.last_activity }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">No recent activity</div>
+      {% endif %}
     </div>
-    <div class="kpi-value">{{ cust_count }}</div>
-    <div class="kpi-label">Active Customers</div>
-  </a>
+  </div>
 
-  <!-- High Outstanding → /admin/outstanding -->
-  <a class="kpi-card" href="/admin/outstanding" title="View High Outstanding Customers">
-    <div class="kpi-icon {{ 'red' if high_count > 0 else 'green' }}">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{ '#b91c1c' if high_count > 0 else '#0F6E56' }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
-        <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
-      </svg>
+  <!-- ③ High Outstanding → /admin/outstanding -->
+  <div class="kpi-wrap">
+    <a class="kpi-card" href="/admin/outstanding" title="View High Outstanding Customers">
+      <div class="kpi-icon {{ 'red' if high_count > 0 else 'green' }}">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{ '#b91c1c' if high_count > 0 else '#0F6E56' }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+      </div>
+      <div class="kpi-value" style="{{ 'color:#b91c1c' if high_count > 0 else '' }}">{{ high_count }}</div>
+      <div class="kpi-label">High Outstanding (&gt;10)</div>
+    </a>
+    <!-- Popover -->
+    <div class="kpi-popover">
+      <div class="pop-title">Over threshold</div>
+      {% if hint_high_customers %}
+        {% for h in hint_high_customers %}
+        <div class="pop-row">
+          <span class="pop-name">{{ h.customer }}</span>
+          <span class="pop-val red">{{ h.count }}</span>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="pop-empty">✅ None over 10</div>
+      {% endif %}
     </div>
-    <div class="kpi-value" style="{{ 'color:#b91c1c' if high_count > 0 else '' }}">{{ high_count }}</div>
-    <div class="kpi-label">High Outstanding (&gt;10)</div>
-  </a>
+  </div>
 
-  <!-- Today's Scans → /admin/activity -->
-  <a class="kpi-card" href="/admin/activity" title="View Activity Log">
-    <div class="kpi-icon orange">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
-        <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
-      </svg>
+  <!-- ④ Today's Scans → /admin/activity -->
+  <div class="kpi-wrap">
+    <a class="kpi-card" href="/admin/activity" title="View Activity Log">
+      <div class="kpi-icon orange">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="3" y="14" width="7" height="7"/><path d="M14 14h3v3m0 4h4v-4m-4 0h-3"/>
+        </svg>
+      </div>
+      <div class="kpi-value">{{ today_scans }}</div>
+      <div class="kpi-label">Today's Scans</div>
+    </a>
+    <!-- Popover -->
+    <div class="kpi-popover">
+      <div class="pop-title">Today's breakdown</div>
+      {% if hint_today_split.deliveries > 0 or hint_today_split.collections > 0 or hint_today_split.fillings > 0 %}
+        <div class="pop-split-row">
+          <span class="pop-split-dot green"></span>
+          <span class="pop-split-label">Deliveries</span>
+          <span class="pop-split-count">{{ hint_today_split.deliveries }}</span>
+        </div>
+        <div class="pop-split-row">
+          <span class="pop-split-dot orange"></span>
+          <span class="pop-split-label">Collections</span>
+          <span class="pop-split-count">{{ hint_today_split.collections }}</span>
+        </div>
+        {% if hint_today_split.fillings > 0 %}
+        <div class="pop-split-row">
+          <span class="pop-split-dot blue"></span>
+          <span class="pop-split-label">Fillings</span>
+          <span class="pop-split-count">{{ hint_today_split.fillings }}</span>
+        </div>
+        {% endif %}
+      {% else %}
+        <div class="pop-empty">No scans today yet</div>
+      {% endif %}
     </div>
-    <div class="kpi-value">{{ today_scans }}</div>
-    <div class="kpi-label">Today's Scans</div>
-  </a>
+  </div>
 
 </div>
 
