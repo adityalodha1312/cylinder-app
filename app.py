@@ -1266,12 +1266,10 @@ def admin_dashboard():
 
     today_str    = date.today().strftime('%d-%m-%Y')
     scan_rows    = get_scan_rows()
-    # Count unique submissions today (same date, time, driver, action)
-    today_batches = set(
-        (r['date'], r['time'], r['driver'], r['action'])
-        for r in scan_rows if r['date'] == today_str
-    )
-    today_scans  = len(today_batches)
+    # Individual cylinder-action rows for today
+    today_rows   = [r for r in scan_rows if r['date'] == today_str]
+    # today_scans = cylinder-level count so it always matches the hover breakdown sum
+    today_scans  = len(today_rows)
 
     top_customers = [c for c in outstanding if c['outstanding'] > 0][:5]
 
@@ -1299,13 +1297,13 @@ def admin_dashboard():
         for c in outstanding if c['outstanding'] > 10
     ][:5]
 
-    # Card 4: today's delivery vs collection split
-    today_rows = [r for r in scan_rows if r['date'] == today_str]
+    # Card 4: today's breakdown — Deliveries / Collections / Fillings
     hint_today_split = {
         'deliveries' : sum(1 for r in today_rows if r.get('action') == 'Delivery'),
         'collections': sum(1 for r in today_rows if r.get('action') == 'Collection'),
         'fillings'   : sum(1 for r in today_rows if r.get('action') == 'Filling'),
     }
+
 
     return render_template('dashboard.html',
         user                  = session['user'],
