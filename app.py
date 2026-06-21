@@ -1932,23 +1932,68 @@ def admin_receipt_status():
         return jsonify({'status': 'Error', 'message': 'Missing batch identifiers'})
 
     try:
-        if map_ws is None:
-            return jsonify({'status': 'Error', 'message': 'Sheet offline'})
-        
-        rows = map_ws.get_all_values()
-        for r in rows[1:]:
-            if len(r) >= 4:
-                if (r[0].strip() == date_val and 
-                    r[1].strip() == time_val and 
-                    r[2].strip() == driver_val and 
-                    r[3].strip() == action_val):
-                    send_receipt = r[7].strip() if len(r) > 7 else 'FALSE'
-                    status = r[8].strip() if len(r) > 8 else ''
-                    return jsonify({
-                        'status': 'Success',
-                        'send_receipt': send_receipt,
-                        'receipt_status': status
-                    })
+        db_record = None
+        # 1. Fast path: check DB first
+        if os.environ.get('DATABASE_URL'):
+            try:
+                db_record = CustomerMap.query.filter_by(
+                    scan_date=date_val,
+                    scan_time=time_val,
+                    driver=driver_val,
+                    action=action_val
+                ).first()
+                if db_record:
+                    db_status = db_record.receipt_status or ''
+                    # If DB already has a final status, return immediately
+                    if db_status and db_status != 'Sending...' and not db_status.startswith('Error:'):
+                        return jsonify({
+                            'status': 'Success',
+                            'send_receipt': 'TRUE' if db_record.send_receipt else 'FALSE',
+                            'receipt_status': db_status
+                        })
+            except Exception as dbe:
+                print("[db] Error reading receipt status from DB:", dbe)
+
+        # 2. Slow path: read from Sheets (Apps Script writes here directly)
+        if map_ws is not None:
+            try:
+                rows = map_ws.get_all_values()
+                for idx, r in enumerate(rows[1:]):
+                    if len(r) >= 4:
+                        if (r[0].strip() == date_val and
+                            r[1].strip() == time_val and
+                            r[2].strip() == driver_val and
+                            r[3].strip() == action_val):
+                            send_receipt = r[7].strip() if len(r) > 7 else 'FALSE'
+                            sheet_status = r[8].strip() if len(r) > 8 else ''
+
+                            # Mirror final status back to DB immediately so future polls are fast
+                            if sheet_status and sheet_status != 'Sending...' and db_record:
+                                try:
+                                    db_record.receipt_status = sheet_status
+                                    db_record.send_receipt = send_receipt.upper() in ('TRUE', '1', 'YES')
+                                    db.session.commit()
+                                    print(f"[db] Mirrored receipt status from Sheets to DB: {sheet_status}")
+                                except Exception as dbe2:
+                                    db.session.rollback()
+                                    print("[db] Error mirroring receipt status to DB:", dbe2)
+
+                            return jsonify({
+                                'status': 'Success',
+                                'send_receipt': send_receipt,
+                                'receipt_status': sheet_status
+                            })
+            except Exception as se:
+                print("[sheets] Error reading receipt status from Sheets:", se)
+
+        # 3. If DB had a Sending... record but Sheets is unavailable, return DB value
+        if db_record:
+            return jsonify({
+                'status': 'Success',
+                'send_receipt': 'TRUE' if db_record.send_receipt else 'FALSE',
+                'receipt_status': db_record.receipt_status or ''
+            })
+
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})
     except Exception as e:
         return jsonify({'status': 'Error', 'message': str(e)})

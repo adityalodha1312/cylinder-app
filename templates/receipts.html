@@ -524,9 +524,10 @@
 
   function pollReceiptStatus(row, date, time, driver, action) {
     let attempts = 0;
-    const maxAttempts = 10; // 50 seconds max (10 attempts * 5s)
+    const maxAttempts = 20; // ~60 seconds total with adaptive intervals
+    const actionCell = row.querySelector('.receipt-action-cell');
     
-    const interval = setInterval(async () => {
+    const poll = async () => {
       attempts++;
       try {
         const queryParams = new URLSearchParams({ date, time, driver, action }).toString();
@@ -537,38 +538,36 @@
           const rStatus = data.receipt_status;
           row.dataset.status = rStatus;
           
-          if (rStatus && rStatus !== 'Sending...' && !rStatus.startsWith('Error:')) {
-            clearInterval(interval);
-            const actionCell = row.querySelector('.receipt-action-cell');
-            actionCell.innerHTML = `
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <span class="badge badge-green" style="font-size: 11px;">${rStatus}</span>
-                <button class="receipt-btn btn-resend" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
-                  ↺ Resend
-                </button>
-              </div>`;
-            showToast("Receipt sent successfully!");
-            updateKPICounts();
-          } else if (rStatus && rStatus.startsWith('Error:')) {
-            clearInterval(interval);
-            const actionCell = row.querySelector('.receipt-action-cell');
-            actionCell.innerHTML = `
-              <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
-                <span class="badge badge-red" style="font-size: 11px;" title="${rStatus}">⚠️ Failed</span>
-                <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
-                  Retry Send
-                </button>
-              </div>`;
-            showToast(`Apps Script Error: ${rStatus}`, 'error');
+          if (rStatus && rStatus !== 'Sending...') {
+            // Final state reached — stop polling
+            if (rStatus.startsWith('Error:')) {
+              actionCell.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                  <span class="badge badge-red" style="font-size: 11px;" title="${rStatus}">⚠️ Failed</span>
+                  <button class="receipt-btn btn-send" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+                    Retry Send
+                  </button>
+                </div>`;
+              showToast(`Send failed: ${rStatus}`, 'error');
+            } else {
+              actionCell.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
+                  <span class="badge badge-green" style="font-size: 11px;">${rStatus}</span>
+                  <button class="receipt-btn btn-resend" onclick="triggerSendReceipt(this)" style="padding: 3px 8px; font-size: 10.5px;">
+                    ↺ Resend
+                  </button>
+                </div>`;
+              showToast("✅ Receipt sent successfully!");
+              updateKPICounts();
+            }
+            return; // Stop polling
           }
         }
       } catch (e) {
         console.error("Error polling receipt status:", e);
       }
-      
+
       if (attempts >= maxAttempts) {
-        clearInterval(interval);
-        const actionCell = row.querySelector('.receipt-action-cell');
         actionCell.innerHTML = `
           <div style="display: flex; flex-direction: column; align-items: center; gap: 4px;">
             <span class="badge badge-yellow" style="font-size: 11px;">⌛ Check Sheet</span>
@@ -576,9 +575,17 @@
               ↺ Retry Check
             </button>
           </div>`;
-        showToast("Polling timed out. Please check Google Sheets for the final status.", "error");
+        showToast("Timed out waiting for receipt status. Please check Google Sheets.", "error");
+        return;
       }
-    }, 5000);
+
+      // Adaptive interval: fast at first (2s), then slow down (4s after attempt 5)
+      const delay = attempts <= 5 ? 2000 : 4000;
+      setTimeout(poll, delay);
+    };
+
+    // Start first poll after 2s
+    setTimeout(poll, 2000);
   }
 
   function filterTable() {
