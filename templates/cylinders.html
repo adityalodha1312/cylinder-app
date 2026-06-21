@@ -76,9 +76,41 @@
   .hydro-not-set  { background: #e2e3e5; color: #383d41; }
 
   /* Status badges */
-  .status-active  { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .status-retired { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .status-lost    { background: #f8d7da; color: #721c24; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-active    { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-retired   { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-lost      { background: #f8d7da; color: #721c24; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-delivered { background: #dbeafe; color: #1e40af; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-empty     { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .status-filled    { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+
+  /* Clickable KPI cards */
+  .kpi-card.kpi-clickable {
+    cursor: pointer;
+    transition: box-shadow 0.18s ease, border-color 0.18s ease, transform 0.18s ease;
+  }
+  .kpi-card.kpi-clickable:hover {
+    box-shadow: 0 6px 20px rgba(15, 110, 86, 0.13);
+    border-color: #1a7a5e;
+    transform: translateY(-2px);
+  }
+  .kpi-card.kpi-clickable:hover .kpi-label {
+    color: #1a7a5e;
+  }
+  .kpi-card.kpi-active-filter {
+    border-color: #1a7a5e;
+    box-shadow: 0 0 0 3px rgba(26,122,94,0.12);
+  }
+
+  /* Clickable UID */
+  .uid-link {
+    color: #1a7a5e;
+    text-decoration: none;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+  .uid-link:hover { text-decoration: underline; }
 
   .action-btns {
     display: flex;
@@ -184,7 +216,8 @@
 
 <!-- KPI Cards -->
 <div class="kpi-grid" style="margin-bottom: 24px;">
-  <div class="kpi-card">
+  <!-- Total Cylinders: clear all filters -->
+  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('total')" title="Show all cylinders">
     <div class="kpi-icon blue">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2">
         <rect x="10" y="2" width="4" height="20" rx="2"/><ellipse cx="12" cy="2" rx="6" ry="2.5"/><ellipse cx="12" cy="22" rx="6" ry="2.5"/>
@@ -193,7 +226,8 @@
     <div class="kpi-value" id="kpi-total">{{ total }}</div>
     <div class="kpi-label">Total Cylinders</div>
   </div>
-  <div class="kpi-card">
+  <!-- Active: clear status/gas/hydro filters -->
+  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('active')" title="Show all active cylinders">
     <div class="kpi-icon green">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--green-700)" stroke-width="2">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
@@ -202,7 +236,8 @@
     <div class="kpi-value" id="kpi-active">{{ active }}</div>
     <div class="kpi-label">Active</div>
   </div>
-  <div class="kpi-card">
+  <!-- Hydro Overdue -->
+  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('overdue')" title="Show hydro-overdue cylinders">
     <div class="kpi-icon red">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#b91c1c" stroke-width="2">
         <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -211,7 +246,8 @@
     <div class="kpi-value" id="kpi-overdue">{{ overdue }}</div>
     <div class="kpi-label">Hydro Overdue</div>
   </div>
-  <div class="kpi-card">
+  <!-- Hydro Due Soon -->
+  <div class="kpi-card kpi-clickable" onclick="applyKpiFilter('due-soon')" title="Show hydro due-soon cylinders">
     <div class="kpi-icon orange">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2">
         <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
@@ -280,19 +316,30 @@
           data-status="{{ c.status }}"
           data-hydro="{{ c.hydro_badge }}"
         >
-          <td class="uid-cell">{{ c.uid }}</td>
+          <td class="uid-cell">
+            <a class="uid-link" href="/admin/cylinders/{{ c.uid }}">{{ c.uid }}</a>
+          </td>
           <td>{{ c.gas_type or '—' }}</td>
           <td>{{ c.cylinder_type or '—' }}</td>
           <td>{{ c.owner or '—' }}</td>
           <td>
-            {% if c.status == 'Active' %}
+            {% set s = c.status or '' %}
+            {% if s == 'Active' %}
               <span class="status-active">Active</span>
-            {% elif c.status == 'Retired' %}
+            {% elif s == 'Retired' %}
               <span class="status-retired">Retired</span>
-            {% elif c.status == 'Lost' %}
+            {% elif s == 'Lost' %}
               <span class="status-lost">Lost</span>
+            {% elif s == 'Delivered' %}
+              <span class="status-delivered">Delivered</span>
+            {% elif s == 'Empty' %}
+              <span class="status-empty">Empty</span>
+            {% elif s == 'Filled' %}
+              <span class="status-filled">Filled</span>
+            {% elif s %}
+              <span class="status-empty">{{ s }}</span>
             {% else %}
-              <span>{{ c.status or '—' }}</span>
+              <span style="color:var(--gray-bd);">—</span>
             {% endif %}
           </td>
           <td>{{ c.location or 'Depot' }}</td>
@@ -339,6 +386,30 @@
 </div>
 
 <script>
+  /* ── Apply a KPI card filter ── */
+  function applyKpiFilter(which) {
+    // Reset all filter inputs first
+    document.getElementById('reg-search').value = '';
+    document.getElementById('filter-gas').value = '';
+    document.getElementById('filter-status').value = '';
+    document.getElementById('filter-hydro').value = '';
+
+    if (which === 'overdue') {
+      document.getElementById('filter-hydro').value = 'Overdue';
+    } else if (which === 'due-soon') {
+      document.getElementById('filter-hydro').value = 'Due Soon';
+    }
+    // 'total' and 'active' both show everything (no additional filter)
+    // — matching the route definition where active ≈ all non-retired/lost
+
+    // Highlight the active card, clear others
+    document.querySelectorAll('.kpi-clickable').forEach(el => el.classList.remove('kpi-active-filter'));
+    event.currentTarget.classList.add('kpi-active-filter');
+
+    filterRegistry();
+  }
+
+  /* ── Table row filter ── */
   function filterRegistry() {
     const query      = document.getElementById('reg-search').value.toLowerCase();
     const gasFilter  = document.getElementById('filter-gas').value;
