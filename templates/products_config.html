@@ -191,6 +191,7 @@
     <table class="editable-table">
       <thead>
         <tr>
+          <th style="width: 5%; text-align: center;">Sr. No.</th>
           <th style="width: 15%">Product ID</th>
           <th style="width: 25%">Display Name</th>
           <th style="width: 15%">Gas Type</th>
@@ -204,6 +205,9 @@
       <tbody id="products-table-body">
         {% for p in products %}
         <tr class="product-row">
+          <td class="sr-col" style="text-align: center; font-weight: 600; color: var(--gray-text); vertical-align: middle;">
+            {{ loop.index }}
+          </td>
           <td>
             <input type="text" name="pid[]" class="form-control pid-input" value="{{ p.id }}" placeholder="e.g. arg_pura" required>
           </td>
@@ -280,12 +284,24 @@
 </datalist>
 
 <script>
+  // Recalculate Sr. No. sequentially for all rows
+  function updateSrNumbers() {
+    const rows = document.querySelectorAll('#products-table-body tr.product-row');
+    rows.forEach((row, idx) => {
+      const srCell = row.querySelector('.sr-col');
+      if (srCell) {
+        srCell.textContent = idx + 1;
+      }
+    });
+  }
+
   // Add a new row to the table
   function addRow() {
     const tbody = document.getElementById('products-table-body');
     const tr = document.createElement('tr');
     tr.className = 'product-row';
     tr.innerHTML = `
+      <td class="sr-col" style="text-align: center; font-weight: 600; color: var(--gray-text); vertical-align: middle;"></td>
       <td>
         <input type="text" name="pid[]" class="form-control pid-input" placeholder="e.g. arg_pura" required>
       </td>
@@ -318,12 +334,13 @@
         <button type="button" class="btn-delete-row" onclick="deleteRow(this)">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <polyline points="3 6 5 6 21 6"></polyline>
-            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2 2v2"></path>
           </svg>
         </button>
       </td>
     `;
     tbody.appendChild(tr);
+    updateSrNumbers();
     tr.querySelector('.pid-input').focus();
   }
 
@@ -332,6 +349,7 @@
     const row = btn.closest('tr');
     if (row) {
       row.remove();
+      updateSrNumbers();
     }
   }
 

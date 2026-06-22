@@ -120,7 +120,7 @@
           data-date="{{ e.date }}" 
           data-driver="{{ e.driver | lower }}" 
           data-action="{{ e.action | lower }}" 
-          data-search="{{ (e.uids | join(' ') ~ ' ' ~ e.customer) | lower }}">
+          data-search="{{ (e.uids | map(attribute='uid') | join(' ') ~ ' ' ~ e.customer) | lower }}">
         <td style="font-weight: 500; font-variant-numeric: tabular-nums;">{{ e.date }}</td>
         <td style="color: var(--gray-text); font-size: 13.5px; font-variant-numeric: tabular-nums;">{{ e.time }}</td>
         <td>
@@ -128,9 +128,14 @@
             {{ e.uids | length }} cylinder{{ 's' if e.uids | length > 1 else '' }}
           </div>
           <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px;">
-            {% for uid in e.uids %}
-              <a href="/admin/search?uid={{ uid }}" class="clickable-uid" title="See full scan history for this cylinder">
-                {{ uid }}
+            {% for item in e.uids %}
+              <a href="/admin/search?uid={{ item.uid }}" class="clickable-uid" title="See full scan history for this cylinder" style="display: inline-flex; align-items: center; gap: 4px;">
+                {{ item.uid }}
+                {% if item.gas_type %}
+                  <span class="gas-badge gas-badge-{{ item.gas_type|lower|strip if item.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                    {{ item.gas_type }}
+                  </span>
+                {% endif %}
               </a>
             {% endfor %}
           </div>

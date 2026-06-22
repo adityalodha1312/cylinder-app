@@ -415,9 +415,20 @@
           data-cyltype="{{ c.cylinder_type or 'Standard' }}"
         >
           <td class="uid-cell">
-            <a class="uid-link" href="/admin/cylinders/{{ c.uid }}">{{ c.uid }}</a>
+            <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
+              {{ c.uid }}
+              {% if c.gas_type %}
+                <span class="gas-badge gas-badge-{{ c.gas_type|lower|strip if c.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                  {{ c.gas_type }}
+                </span>
+              {% endif %}
+            </a>
           </td>
-          <td>{{ c.gas_type or '—' }}</td>
+          <td>
+            <span class="gas-badge gas-badge-{{ c.gas_type|lower|strip if c.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+              {{ c.gas_type or '—' }}
+            </span>
+          </td>
           <td>{{ c.cylinder_type or '—' }}</td>
           <td>{{ c.owner or '—' }}</td>
           <td>
@@ -509,10 +520,29 @@
           data-cyltype="Dura"
         >
           <td class="uid-cell">
-            <a class="uid-link" href="/admin/cylinders/{{ c.uid }}">{{ c.uid }}</a>
+            <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
+              {{ c.uid }}
+              {% if c.gas_type %}
+                <span class="gas-badge gas-badge-{{ c.gas_type|lower|strip if c.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                  {{ c.gas_type }}
+                </span>
+              {% endif %}
+            </a>
           </td>
-          <td>{{ c.gas_type or '—' }}</td>
-          <td>{{ c.previous_gas or '—' }}</td>
+          <td>
+            <span class="gas-badge gas-badge-{{ c.gas_type|lower|strip if c.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+              {{ c.gas_type or '—' }}
+            </span>
+          </td>
+          <td>
+            {% if c.previous_gas %}
+              <span class="gas-badge gas-badge-{{ c.previous_gas|lower|strip if c.previous_gas|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+                {{ c.previous_gas }}
+              </span>
+            {% else %}
+              —
+            {% endif %}
+          </td>
           <td>{{ c.last_customer or '—' }}</td>
           <td>
             {% if c.purge_required == 'Yes' %}

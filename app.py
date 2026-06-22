@@ -882,7 +882,10 @@ def get_activity_events():
                     group_key = (date_str, time_str, driver, action, cust_display)
                     if group_key not in grouped:
                         grouped[group_key] = []
-                    grouped[group_key].append(s.cylinder_uid)
+                    grouped[group_key].append({
+                        'uid': s.cylinder_uid,
+                        'gas_type': s.gas_type or ''
+                    })
                 
                 events = []
                 for (date_str, time_str, driver, action, cust_display), uids in grouped.items():
@@ -916,6 +919,7 @@ def get_activity_events():
                 time_str = r[1].strip()
                 driver = r[2].strip()
                 action = r[3].strip()
+                gas_type = r[6].strip() if len(r) > 6 else ''
                 
                 # Retrieve from Column F (index 5) if present, otherwise fall back to batch_map
                 customer = r[5].strip() if len(r) > 5 else ''
@@ -929,7 +933,10 @@ def get_activity_events():
                 group_key = (date_str, time_str, driver, action, cust_display)
                 if group_key not in grouped:
                     grouped[group_key] = []
-                grouped[group_key].append(uid)
+                grouped[group_key].append({
+                    'uid': uid,
+                    'gas_type': gas_type
+                })
         
         events = []
         for (date_str, time_str, driver, action, cust_display), uids in grouped.items():
