@@ -39,7 +39,7 @@
 
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: 1fr 1fr;
     gap: 18px;
   }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
@@ -57,18 +57,23 @@
     background: #fff;
     outline: none;
     transition: border-color 0.15s;
+    width: 100%;
+    box-sizing: border-box;
   }
   .form-group input:focus,
   .form-group select:focus { border-color: var(--green-500); }
   .form-group .hint { font-size: 11.5px; color: var(--gray-text); line-height: 1.4; }
 
-  /* Quote table */
+  /* Full-width field helper */
+  .col-span-2 { grid-column: span 2; }
+
+  /* Quote table — desktop */
   .quote-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
   .quote-table th, .quote-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #eeeee9; text-align: left; }
   .quote-table th { background: #f0f4f0; font-weight: 600; border-bottom: 1.5px solid var(--gray-bd); color: var(--dark-text); }
   .quote-table td input {
     width: 100%; padding: 6px 10px; border: 1.5px solid var(--gray-bd); border-radius: 6px;
-    font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none; box-sizing: border-box;
   }
   .quote-table td input:focus { border-color: var(--green-500); }
   
@@ -96,6 +101,51 @@
     display: inline-flex; align-items: center; gap: 8px;
   }
   .btn-submit:hover { background: var(--green-500); }
+
+  /* ── Mobile overrides ────────────────────────────── */
+  @media (max-width: 600px) {
+    .form-section { padding: 16px 14px; }
+
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    /* All span-2 items just span the single column */
+    .col-span-2 { grid-column: span 1; }
+
+    /* Products table — hide desktop table, show card list */
+    .quote-table thead { display: none; }
+    .quote-table, .quote-table tbody,
+    .quote-table tr, .quote-table td { display: block; width: 100%; }
+    .quote-table tr {
+      border: 1.5px solid var(--gray-bd);
+      border-radius: 10px;
+      padding: 12px;
+      margin-bottom: 12px;
+      background: #fafafa;
+    }
+    .quote-table td {
+      border: none;
+      padding: 6px 0;
+    }
+    .quote-table td::before {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--gray-text);
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 4px;
+    }
+    .quote-table td:nth-child(1)::before { content: 'Product Description'; }
+    .quote-table td:nth-child(2)::before { content: 'Cyl Content'; }
+    .quote-table td:nth-child(3)::before { content: 'Quantity'; }
+    .quote-table td:nth-child(4) { text-align: left; padding-top: 10px; }
+
+    .form-actions { flex-direction: column; align-items: stretch; }
+    .btn-submit, .form-actions .back-btn {
+      width: 100%; justify-content: center; text-align: center;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -125,7 +175,7 @@
     
     <div class="form-grid">
       <!-- Select Customer -->
-      <div class="form-group" style="grid-column: span 2;">
+      <div class="form-group col-span-2">
         <label for="customer_name">Select Customer / Party Name <span class="req">*</span></label>
         <select id="customer_name" name="customer_name" required onchange="autofillCustomerDetails()">
           <option value="">-- Choose Customer --</option>
@@ -167,7 +217,7 @@
       </div>
 
       <!-- Ref -->
-      <div class="form-group" style="grid-column: span 2;">
+      <div class="form-group col-span-2">
         <label for="ref">Reference</label>
         <input type="text" id="ref" name="ref" value="As per Inquiry" placeholder="e.g. As per Discussions, PO Ref">
         <span class="hint">Reference field on order header.</span>
