@@ -1,0 +1,269 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Create Sales Order{% endblock %}
+
+{% block head %}
+<style>
+  .form-page-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none;
+    transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+
+  .form-section {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 24px 28px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    border-top: 4px solid var(--green-700);
+  }
+  .form-section-title {
+    font-size: 13px; font-weight: 600; text-transform: uppercase;
+    letter-spacing: 0.6px; margin-bottom: 20px; padding-bottom: 10px;
+    border-bottom: 1.5px solid var(--green-50);
+    display: flex; align-items: center; gap: 8px;
+    color: var(--green-700);
+  }
+
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 18px;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--dark-text); }
+  .form-group .req { color: #c0392b; margin-left: 2px; }
+  
+  .form-group input,
+  .form-group select {
+    padding: 9px 12px;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--dark-text);
+    background: #fff;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus,
+  .form-group select:focus { border-color: var(--green-500); }
+  .form-group .hint { font-size: 11.5px; color: var(--gray-text); line-height: 1.4; }
+
+  /* Quote table */
+  .quote-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+  .quote-table th, .quote-table td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #eeeee9; text-align: left; }
+  .quote-table th { background: #f0f4f0; font-weight: 600; border-bottom: 1.5px solid var(--gray-bd); color: var(--dark-text); }
+  .quote-table td input {
+    width: 100%; padding: 6px 10px; border: 1.5px solid var(--gray-bd); border-radius: 6px;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; outline: none;
+  }
+  .quote-table td input:focus { border-color: var(--green-500); }
+  
+  .btn-action {
+    display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px;
+    border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;
+    transition: all 0.15s; border: 1.5px solid transparent;
+  }
+  .btn-remove { background: #fff; border-color: #dc3545; color: #dc3545; }
+  .btn-remove:hover { background: #dc3545; color: #fff; }
+  
+  .btn-add-row {
+    background: #fff; border-color: var(--green-700); color: var(--green-700);
+    margin-top: 14px;
+  }
+  .btn-add-row:hover { background: var(--green-700); color: #fff; }
+
+  .form-actions {
+    display: flex; gap: 12px; margin-top: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .btn-submit {
+    padding: 11px 28px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif;
+    font-size: 14px; font-weight: 600; cursor: pointer; transition: background 0.15s;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .btn-submit:hover { background: var(--green-500); }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="form-page-header">
+  <a href="/admin/dashboard" class="back-btn" id="back-to-dashboard">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+      <polyline points="15 18 9 12 15 6"/>
+    </svg>
+    Dashboard
+  </a>
+  <div>
+    <h1 class="page-title" style="margin:0;">Sales Order Creator</h1>
+    <p class="page-sub" style="margin:0;">Create a premium, mobile-friendly sales order PDF for any customer</p>
+  </div>
+</div>
+
+<form method="POST" action="/admin/orders/generate" id="order-form">
+  <!-- Metadata Section -->
+  <div class="form-section">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+      </svg>
+      Order Information
+    </div>
+    
+    <div class="form-grid">
+      <!-- Select Customer -->
+      <div class="form-group" style="grid-column: span 2;">
+        <label for="customer_name">Select Customer / Party Name <span class="req">*</span></label>
+        <select id="customer_name" name="customer_name" required onchange="autofillCustomerDetails()">
+          <option value="">-- Choose Customer --</option>
+          {% for c in customers %}
+            <option value="{{ c.name }}" data-phone="{{ c.phone }}" data-email="{{ c.email }}">{{ c.name }}</option>
+          {% endfor %}
+          <option value="custom">-- Type Custom Name --</option>
+        </select>
+        
+        <input type="text" id="custom_customer_name" name="custom_customer_name" placeholder="Type customer name..." style="display: none; margin-top: 8px;">
+      </div>
+
+      <!-- Order Number -->
+      <div class="form-group">
+        <label for="order_no">Order / PO Number <span class="req">*</span></label>
+        <input type="text" id="order_no" name="order_no" value="{{ order_no }}" required>
+        <span class="hint">Sales order tracking reference.</span>
+      </div>
+
+      <!-- Date -->
+      <div class="form-group">
+        <label for="date">Order Date <span class="req">*</span></label>
+        <input type="text" id="date" name="date" value="{{ date_str }}" required>
+        <span class="hint">Date displayed on the PDF header.</span>
+      </div>
+
+      <!-- K.Attn -->
+      <div class="form-group">
+        <label for="attn">K.Attn (Attention To)</label>
+        <input type="text" id="attn" name="attn" placeholder="e.g. Purchase Manager">
+        <span class="hint">Person attending the order.</span>
+      </div>
+
+      <!-- Tel -->
+      <div class="form-group">
+        <label for="tel">Tel (Phone)</label>
+        <input type="text" id="tel" name="tel" placeholder="e.g. +91 9225309555">
+        <span class="hint">Customer contact number.</span>
+      </div>
+
+      <!-- Ref -->
+      <div class="form-group" style="grid-column: span 2;">
+        <label for="ref">Reference</label>
+        <input type="text" id="ref" name="ref" value="As per Inquiry" placeholder="e.g. As per Discussions, PO Ref">
+        <span class="hint">Reference field on order header.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Products Section -->
+  <div class="form-section">
+    <div class="form-section-title">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+      </svg>
+      Ordered Products
+    </div>
+    
+    <div style="overflow-x:auto;">
+      <table class="quote-table" id="products-table">
+        <thead>
+          <tr>
+            <th style="width: 350px;">Product Description</th>
+            <th style="width: 180px;">Cyl Content</th>
+            <th style="width: 150px;">Quantity (Qty)</th>
+            <th style="width: 90px; text-align: center;">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="products-tbody">
+          <tr>
+            <td><input type="text" name="product_name[]" placeholder="e.g. Argon (5.5 Grade)" required></td>
+            <td><input type="text" name="product_content[]" placeholder="e.g. 07 Cum" required></td>
+            <td><input type="number" name="product_qty[]" value="1" min="1" required style="width: 100%;"></td>
+            <td style="text-align: center;">
+              <button type="button" class="btn-action btn-remove" onclick="removeRow(this)">✕ Remove</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <button type="button" class="btn-action btn-add-row" onclick="addRow()">➕ Add Product Row</button>
+  </div>
+
+  <div class="form-actions" style="margin-bottom: 40px;">
+    <button type="submit" class="btn-submit" id="btn-generate-order-pdf">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      Generate Order PDF
+    </button>
+    <a href="/admin/dashboard" class="back-btn">Cancel</a>
+  </div>
+</form>
+
+<script>
+  function autofillCustomerDetails() {
+    const selector = document.getElementById('customer_name');
+    const selectedOption = selector.options[selector.selectedIndex];
+    const customInput = document.getElementById('custom_customer_name');
+    
+    if (selector.value === 'custom') {
+      customInput.style.display = 'block';
+      customInput.required = true;
+      document.getElementById('tel').value = '';
+    } else {
+      customInput.style.display = 'none';
+      customInput.required = false;
+      customInput.value = '';
+      
+      if (selectedOption && selector.value !== '') {
+        const phone = selectedOption.getAttribute('data-phone') || '';
+        document.getElementById('tel').value = phone;
+      } else {
+        document.getElementById('tel').value = '';
+      }
+    }
+  }
+
+  function addRow() {
+    const tbody = document.getElementById('products-tbody');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><input type="text" name="product_name[]" placeholder="e.g. Argon (5.5 Grade)" required></td>
+      <td><input type="text" name="product_content[]" placeholder="e.g. 07 Cum" required></td>
+      <td><input type="number" name="product_qty[]" value="1" min="1" required style="width: 100%;"></td>
+      <td style="text-align: center;"><button type="button" class="btn-action btn-remove" onclick="removeRow(this)">✕ Remove</button></td>
+    `;
+    tbody.appendChild(tr);
+  }
+
+  function removeRow(button) {
+    const row = button.closest('tr');
+    const tbody = document.getElementById('products-tbody');
+    if (tbody.querySelectorAll('tr').length > 1) {
+      row.remove();
+    } else {
+      alert('Must have at least one product row.');
+    }
+  }
+</script>
+{% endblock %}

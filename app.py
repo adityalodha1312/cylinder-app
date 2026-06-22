@@ -3260,17 +3260,18 @@ def admin_bulk_collect():
 # ================================================================
 
 def get_all_customer_info():
-    """Returns list of dicts from Customers database table, falling back to Sheets: {id, name, email, phone, address}"""
+    """Returns list of dicts from Customers database table, falling back to Sheets: {id, name, email, phone, address, cold_call_done}"""
     try:
         if os.environ.get('DATABASE_URL'):
             customers = Customer.query.all()
             if customers:
                 return [{
-                    'id'     : c.customer_id,
-                    'name'   : c.name,
-                    'email'  : c.email or '',
-                    'phone'  : c.phone or '',
-                    'address': c.address or '',
+                    'id'             : c.customer_id,
+                    'name'           : c.name,
+                    'email'          : c.email or '',
+                    'phone'          : c.phone or '',
+                    'address'        : c.address or '',
+                    'cold_call_done' : bool(c.cold_call_done),
                 } for c in customers]
     except Exception as e:
         print('[db] Error getting customer info from DB, falling back to Sheets:', e)
@@ -3285,12 +3286,17 @@ def get_all_customer_info():
         for i, row in enumerate(values[1:], start=1):
             if len(row) < 2 or not row[1].strip():
                 continue
+            is_done = False
+            if len(row) > 5:
+                val = row[5].strip().upper()
+                is_done = (val in ('ON', 'TRUE', '1', 'YES'))
             out.append({
-                'id'     : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
-                'name'   : row[1].strip() if len(row) > 1 else '',
-                'email'  : row[2].strip() if len(row) > 2 else '',
-                'phone'  : row[3].strip() if len(row) > 3 else '',
-                'address': row[4].strip() if len(row) > 4 else '',
+                'id'             : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
+                'name'           : row[1].strip() if len(row) > 1 else '',
+                'email'          : row[2].strip() if len(row) > 2 else '',
+                'phone'          : row[3].strip() if len(row) > 3 else '',
+                'address'        : row[4].strip() if len(row) > 4 else '',
+                'cold_call_done' : is_done,
             })
         return out
     except Exception as e:
@@ -3779,6 +3785,199 @@ def admin_customers_delete(customer_name):
 
 
 
+# ================================================================
+#  CUSTOMER COLD CALL CHECKLIST ROUTES
+# ================================================================
+
+@app.route('/admin/cold_calls')
+@admin_required
+def admin_cold_calls():
+    customers = get_all_customer_info()
+    return render_template('cold_call_checklist.html', user=session['user'], customers=customers)
+
+
+@app.route('/admin/api/cold_call/toggle', methods=['POST'])
+@admin_required
+def admin_api_cold_call_toggle():
+    global customer_ws
+    data = request.get_json() or {}
+    cust_name = data.get('customer_name', '').strip()
+    if not cust_name:
+        return jsonify({'success': False, 'error': 'Customer name required'}), 400
+
+    new_state = False
+    db_written = False
+    
+    # 1. Update database
+    if os.environ.get('DATABASE_URL'):
+        try:
+            cust = Customer.query.filter(Customer.name.ilike(cust_name)).first()
+            if cust:
+                cust.cold_call_done = not cust.cold_call_done
+                new_state = cust.cold_call_done
+                db.session.commit()
+                db_written = True
+        except Exception as e:
+            db.session.rollback()
+            print("[db] Error toggling cold call in DB:", e)
+            
+    # 2. Update Sheets
+    try:
+        if customer_ws is None and doc:
+            customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+        if customer_ws is not None:
+            rows = customer_ws.get_all_values()
+            row_num = None
+            for idx, r in enumerate(rows):
+                if idx == 0: continue
+                if len(r) > 1 and r[1].strip().lower() == cust_name.lower():
+                    row_num = idx + 1
+                    # If we don't have db, determine next state from Sheets row
+                    if not db_written:
+                        current_val = r[5].strip().upper() if len(r) > 5 else 'OFF'
+                        new_state = (current_val not in ('ON', 'TRUE', '1', 'YES'))
+                    break
+            if row_num:
+                # Ensure the sheet has F1 header as "Cold Call Done" if missing
+                if len(rows[0]) < 6:
+                    customer_ws.update_cell(1, 6, "Cold Call Done")
+                customer_ws.update(f'F{row_num}', [["ON" if new_state else "OFF"]])
+    except Exception as e:
+        print("[sheets] Error mirroring cold call toggle to Sheets:", e)
+        if not db_written:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    clear_cache()
+    return jsonify({'success': True, 'cold_call_done': new_state})
+
+
+@app.route('/admin/api/cold_call/reset_all', methods=['POST'])
+@admin_required
+def admin_api_cold_call_reset_all():
+    global customer_ws
+    db_written = False
+    
+    # 1. Reset database
+    if os.environ.get('DATABASE_URL'):
+        try:
+            Customer.query.update({Customer.cold_call_done: False})
+            db.session.commit()
+            db_written = True
+        except Exception as e:
+            db.session.rollback()
+            print("[db] Error resetting cold calls in DB:", e)
+
+    # 2. Reset Sheets
+    try:
+        if customer_ws is None and doc:
+            customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+        if customer_ws is not None:
+            rows = customer_ws.get_all_values()
+            if len(rows) > 1:
+                # Ensure header F1 exists
+                if len(rows[0]) < 6:
+                    customer_ws.update_cell(1, 6, "Cold Call Done")
+                
+                # Build list of updates to make it faster
+                updates = []
+                for idx in range(2, len(rows) + 1):
+                    updates.append({
+                        'range': f'F{idx}',
+                        'values': [['OFF']]
+                    })
+                customer_ws.batch_update(updates)
+    except Exception as e:
+        print("[sheets] Error resetting cold calls in Sheets:", e)
+        if not db_written:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    clear_cache()
+    return jsonify({'success': True})
+
+
+
+# ================================================================
+#  DURA CYLINDER FILL API ROUTE
+# ================================================================
+
+@app.route('/admin/api/dura_fill', methods=['POST'])
+@admin_required
+def admin_api_dura_fill():
+    global cyl_ws
+    data = request.get_json() or {}
+    uid = data.get('uid', '').strip()
+    fill_new = bool(data.get('fill_new_gas', False))
+    new_gas = data.get('new_gas', '').strip()
+    purge_ack = bool(data.get('purge_acknowledged', False))
+
+    if not uid:
+        return jsonify({'success': False, 'error': 'Cylinder UID required'}), 400
+
+    now = datetime.now()
+    date_str = now.strftime('%d-%m-%Y')
+    time_str = now.strftime('%H:%M:%S')
+    operator_name = session.get('user', {}).get('name', session.get('user', {}).get('username', 'Admin'))
+
+    db_written = False
+    old_gas = ''
+
+    # 1. Fetch current cylinder and update DB
+    if os.environ.get('DATABASE_URL'):
+        try:
+            cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+            if cyl:
+                old_gas = cyl.gas_type or ''
+                if fill_new and new_gas:
+                    cyl.gas_type = new_gas
+                
+                # Log to dura_gas_history
+                hist = DuraGasHistory(
+                    cylinder_uid=uid,
+                    gas_filled=new_gas if fill_new else old_gas,
+                    previous_gas=old_gas,
+                    purge_required=(old_gas.upper() != new_gas.upper()) if (fill_new and old_gas) else False,
+                    purge_acknowledged=purge_ack,
+                    operator=operator_name,
+                    fill_date=date_str,
+                    fill_time=time_str
+                )
+                db.session.add(hist)
+                db.session.commit()
+                db_written = True
+                print(f"[db] Refill registered for {uid} in DB.")
+        except Exception as e:
+            db.session.rollback()
+            print("[db] Error updating Dura refill in DB:", e)
+
+    # 2. Sync to Sheets
+    try:
+        if cyl_ws is None and doc:
+            cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+        if cyl_ws is not None:
+            cyls = get_all_cylinders()
+            row_num = None
+            for idx, c in enumerate(cyls):
+                if c['uid'].strip().upper() == uid.upper():
+                    row_num = idx + 2 # 1-based row index (skipping header)
+                    if not db_written:
+                        old_gas = c.get('gas_type', '')
+                    break
+            
+            if row_num:
+                # Update Column B (Gas Type)
+                target_gas = new_gas if fill_new else old_gas
+                cyl_ws.update(f'B{row_num}', [[target_gas]])
+                print(f"[sheets] Updated cylinder {uid} Gas Type to {target_gas} on Google Sheet row {row_num}.")
+    except Exception as e:
+        print("[sheets] Error updating Dura refill on Sheets:", e)
+        if not db_written:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    clear_cache()
+    return jsonify({'success': True})
+
+
+
 @app.route('/admin/customers/<path:customer_name>/offer')
 @admin_required
 def admin_customer_offer_form(customer_name):
@@ -4093,6 +4292,227 @@ def _generate_offer_pdf(customer_name):
     filename = f"Commercial_Offer_{customer_name.replace(' ', '_')}_{q_no.replace('/', '_')}.pdf"
     from flask import send_file
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
+
+
+# ================================================================
+#  SALES ORDER CREATOR ROUTES
+# ================================================================
+
+@app.route('/admin/orders/new')
+@admin_required
+def admin_orders_new():
+    import random
+    order_no = f"NAG/ORD/26-27/{random.randint(3000, 9999)}"
+    today = date.today()
+    day = today.day
+    suffix = "th" if 4 <= day <= 20 or 24 <= day <= 30 else ["st", "nd", "rd"][day % 10 - 1]
+    date_str = f"{day}{suffix} {today.strftime('%B %Y')}"
+
+    customers = get_all_customer_info()
+    
+    default_terms = [
+        {"label": "1. Delivery", "value": "Within 2-3 days"},
+        {"label": "2. GST", "value": "@18% Extra."},
+        {"label": "3. Transportation", "value": "Inclusive Delivery."},
+        {"label": "4. Payment", "value": "30 Days"},
+        {"label": "5. Valve Damage", "value": "Rs. 1000/- per Valve"},
+        {"label": "6. Cylinder Lost / Damage", "value": "Rs. 10,000/- Per Cylinder"}
+    ]
+
+    return render_template('order_form.html',
+        user=session['user'],
+        customers=customers,
+        order_no=order_no,
+        date_str=date_str,
+        terms_list=default_terms
+    )
+
+
+@app.route('/admin/orders/generate', methods=['POST'])
+@admin_required
+def admin_orders_generate():
+    customer_name = request.form.get('customer_name', '').strip()
+    if customer_name == 'custom':
+        customer_name = request.form.get('custom_customer_name', 'Customer').strip()
+    
+    order_no = request.form.get('order_no', '').strip()
+    attn = request.form.get('attn', '').strip()
+    tel = request.form.get('tel', '').strip()
+    o_date = request.form.get('date', '').strip()
+    ref = request.form.get('ref', '').strip()
+
+    # Product list
+    product_names = request.form.getlist('product_name[]')
+    product_contents = request.form.getlist('product_content[]')
+    product_qtys = request.form.getlist('product_qty[]')
+
+    # PDF generation
+    from io import BytesIO
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import letter
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+    
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=36, leftMargin=36, topMargin=36, bottomMargin=36)
+    story = []
+
+    styles = getSampleStyleSheet()
+
+    blue_brand = colors.HexColor('#0c5ca8')
+    green_brand = colors.HexColor('#3fb549')
+    dark_gray = colors.HexColor('#2c2c2a')
+
+    brand_style1 = ParagraphStyle('Brand1', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=blue_brand, alignment=1)
+    brand_style2 = ParagraphStyle('Brand2', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=green_brand, alignment=1)
+    address_style = ParagraphStyle('Address', fontName='Helvetica-Bold', fontSize=10, leading=12, textColor=dark_gray, alignment=1)
+    header_contact_style = ParagraphStyle('HeaderContact', fontName='Helvetica-Bold', fontSize=9.5, leading=11.5, textColor=dark_gray, alignment=1)
+    title_style = ParagraphStyle('Title', fontName='Helvetica-Bold', fontSize=14, leading=16, textColor=colors.black, alignment=1, spaceAfter=6)
+    intro_style = ParagraphStyle('Intro', fontName='Helvetica-Bold', fontSize=9.5, leading=12, textColor=colors.HexColor('#1D9E75'), alignment=1, spaceBefore=4, spaceAfter=6)
+    
+    cell_style = ParagraphStyle('Cell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=1)
+    cell_bold_style = ParagraphStyle('CellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=1)
+    left_cell_style = ParagraphStyle('LeftCell', fontName='Helvetica', fontSize=9.5, leading=12, textColor=colors.black, alignment=0)
+    left_cell_bold_style = ParagraphStyle('LeftCellBold', fontName='Helvetica-Bold', fontSize=10, leading=12.5, textColor=colors.black, alignment=0)
+    
+    footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, alignment=0)
+
+    # 1. Noble Air Gases Header Layout
+    import os as _os
+    from reportlab.platypus import Image as RLImage
+
+    logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
+
+    if _os.path.exists(logo_path):
+        logo_img = RLImage(logo_path, width=240, height=60, kind='proportional')
+        logo_img.hAlign = 'CENTER'
+        story.append(logo_img)
+        story.append(Spacer(1, 8))
+    else:
+        story.append(Paragraph("NOBLE", brand_style1))
+        story.append(Paragraph("air gases", brand_style2))
+        story.append(Spacer(1, 4))
+
+    story.append(Paragraph("Plot No. A/12, MIDC Waluj, Chhatrapati Sambhajinagar", address_style))
+    story.append(Spacer(1, 4))
+    story.append(Paragraph("Email: sales@nobleairgases.com &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Mobile: +91 9225309555", header_contact_style))
+    story.append(Spacer(1, 8))
+
+    story.append(HRFlowable(width="100%", thickness=1, color=colors.HexColor('#d8d9d4'), spaceAfter=8))
+
+    # 2. Document Title
+    story.append(Paragraph("SALES ORDER", title_style))
+
+    # 3. Metadata Table
+    meta_data = [
+        [
+            Paragraph("<b>To</b>", left_cell_bold_style),
+            Paragraph(f": M/s {customer_name}", left_cell_style),
+            Paragraph("<b>K.Attn</b>", left_cell_bold_style),
+            Paragraph(f": {attn}", left_cell_style)
+        ],
+        [
+            Paragraph("<b>Tel</b>", left_cell_bold_style),
+            Paragraph(f": {tel}", left_cell_style),
+            Paragraph("<b>Date</b>", left_cell_bold_style),
+            Paragraph(f": {o_date}", left_cell_style)
+        ],
+        [
+            Paragraph("<b>Order No.</b>", left_cell_bold_style),
+            Paragraph(f": {order_no}", left_cell_style),
+            Paragraph("<b>Ref</b>", left_cell_bold_style),
+            Paragraph(f": {ref}", left_cell_style)
+        ]
+    ]
+    meta_table = Table(meta_data, colWidths=[55, 215, 50, 220])
+    meta_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 4),
+        ('TOPPADDING', (0,0), (-1,-1), 4),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ('LINEBELOW', (0,0), (-1,-1), 0.5, colors.HexColor('#888888')),
+    ]))
+    story.append(meta_table)
+    story.append(Spacer(1, 10))
+
+    # 4. Intro text
+    story.append(Paragraph("We are pleased to confirm registration of the following order placed with us. Product description and quantities are outlined below:", intro_style))
+
+    # 5. Products Table
+    table_data = [
+        [
+            Paragraph("<b>No.</b>", cell_bold_style),
+            Paragraph("<b>Product Description</b>", cell_bold_style),
+            Paragraph("<b>Content</b>", cell_bold_style),
+            Paragraph("<b>Quantity (Qty)</b>", cell_bold_style)
+        ]
+    ]
+
+    idx_no = 1
+    for name, content, qty_str in zip(product_names, product_contents, product_qtys):
+        if not name.strip(): continue
+        
+        try:
+            qty = int(qty_str) if qty_str.strip() else 0
+        except ValueError:
+            qty = 0
+
+        table_data.append([
+            Paragraph(f"{idx_no:02d}", cell_style),
+            Paragraph(f"<b>{name.strip()}</b>", left_cell_bold_style),
+            Paragraph(content.strip(), cell_style),
+            Paragraph(str(qty), cell_style)
+        ])
+        idx_no += 1
+
+    prod_table = Table(table_data, colWidths=[40, 280, 120, 100])
+    prod_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.HexColor('#d8d9d4')),
+        ('LINEBELOW', (0,0), (-1,0), 1.5, colors.black),
+        ('TOPPADDING', (0,0), (-1,-1), 8),
+        ('BOTTOMPADDING', (0,0), (-1,-1), 8),
+        ('LEFTPADDING', (0,0), (-1,-1), 8),
+        ('RIGHTPADDING', (0,0), (-1,-1), 8),
+        ('BACKGROUND', (0,0), (-1,0), colors.white),
+    ]))
+    story.append(prod_table)
+    story.append(Spacer(1, 20))
+
+    # 7. Footer
+    story.append(Paragraph("For any further queries, please feel free to contact us. We value your business association.", footer_text_style))
+    story.append(Spacer(1, 10))
+    story.append(Paragraph("Thanking you,", footer_text_style))
+    story.append(Spacer(1, 20))
+
+    # Signature line
+    sig_data = [
+        [
+            Paragraph("<b>For Noble Air Gases</b>", left_cell_bold_style),
+            Paragraph("", cell_style)
+        ],
+        [
+            Paragraph("<br/><br/>Authorized Signatory", left_cell_style),
+            Paragraph("", cell_style)
+        ]
+    ]
+    sig_table = Table(sig_data, colWidths=[270, 270])
+    sig_table.setStyle(TableStyle([
+        ('VALIGN', (0,0), (-1,-1), 'BOTTOM'),
+        ('LEFTPADDING', (0,0), (-1,-1), 0),
+        ('RIGHTPADDING', (0,0), (-1,-1), 0),
+    ]))
+    story.append(sig_table)
+
+    doc.build(story)
+    buffer.seek(0)
+
+    filename = f"Sales_Order_{customer_name.replace(' ', '_')}_{order_no.replace('/', '_')}.pdf"
+    from flask import send_file
+    return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
+
 
 
 @app.route('/')

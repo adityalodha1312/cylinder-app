@@ -26,6 +26,7 @@ class Customer(db.Model):
     email = db.Column(db.String(255))
     phone = db.Column(db.String(50))
     address = db.Column(db.Text)
+    cold_call_done = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -34,7 +35,8 @@ class Customer(db.Model):
             'Name': self.name,
             'Email': self.email or '',
             'Phone': self.phone or '',
-            'Address': self.address or ''
+            'Address': self.address or '',
+            'Cold Call Done': self.cold_call_done
         }
 
 class Cylinder(db.Model):
@@ -183,4 +185,30 @@ class Product(db.Model):
             'gas_per_cyl': self.gas_per_cyl,
             'unit': self.unit or '',
             'is_virtual': self.is_virtual
+        }
+
+class DuraGasHistory(db.Model):
+    __tablename__ = 'dura_gas_history'
+    id                  = db.Column(db.Integer, primary_key=True)
+    cylinder_uid        = db.Column(db.String(100), nullable=False)
+    gas_filled          = db.Column(db.String(50), nullable=False)
+    previous_gas        = db.Column(db.String(50))
+    purge_required      = db.Column(db.Boolean, default=False)
+    purge_acknowledged  = db.Column(db.Boolean, default=False)
+    operator            = db.Column(db.String(100))
+    fill_date           = db.Column(db.String(50))
+    fill_time           = db.Column(db.String(50))
+    created_at          = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'cylinder_uid': self.cylinder_uid,
+            'gas_filled': self.gas_filled,
+            'previous_gas': self.previous_gas,
+            'purge_required': self.purge_required,
+            'purge_acknowledged': self.purge_acknowledged,
+            'operator': self.operator,
+            'fill_date': self.fill_date,
+            'fill_time': self.fill_time
         }
