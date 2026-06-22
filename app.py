@@ -3936,7 +3936,7 @@ def admin_api_dura_fill():
     db_written = False
     old_gas = ''
 
-    # 1. Fetch current cylinder and update DB
+    # 1. Fetch current cylinder and update DB (or create if missing)
     if os.environ.get('DATABASE_URL'):
         try:
             cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
@@ -3944,22 +3944,47 @@ def admin_api_dura_fill():
                 old_gas = cyl.gas_type or ''
                 if fill_new and new_gas:
                     cyl.gas_type = new_gas
-                
-                # Log to dura_gas_history
-                hist = DuraGasHistory(
-                    cylinder_uid=uid,
-                    gas_filled=new_gas if fill_new else old_gas,
-                    previous_gas=old_gas,
-                    purge_required=(old_gas.upper() != new_gas.upper()) if (fill_new and old_gas) else False,
-                    purge_acknowledged=purge_ack,
-                    operator=operator_name,
-                    fill_date=date_str,
-                    fill_time=time_str
+            else:
+                # Cylinder not in DB yet — get old gas from Sheets for history, then insert cylinder row
+                if cyl_ws is None and doc:
+                    try:
+                        cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception:
+                        pass
+                if cyl_ws is not None:
+                    try:
+                        sheet_cyls = get_all_cylinders()
+                        match = next((c for c in sheet_cyls if c['uid'].strip().upper() == uid.upper()), None)
+                        if match:
+                            old_gas = match.get('gas_type', '')
+                    except Exception:
+                        pass
+                # Insert the cylinder into DB so future updates work
+                new_cyl = Cylinder(
+                    uid=uid,
+                    gas_type=new_gas if (fill_new and new_gas) else old_gas,
+                    cylinder_type='Dura',
+                    owner='Depot',
+                    status='Active',
+                    location='Depot'
                 )
-                db.session.add(hist)
-                db.session.commit()
-                db_written = True
-                print(f"[db] Refill registered for {uid} in DB.")
+                db.session.add(new_cyl)
+
+            # Always log to dura_gas_history
+            hist = DuraGasHistory(
+                cylinder_uid=uid,
+                gas_filled=new_gas if fill_new else old_gas,
+                previous_gas=old_gas,
+                purge_required=(old_gas.upper() != new_gas.upper()) if (fill_new and old_gas) else False,
+                purge_acknowledged=purge_ack,
+                operator=operator_name,
+                fill_date=date_str,
+                fill_time=time_str
+            )
+            db.session.add(hist)
+            db.session.commit()
+            db_written = True
+            print(f"[db] Refill registered for {uid} in DB.")
         except Exception as e:
             db.session.rollback()
             print("[db] Error updating Dura refill in DB:", e)
