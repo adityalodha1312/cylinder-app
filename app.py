@@ -27,6 +27,11 @@ app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
+# Auto-create any missing tables on startup (safe — checkfirst=True skips existing tables)
+with app.app_context():
+    db.create_all()
+    print("[startup] DB tables verified/created.")
+
 # Session Security Configuration
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
