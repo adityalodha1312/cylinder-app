@@ -432,14 +432,14 @@
             <span class="uid-link" onclick="showJourney('{{ m.uid }}')" title="Click to see full journey" style="display: inline-flex; align-items: center; gap: 4px;">
               {{ m.uid }}
               {% if m.gas_type %}
-                <span class="gas-badge gas-badge-{{ m.gas_type|lower|strip if m.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                <span class="gas-badge gas-badge-{{ m.gas_type|lower|trim if m.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
                   {{ m.gas_type }}
                 </span>
               {% endif %}
             </span>
           </td>
           <td>
-            <span class="gas-badge gas-badge-{{ m.gas_type|lower|strip if m.gas_type|lower|strip in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+            <span class="gas-badge gas-badge-{{ m.gas_type|lower|trim if m.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
               {{ m.gas_type }}
             </span>
           </td>

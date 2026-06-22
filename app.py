@@ -18,6 +18,15 @@ load_dotenv()
 app = Flask(__name__)
 app.secret_key = 'cyl-tracker-secret-2026'
 
+@app.template_filter('strip')
+def strip_filter(s):
+    if s is None:
+        return ''
+    if isinstance(s, str):
+        return s.strip()
+    return str(s).strip()
+
+
 # SQLAlchemy Database Configuration
 db_url = os.environ.get('DATABASE_URL')
 if not db_url:
