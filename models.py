@@ -105,6 +105,7 @@ class Scan(db.Model):
     action = db.Column(db.String(50), nullable=False)
     cylinder_uid = db.Column(db.String(100), nullable=False)
     customer = db.Column(db.String(255))
+    gas_type = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -114,7 +115,8 @@ class Scan(db.Model):
             'driver': self.driver or '',
             'action': self.action,
             'uid': self.cylinder_uid,
-            'customer': self.customer or ''
+            'customer': self.customer or '',
+            'gas_type': self.gas_type or ''
         }
 
 class CustomerMap(db.Model):

@@ -30,6 +30,14 @@ db.init_app(app)
 # Auto-create any missing tables on startup (safe — checkfirst=True skips existing tables)
 with app.app_context():
     db.create_all()
+    if os.environ.get('DATABASE_URL'):
+        try:
+            from sqlalchemy import text
+            db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS gas_type VARCHAR(50);"))
+            db.session.commit()
+            print("[startup] Checked and added scans.gas_type column if missing.")
+        except Exception as e:
+            print("[startup] scans.gas_type alter check failed:", e)
     print("[startup] DB tables verified/created.")
 
 # Session Security Configuration
@@ -505,14 +513,67 @@ def compute_hydro_badge(next_hydro_due_str):
         return 'OK'
 
 def merge_cylinder_data():
-    """Merges Cylinders + Cylinder Maintenance sheets, computes hydro badge."""
+    """Merges Cylinders + Cylinder Maintenance sheets, computes hydro badge, and merges history/customer logs."""
     cylinders   = get_all_cylinders()
     maintenance = get_all_maintenance()
+    
+    # Load last customer mappings
+    last_customers = {}
+    try:
+        if os.environ.get('DATABASE_URL'):
+            scans = Scan.query.order_by(Scan.created_at.desc()).all()
+            for s in scans:
+                uid_upper = s.cylinder_uid.strip().upper()
+                if uid_upper not in last_customers and s.customer:
+                    last_customers[uid_upper] = s.customer
+        else:
+            scans = get_scan_rows()
+            for s in reversed(scans):
+                uid_upper = s['uid'].strip().upper()
+                if uid_upper not in last_customers and s.get('customer'):
+                    last_customers[uid_upper] = s['customer']
+    except Exception as e:
+        print("Error building last_customers map:", e)
+
+    # Load latest DuraGasHistory mappings
+    latest_history = {}
+    try:
+        if os.environ.get('DATABASE_URL'):
+            histories = DuraGasHistory.query.order_by(DuraGasHistory.created_at.desc()).all()
+            for h in histories:
+                uid_upper = h.cylinder_uid.strip().upper()
+                if uid_upper not in latest_history:
+                    latest_history[uid_upper] = {
+                        'previous_gas': h.previous_gas or '',
+                        'purge_required': 'Yes' if h.purge_required else 'No'
+                    }
+    except Exception as e:
+        print("Error building latest_history map:", e)
+
     merged = []
     for cyl in cylinders:
         maint = maintenance.get(cyl['uid'], {})
         hydro_badge = compute_hydro_badge(maint.get('next_hydro_due', ''))
-        merged.append({**cyl, **maint, 'hydro_badge': hydro_badge})
+        
+        uid_upper = cyl['uid'].strip().upper()
+        # Default Dura fields
+        prev_gas = ''
+        purge_req = 'No'
+        last_cust = last_customers.get(uid_upper, '')
+        
+        hist = latest_history.get(uid_upper)
+        if hist:
+            prev_gas = hist['previous_gas']
+            purge_req = hist['purge_required']
+            
+        merged.append({
+            **cyl,
+            **maint,
+            'hydro_badge': hydro_badge,
+            'previous_gas': prev_gas,
+            'purge_required': purge_req,
+            'last_customer': last_cust
+        })
     return merged
 
 def find_cylinder_rows(uid):
@@ -690,7 +751,7 @@ def fmt_date(value):
 # ================================================================
 
 def get_scan_rows():
-    """List of dicts from Sheet1: date, time, driver, action, uid (cached)"""
+    """List of dicts from Sheet1: date, time, driver, action, uid, customer, gas_type (cached)"""
     if os.environ.get('DATABASE_URL'):
         try:
             scans = Scan.query.all()
@@ -701,7 +762,8 @@ def get_scan_rows():
                     'driver': s.driver or '',
                     'action': s.action,
                     'uid': s.cylinder_uid,
-                    'customer': s.customer or ''
+                    'customer': s.customer or '',
+                    'gas_type': s.gas_type or ''
                 } for s in scans]
         except Exception as e:
             print("[db] Error reading scans from DB, falling back to Sheets:", e)
@@ -709,7 +771,6 @@ def get_scan_rows():
     now = time.time()
     if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
         return _data_cache['scans']
-        print("[db] Error reading scans from DB, falling back to Sheets:", e)
 
     try:
         if scan_ws is None:
@@ -724,7 +785,8 @@ def get_scan_rows():
                     'driver': r[2].strip(),
                     'action': r[3].strip(),
                     'uid'   : r[4].strip(),
-                    'customer': r[5].strip() if len(r) > 5 else ''
+                    'customer': r[5].strip() if len(r) > 5 else '',
+                    'gas_type': r[6].strip() if len(r) > 6 else ''
                 })
         _data_cache['scans'] = out
         _data_cache['scans_time'] = now
@@ -1043,10 +1105,12 @@ def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter=
         action = ev.get('action', '')
         uid    = ev.get('uid', '')
         uid_upper = uid.strip().upper()
-        if uid_upper in cyl_gas_map:
-            gas = cyl_gas_map[uid_upper]
-        else:
-            gas = uid.split('-')[0].upper() if '-' in uid else ''
+        gas = ev.get('gas_type', '').strip().upper()
+        if not gas:
+            if uid_upper in cyl_gas_map:
+                gas = cyl_gas_map[uid_upper]
+            else:
+                gas = uid.split('-')[0].upper() if '-' in uid else ''
 
         if gas_filter and gas != gas_filter.upper():
             continue
@@ -2730,8 +2794,8 @@ def calculate_daily_dispatch_report(target_date_str):
 @admin_required
 def admin_cylinders():
     cylinders = merge_cylinder_data()
-    # Collect unique filter options
-    gas_types = sorted(set(c['gas_type'] for c in cylinders if c.get('gas_type')))
+    products = get_products_config()
+    gas_types = sorted(list(set(p['gas_type'] for p in products if p.get('gas_type'))))
     statuses  = ['Empty', 'Filled', 'Delivered']
     return render_template('cylinders.html',
         user       = session['user'],
@@ -3022,14 +3086,30 @@ def admin_mark_collected():
             driver = "Admin (Manual)"
             
     now = datetime.now()
-    # Columns: Date, Time, Driver, Action, UID, Customer
+    # Resolve current gas type of the cylinder at scan time
+    current_gas = ''
+    try:
+        if os.environ.get('DATABASE_URL'):
+            c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+            if c_db:
+                current_gas = c_db.gas_type or ''
+        if not current_gas:
+            sheet_cyls = get_all_cylinders()
+            match = next((c for c in sheet_cyls if c['uid'].strip().upper() == uid.upper()), None)
+            if match:
+                current_gas = match.get('gas_type', '')
+    except Exception as ge:
+        print("[scan] Error looking up gas type for collection scan:", ge)
+
+    # Columns: Date, Time, Driver, Action, UID, Customer, Gas Type (Column G)
     row_to_append = [
         now.strftime('%d-%m-%Y'),
         now.strftime('%H:%M:%S'),
         driver,
         'Collection',
         uid,
-        customer
+        customer,
+        current_gas
     ]
     db_written = False
     try:
@@ -3042,7 +3122,8 @@ def admin_mark_collected():
                         driver=driver,
                         action='Collection',
                         cylinder_uid=uid,
-                        customer=customer
+                        customer=customer,
+                        gas_type=current_gas
                     )
                     db.session.add(scan)
                     
@@ -3156,19 +3237,39 @@ def admin_bulk_collect():
     today_str = now.strftime('%d-%m-%Y')
     time_str = now.strftime('%H:%M:%S')
     
-    # 1. Create Scan rows to append
+    # 1. Resolve gas types for the cylinders
+    cyl_gas_map = {}
+    try:
+        if os.environ.get('DATABASE_URL'):
+            cyls = Cylinder.query.filter(Cylinder.uid.in_(uids)).all()
+            for c in cyls:
+                cyl_gas_map[c.uid.strip().upper()] = c.gas_type or ''
+        # Fallback to Sheets mapping for missing ones
+        missing_uids = [u for u in uids if u not in cyl_gas_map]
+        if missing_uids:
+            sheet_cyls = get_all_cylinders()
+            for c in sheet_cyls:
+                uid_up = c['uid'].strip().upper()
+                if uid_up in missing_uids:
+                    cyl_gas_map[uid_up] = c.get('gas_type', '')
+    except Exception as ge:
+        print("[scan] Error looking up gas types for bulk collection scans:", ge)
+
+    # 2. Create Scan rows to append
     rows_to_append = []
     for uid in uids:
+        gas = cyl_gas_map.get(uid.strip().upper(), '')
         rows_to_append.append([
             today_str,
             time_str,
             driver,
             'Collection',
             uid,
-            customer
+            customer,
+            gas
         ])
         
-    # 2. CustomerMap batch row to append
+    # 3. CustomerMap batch row to append
     # Columns in Sheet 2: Date, Time, Driver, Action, Count, UIDs, Customer, Send Receipt?, Status
     map_row = [
         today_str,
@@ -3189,13 +3290,15 @@ def admin_bulk_collect():
                 with db.session.no_autoflush:
                     # Save individual scans
                     for uid in uids:
+                        gas = cyl_gas_map.get(uid.strip().upper(), '')
                         scan = Scan(
                             scan_date=today_str,
                             scan_time=time_str,
                             driver=driver,
                             action='Collection',
                             cylinder_uid=uid,
-                            customer=customer
+                            customer=customer,
+                            gas_type=gas
                         )
                         db.session.add(scan)
                         
@@ -4576,18 +4679,21 @@ def scan_app():
 def submit():
     global cyl_ws
     now = datetime.now()
-    valid_cylinders = []
     rows_to_append = []
 
-    # Check and add "Customer" column in Sheet 1 if missing
+    # Check and add headers in Sheet 1 if missing (Customer Col F, Gas Type Col G)
     try:
         if scan_ws is not None:
             headers = scan_ws.row_values(1)
             if len(headers) < 6:
-                # Add "Customer" as the 6th column header
                 scan_ws.update_cell(1, 6, "Customer")
+            if len(headers) < 7:
+                scan_ws.update_cell(1, 7, "Gas Type")
     except Exception as e:
         print("Error checking/updating Sheet1 headers:", e)
+
+    parsed_scans = []
+    driver = ""
 
     # Support JSON payload (modern split-actions submission)
     if request.is_json:
@@ -4600,17 +4706,12 @@ def submit():
             uid = s.get('uid', '').strip()
             action = s.get('action', '').strip()
             if uid and action:
-                valid_cylinders.append(uid)
-                # Only write customer for Delivery/Collection, leave blank for Filling
                 cust_val = customer if action in ['Delivery', 'Collection'] else ''
-                rows_to_append.append([
-                    now.strftime('%d-%m-%Y'),
-                    now.strftime('%H:%M:%S'),
-                    driver,
-                    action,
-                    uid,
-                    cust_val
-                ])
+                parsed_scans.append({
+                    'uid': uid,
+                    'action': action,
+                    'cust_val': cust_val
+                })
     else:
         # Fallback to standard form-data
         action    = request.form['action']
@@ -4621,16 +4722,46 @@ def submit():
         for uid in cylinders:
             uid = uid.strip()
             if uid:
-                valid_cylinders.append(uid)
                 cust_val = customer if action in ['Delivery', 'Collection'] else ''
-                rows_to_append.append([
-                    now.strftime('%d-%m-%Y'),
-                    now.strftime('%H:%M:%S'),
-                    driver,
-                    action,
-                    uid,
-                    cust_val
-                ])
+                parsed_scans.append({
+                    'uid': uid,
+                    'action': action,
+                    'cust_val': cust_val
+                })
+
+    # Resolve gas types for all scanned UIDs in a single batch lookup
+    uids_to_lookup = list(set(s['uid'].strip().upper() for s in parsed_scans))
+    cyl_gas_map = {}
+    if uids_to_lookup:
+        try:
+            if os.environ.get('DATABASE_URL'):
+                cyls = Cylinder.query.filter(Cylinder.uid.in_(uids_to_lookup)).all()
+                for c in cyls:
+                    cyl_gas_map[c.uid.strip().upper()] = c.gas_type or ''
+            # Fallback to Sheets for missing UIDs
+            missing_uids = [u for u in uids_to_lookup if u not in cyl_gas_map]
+            if missing_uids:
+                sheet_cyls = get_all_cylinders()
+                for c in sheet_cyls:
+                    uid_up = c['uid'].strip().upper()
+                    if uid_up in missing_uids:
+                        cyl_gas_map[uid_up] = c.get('gas_type', '')
+        except Exception as ge:
+            print("[scan] Error looking up gas types for submit scan batch:", ge)
+
+    # Format rows for Sheets append
+    for s in parsed_scans:
+        uid = s['uid']
+        gas_val = cyl_gas_map.get(uid.strip().upper(), '')
+        rows_to_append.append([
+            now.strftime('%d-%m-%Y'),
+            now.strftime('%H:%M:%S'),
+            driver,
+            s['action'],
+            uid,
+            s['cust_val'],
+            gas_val
+        ])
     
     # ── VALIDATE SCANS ──────────────────────────────────────────
     if os.environ.get('DATABASE_URL'):
@@ -4686,6 +4817,7 @@ def submit():
                     scan_action = row_data[3]
                     scan_uid = row_data[4]
                     scan_cust = row_data[5] if len(row_data) > 5 else ''
+                    scan_gas = row_data[6] if len(row_data) > 6 else ''
                     
                     scan_db = Scan(
                         scan_date=s_date,
@@ -4693,7 +4825,8 @@ def submit():
                         driver=scan_driver,
                         action=scan_action,
                         cylinder_uid=scan_uid,
-                        customer=scan_cust
+                        customer=scan_cust,
+                        gas_type=scan_gas
                     )
                     db.session.add(scan_db)
                     
