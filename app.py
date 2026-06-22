@@ -34,6 +34,16 @@ app.config['SESSION_COOKIE_SECURE'] = not os.environ.get('FLASK_DEBUG') == '1'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 
+@app.after_request
+def add_header(response):
+    # Prevent browser caching for admin and API endpoints
+    if request.path.startswith('/admin') or request.path.startswith('/api'):
+        response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '-1'
+    return response
+
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
