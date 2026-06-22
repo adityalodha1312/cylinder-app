@@ -3988,30 +3988,32 @@ def admin_api_dura_fill():
         except Exception as e:
             db.session.rollback()
             print("[db] Error updating Dura refill in DB:", e)
+            # Return error immediately — don't pretend success if DB write failed
+            return jsonify({'success': False, 'error': f'Database write failed: {str(e)}'}), 500
 
-    # 2. Sync to Sheets
+    # 2. Sync to Sheets (best-effort — DB is source of truth)
     try:
         if cyl_ws is None and doc:
             cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
         if cyl_ws is not None:
-            cyls = get_all_cylinders()
+            # Read directly from sheet to get correct row number (not from get_all_cylinders
+            # which may return DB rows in a different order than the sheet)
+            sheet_rows = cyl_ws.get_all_values()
             row_num = None
-            for idx, c in enumerate(cyls):
-                if c['uid'].strip().upper() == uid.upper():
-                    row_num = idx + 2 # 1-based row index (skipping header)
-                    if not db_written:
-                        old_gas = c.get('gas_type', '')
+            for idx, r in enumerate(sheet_rows):
+                if idx == 0:
+                    continue  # skip header
+                if r and r[0].strip().upper() == uid.upper():
+                    row_num = idx + 1  # 1-based
                     break
-            
+
             if row_num:
-                # Update Column B (Gas Type)
                 target_gas = new_gas if fill_new else old_gas
                 cyl_ws.update(f'B{row_num}', [[target_gas]])
-                print(f"[sheets] Updated cylinder {uid} Gas Type to {target_gas} on Google Sheet row {row_num}.")
+                print(f"[sheets] Updated cylinder {uid} Gas Type to {target_gas} on Sheet row {row_num}.")
     except Exception as e:
         print("[sheets] Error updating Dura refill on Sheets:", e)
-        if not db_written:
-            return jsonify({'success': False, 'error': str(e)}), 500
+        # Don't fail — DB is already updated successfully
 
     clear_cache()
     return jsonify({'success': True})
