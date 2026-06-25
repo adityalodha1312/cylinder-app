@@ -9,3 +9,4 @@ SQLAlchemy
 Flask-SQLAlchemy
 psycopg2-binary
 APScheduler
+pandas
