@@ -2878,16 +2878,45 @@ def admin_cylinders_upload():
                 skipped += 1
                 continue
                 
-            # Get optional fields
-            gas_type = str(row.get('Gas Type', '')).strip() if 'Gas Type' in df.columns and not pd.isna(row.get('Gas Type')) else ''
-            cyl_type = str(row.get('Water Capacity', '')).strip() if 'Water Capacity' in df.columns and not pd.isna(row.get('Water Capacity')) else ''
+            # Gas Type Mapping
+            raw_gas = str(row.get('Gas Type', '')).strip() if 'Gas Type' in df.columns and not pd.isna(row.get('Gas Type')) else ''
+            gas_map = {
+                'ARGON': 'ARG', 'OXYGEN': 'OXY', 'NITROGEN': 'N2', 
+                'CARBON DIOXIDE': 'CO2', 'HELIUM': 'Helium', 'ACETYLENE': 'DA'
+            }
+            gas_type = gas_map.get(raw_gas.upper(), raw_gas)
+            
+            # Helper to safely extract columns
+            def get_col(*col_names, default=''):
+                for c in col_names:
+                    if c in df.columns:
+                        val = row.get(c)
+                        if not pd.isna(val):
+                            return str(val).strip()
+                return default
+
+            cyl_type = get_col('Water Capacity', 'Cylinder Type', default='')
+            if 'DURA' in uid.upper() and cyl_type.upper() != 'DURA':
+                cyl_type = 'Dura'
+                
+            owner = get_col('Owner', default='Depot')
+            fill_pressure = get_col('Fill Pressure', 'Fill Pressure (bar)', default='')
+            gas_capacity = get_col('Gas Capacity', default='')
+            unit = get_col('Unit', default='')
+            is_mixture = get_col('Is Mixture?', 'Is Mixture', default='No')
+            manufacture_date = get_col('Manufacture Date', default='')
+            last_hydro = get_col('Last Hydro Test Date', 'Last Hydro Date', default='')
+            next_hydro = get_col('Next Hydro Test Due', 'Next Hydro Due', default='')
+            hydro_status = get_col('Hydro Test Status', default='')
+            is_uhp = get_col('Is UHP?', 'Is UHP (Ultra High Purity)?', 'Is UHP', default='No')
+            cert_no = get_col('Test Certificate No.', 'Test Certificate No', 'Cert No', default='')
             
             # 1. Add to Supabase Cylinder table
             new_cylinder = Cylinder(
                 uid=uid,
                 gas_type=gas_type,
                 cylinder_type=cyl_type,
-                owner='Depot',
+                owner=owner,
                 status='Active',
                 location='Depot',
                 last_activity_date=today_str
@@ -2898,17 +2927,25 @@ def admin_cylinders_upload():
             m_db = CylinderMaintenance(
                 cylinder_uid=uid,
                 water_capacity=cyl_type,
-                is_uhp='No',
-                is_mixture='No'
+                fill_pressure=fill_pressure,
+                gas_capacity=gas_capacity,
+                unit=unit,
+                is_mixture=is_mixture,
+                manufacture_date=manufacture_date,
+                last_hydro_date=last_hydro,
+                next_hydro_due=next_hydro,
+                hydro_test_status=hydro_status,
+                cert_no=cert_no,
+                is_uhp=is_uhp
             )
             db.session.add(m_db)
             
             # 3. Prepare Sheets Rows
             cyl_rows_to_append.append([
-                uid, gas_type, cyl_type, 'Depot', 'Active', 'Depot', today_str
+                uid, gas_type, cyl_type, owner, 'Active', 'Depot', today_str
             ])
             cyl_maint_rows_to_append.append([
-                uid, cyl_type, '', '', '', 'No', '', '', '', '', '', '', 'No'
+                uid, cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp
             ])
             
             existing_uids.add(uid)
