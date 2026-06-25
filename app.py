@@ -12,6 +12,17 @@ from db import db
 from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
+from concurrent.futures import ThreadPoolExecutor
+
+# Initialize global background executor for Google Sheets
+sheets_executor = ThreadPoolExecutor(max_workers=3)
+
+def async_sheets_write(fn, *args, **kwargs):
+    """Submits a Google Sheets API call to the background executor."""
+    try:
+        sheets_executor.submit(fn, *args, **kwargs)
+    except Exception as e:
+        print(f"[sheets_executor] Error submitting task: {e}")
 
 load_dotenv()
 
@@ -2853,49 +2864,52 @@ def admin_cylinders_bulk_delete():
                 if not is_connection_error:
                     return f"Database error: {str(dbe)}", 500
 
-        # Delete from Google Sheets
-        try:
-            if cyl_ws is None and doc:
-                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                except Exception: pass
-            if cyl_maint_ws is None and doc:
-                try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                except Exception: pass
+        # Delete from Google Sheets (Background Sync)
+        def background_bulk_delete_sheets():
+            try:
+                global cyl_ws, cyl_maint_ws, doc
+                if cyl_ws is None and doc:
+                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception: pass
+                if cyl_maint_ws is None and doc:
+                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                    except Exception: pass
 
-            uids_lower = set([u.lower() for u in uids_to_delete])
+                uids_lower = set([u.lower() for u in uids_to_delete])
 
-            def bulk_delete_sheet(ws):
-                if not ws: return
-                rows = ws.get_all_values()
-                rows_to_del = []
-                for idx, r in enumerate(rows):
-                    if idx == 0: continue
-                    if len(r) > 0 and r[0].strip().lower() in uids_lower:
-                        rows_to_del.append(idx + 1)
-                
-                if not rows_to_del: return
-                
-                # Delete from bottom up to preserve indices in payload
-                rows_to_del.sort(reverse=True)
-                requests = []
-                for r_idx in rows_to_del:
-                    requests.append({
-                        "deleteDimension": {
-                            "range": {
-                                "sheetId": ws.id,
-                                "dimension": "ROWS",
-                                "startIndex": r_idx - 1,
-                                "endIndex": r_idx
+                def bulk_delete_sheet(ws):
+                    if not ws: return
+                    rows = ws.get_all_values()
+                    rows_to_del = []
+                    for idx, r in enumerate(rows):
+                        if idx == 0: continue
+                        if len(r) > 0 and r[0].strip().lower() in uids_lower:
+                            rows_to_del.append(idx + 1)
+                    
+                    if not rows_to_del: return
+                    
+                    rows_to_del.sort(reverse=True)
+                    requests = []
+                    for r_idx in rows_to_del:
+                        requests.append({
+                            "deleteDimension": {
+                                "range": {
+                                    "sheetId": ws.id,
+                                    "dimension": "ROWS",
+                                    "startIndex": r_idx - 1,
+                                    "endIndex": r_idx
+                                }
                             }
-                        }
-                    })
-                ws.spreadsheet.batch_update({"requests": requests})
+                        })
+                    ws.spreadsheet.batch_update({"requests": requests})
 
-            bulk_delete_sheet(cyl_ws)
-            bulk_delete_sheet(cyl_maint_ws)
+                bulk_delete_sheet(cyl_ws)
+                bulk_delete_sheet(cyl_maint_ws)
 
-        except Exception as se:
-            print("[sheets] Error mirroring bulk delete to Sheets:", se)
+            except Exception as se:
+                print("[sheets] Error mirroring bulk delete to Sheets:", se)
+
+        async_sheets_write(background_bulk_delete_sheets)
 
         flash(f"Successfully deleted {len(uids_to_delete)} cylinders.", "success")
         return "OK", 200
@@ -3032,25 +3046,27 @@ def admin_cylinders_upload():
             
         db.session.commit()
         
-        # 4. Mirror to Google Sheets using append_rows for bulk efficiency
+        # 4. Mirror to Google Sheets using background sync
         if added > 0:
-            try:
-                if cyl_ws is None and doc:
-                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                    except Exception: pass
-                if cyl_maint_ws is None and doc:
-                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                    except Exception: pass
-                    
-                if cyl_ws:
-                    cyl_ws.append_rows(cyl_rows_to_append)
-                if cyl_maint_ws:
-                    cyl_maint_ws.append_rows(cyl_maint_rows_to_append)
-                    
-                flash(f"Successfully added {added} new cylinders to Database and Sheets! Skipped {skipped} duplicates.", "success")
-            except Exception as se:
-                print("[sheets] Error mirroring bulk upload to Sheets:", se)
-                flash(f"Added {added} to Database, but failed to sync to Google Sheets. Check server logs.", "warning")
+            def background_upload_sheets():
+                try:
+                    global cyl_ws, cyl_maint_ws, doc
+                    if cyl_ws is None and doc:
+                        try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                        except Exception: pass
+                    if cyl_maint_ws is None and doc:
+                        try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                        except Exception: pass
+                        
+                    if cyl_ws:
+                        cyl_ws.append_rows(cyl_rows_to_append)
+                    if cyl_maint_ws:
+                        cyl_maint_ws.append_rows(cyl_maint_rows_to_append)
+                except Exception as se:
+                    print("[sheets] Error mirroring bulk upload to Sheets:", se)
+
+            async_sheets_write(background_upload_sheets)
+            flash(f"Successfully added {added} new cylinders to Database and syncing to Sheets! Skipped {skipped} duplicates.", "success")
         else:
             flash(f"No new cylinders added. Skipped {skipped} duplicates.", "info")
             
@@ -3129,34 +3145,27 @@ def admin_cylinders_add():
                             error=f"Database validation error: {str(dbe)}", form=data,
                             gas_types=gas_types, cylinder_types=cylinder_types)
 
-            # Mirror to Google Sheets
-            try:
-                # Refresh worksheet references if needed
-                if cyl_ws is None and doc:
-                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                    except Exception: pass
-                if cyl_maint_ws is None and doc:
-                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                    except Exception: pass
+            # Add to Google Sheets (Background Sync)
+            def background_add_cylinder_sheets():
+                try:
+                    global cyl_ws, cyl_maint_ws, doc
+                    if cyl_ws is None and doc:
+                        try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                        except Exception: pass
+                    if cyl_maint_ws is None and doc:
+                        try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                        except Exception: pass
 
-                if cyl_ws is None:
-                    if not db_written:
-                        return render_template('cylinders_form.html',
-                            user=session['user'], mode='add',
-                            error='Cylinders sheet not found and database offline.', form=data,
-                            gas_types=gas_types, cylinder_types=cylinder_types)
-                else:
-                    # Write to Cylinders sheet
-                    cyl_ws.append_row([
-                        uid,
-                        data.get('gas_type', '').strip(),
-                        data.get('cylinder_type', '').strip(),
-                        data.get('owner', 'Depot').strip(),
-                        data.get('status', 'Active').strip(),
-                        data.get('location', 'Depot').strip(),
-                        date.today().strftime('%d-%m-%Y'),
-                    ])
-                    # Write to Cylinder Maintenance sheet
+                    if cyl_ws:
+                        cyl_ws.append_row([
+                            uid,
+                            data.get('gas_type', '').strip(),
+                            data.get('cylinder_type', '').strip(),
+                            data.get('owner', 'Depot').strip(),
+                            data.get('status', 'Active').strip(),
+                            data.get('location', 'Depot').strip(),
+                            date.today().strftime('%d-%m-%Y'),
+                        ])
                     if cyl_maint_ws:
                         cyl_maint_ws.append_row([
                             uid,
@@ -3173,10 +3182,12 @@ def admin_cylinders_add():
                             data.get('cert_no', '').strip(),
                             'Yes' if data.get('is_uhp') == 'Yes' else 'No',
                         ])
-            except Exception as se:
-                print("[sheets] Error mirroring cylinder write to Sheets:", se)
-                if not db_written:
-                    raise se
+                except Exception as se:
+                    print("[sheets] Error mirroring cylinder write to Sheets:", se)
+                    if not db_written:
+                        raise se
+
+            async_sheets_write(background_add_cylinder_sheets)
 
             return redirect('/admin/cylinders')
         except Exception as e:
@@ -3213,31 +3224,35 @@ def admin_cylinders_delete(uid):
                     flash(f"Database error deleting cylinder: {str(dbe)}", "danger")
                     return redirect('/admin/cylinders')
 
-        # Delete from Google Sheets
-        try:
-            if cyl_ws is None and doc:
-                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                except Exception: pass
-            if cyl_maint_ws is None and doc:
-                try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                except Exception: pass
+        # Delete from Google Sheets (Background Sync)
+        def background_delete_cylinder_sheets():
+            try:
+                global cyl_ws, cyl_maint_ws, doc
+                if cyl_ws is None and doc:
+                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception: pass
+                if cyl_maint_ws is None and doc:
+                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                    except Exception: pass
 
-            if cyl_ws:
-                rows = cyl_ws.get_all_values()
-                for idx, r in enumerate(rows):
-                    if idx == 0: continue
-                    if len(r) > 0 and r[0].strip().lower() == uid.lower():
-                        cyl_ws.delete_rows(idx + 1)
-                        break
-            if cyl_maint_ws:
-                mrows = cyl_maint_ws.get_all_values()
-                for idx, r in enumerate(mrows):
-                    if idx == 0: continue
-                    if len(r) > 0 and r[0].strip().lower() == uid.lower():
-                        cyl_maint_ws.delete_rows(idx + 1)
-                        break
-        except Exception as se:
-            print("[sheets] Error mirroring cylinder deletion to Sheets:", se)
+                if cyl_ws:
+                    rows = cyl_ws.get_all_values()
+                    for idx, r in enumerate(rows):
+                        if idx == 0: continue
+                        if len(r) > 0 and r[0].strip().lower() == uid.lower():
+                            cyl_ws.delete_rows(idx + 1)
+                            break
+                if cyl_maint_ws:
+                    mrows = cyl_maint_ws.get_all_values()
+                    for idx, r in enumerate(mrows):
+                        if idx == 0: continue
+                        if len(r) > 0 and r[0].strip().lower() == uid.lower():
+                            cyl_maint_ws.delete_rows(idx + 1)
+                            break
+            except Exception as se:
+                print("[sheets] Error mirroring cylinder deletion to Sheets:", se)
+
+        async_sheets_write(background_delete_cylinder_sheets)
 
         flash(f"Cylinder {uid} deleted successfully.", "success")
     except Exception as e:
@@ -3307,39 +3322,42 @@ def admin_cylinders_edit(uid):
                             error=f"Database validation error: {str(dbe)}", form=merged, uid=uid,
                             gas_types=gas_types, cylinder_types=cylinder_types)
 
-            # Mirror edit to Sheets
-            try:
-                cyl_row, maint_row = find_cylinder_rows(uid)
-                if cyl_row and cyl_ws:
-                    cyl_ws.update(f'A{cyl_row}:G{cyl_row}', [[
-                        uid,
-                        data.get('gas_type', '').strip(),
-                        data.get('cylinder_type', '').strip(),
-                        data.get('owner', '').strip(),
-                        data.get('status', 'Active').strip(),
-                        data.get('location', '').strip(),
-                        cyl.get('last_activity', ''),
-                    ]])
-                if maint_row and cyl_maint_ws:
-                    cyl_maint_ws.update(f'A{maint_row}:M{maint_row}', [[
-                        uid,
-                        data.get('water_capacity', '').strip(),
-                        data.get('fill_pressure', '').strip(),
-                        data.get('gas_capacity', '').strip(),
-                        data.get('unit', '').strip(),
-                        data.get('is_mixture', 'No').strip(),
-                        data.get('mix_ratio', '').strip(),
-                        data.get('manufacture_date', '').strip(),
-                        data.get('last_hydro_date', '').strip(),
-                        data.get('next_hydro_due', '').strip(),
-                        data.get('hydro_test_status', '').strip(),
-                        data.get('cert_no', '').strip(),
-                        'Yes' if data.get('is_uhp') == 'Yes' else 'No',
-                    ]])
-            except Exception as se:
-                print("[sheets] Error mirroring cylinder edit to Sheets:", se)
-                if not db_written:
-                    raise se
+            # Mirror edit to Sheets (Background Sync)
+            def background_edit_cylinder_sheets():
+                try:
+                    cyl_row, maint_row = find_cylinder_rows(uid)
+                    if cyl_row and cyl_ws:
+                        cyl_ws.update(f'A{cyl_row}:G{cyl_row}', [[
+                            uid,
+                            data.get('gas_type', '').strip(),
+                            data.get('cylinder_type', '').strip(),
+                            data.get('owner', '').strip(),
+                            data.get('status', 'Active').strip(),
+                            data.get('location', '').strip(),
+                            cyl.get('last_activity', ''),
+                        ]])
+                    if maint_row and cyl_maint_ws:
+                        cyl_maint_ws.update(f'A{maint_row}:M{maint_row}', [[
+                            uid,
+                            data.get('water_capacity', '').strip(),
+                            data.get('fill_pressure', '').strip(),
+                            data.get('gas_capacity', '').strip(),
+                            data.get('unit', '').strip(),
+                            data.get('is_mixture', 'No').strip(),
+                            data.get('mix_ratio', '').strip(),
+                            data.get('manufacture_date', '').strip(),
+                            data.get('last_hydro_date', '').strip(),
+                            data.get('next_hydro_due', '').strip(),
+                            data.get('hydro_test_status', '').strip(),
+                            data.get('cert_no', '').strip(),
+                            'Yes' if data.get('is_uhp') == 'Yes' else 'No',
+                        ]])
+                except Exception as se:
+                    print("[sheets] Error mirroring cylinder edit to Sheets:", se)
+                    if not db_written:
+                        raise se
+                        
+            async_sheets_write(background_edit_cylinder_sheets)
 
             return redirect('/admin/cylinders')
         except Exception as e:
@@ -4029,38 +4047,37 @@ def admin_customers_add():
                             user=session['user'], mode='add',
                             error=f"Database validation error: {str(dbe)}", form=request.form)
 
-            # Mirror to Google Sheets
-            try:
-                if customer_ws is None and doc:
-                    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-                    
-                if customer_ws is None:
+            # Mirror to Google Sheets (Background Sync)
+            def background_add_customer_sheets():
+                try:
+                    global customer_ws, doc
+                    if customer_ws is None and doc:
+                        customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                        
+                    if customer_ws:
+                        # Find the first row where Name (Column B) is empty
+                        all_rows = customer_ws.get_all_values()
+                        empty_row_idx = None
+                        for idx, r in enumerate(all_rows):
+                            if idx == 0: continue # Skip header
+                            # Check if Column B (Name) is empty
+                            if len(r) < 2 or not r[1].strip():
+                                empty_row_idx = idx + 1 # 1-based row index
+                                break
+                        
+                        if empty_row_idx:
+                            existing_row = all_rows[empty_row_idx - 1]
+                            existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
+                            new_id_sheets = existing_id if existing_id else new_id
+                            customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id_sheets, name, email, phone, address]])
+                        else:
+                            customer_ws.append_row([new_id, name, email, phone, address])
+                except Exception as se:
+                    print("[sheets] Error mirroring customer write to Sheets:", se)
                     if not db_written:
-                        return render_template('customers_form.html',
-                            user=session['user'], mode='add',
-                            error='Customers worksheet not found and Database offline.', form=request.form)
-                else:
-                    # Find the first row where Name (Column B) is empty
-                    all_rows = customer_ws.get_all_values()
-                    empty_row_idx = None
-                    for idx, r in enumerate(all_rows):
-                        if idx == 0: continue # Skip header
-                        # Check if Column B (Name) is empty
-                        if len(r) < 2 or not r[1].strip():
-                            empty_row_idx = idx + 1 # 1-based row index
-                            break
-                    
-                    if empty_row_idx:
-                        existing_row = all_rows[empty_row_idx - 1]
-                        existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
-                        new_id_sheets = existing_id if existing_id else new_id
-                        customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id_sheets, name, email, phone, address]])
-                    else:
-                        customer_ws.append_row([new_id, name, email, phone, address])
-            except Exception as se:
-                print("[sheets] Error mirroring customer write to Sheets:", se)
-                if not db_written:
-                    raise se
+                        raise se
+
+            async_sheets_write(background_add_customer_sheets)
 
             clear_cache()
             return redirect('/admin/customers')
@@ -4127,29 +4144,33 @@ def admin_customers_edit(customer_name):
                             user=session['user'], mode='edit', uid=customer_name,
                             error=f"Database validation error: {str(dbe)}", form=request.form)
 
-            # Mirror edit to Sheets
-            try:
-                if customer_ws is None and doc:
-                    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-                    
-                if customer_ws is not None:
-                    rows = customer_ws.get_all_values()
-                    row_num = None
-                    for idx, r in enumerate(rows):
-                        if idx == 0: continue
-                        if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
-                            row_num = idx + 1
-                            break
-                            
-                    if row_num:
-                        # If name changed, cascade
-                        if name.lower() != customer_name.lower():
-                            rename_customer_in_sheets(customer_name, name)
-                        customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
-            except Exception as se:
-                print("[sheets] Error mirroring customer edit to Sheets:", se)
-                if not db_written:
-                    raise se
+            # Mirror edit to Sheets (Background Sync)
+            def background_edit_customer_sheets():
+                try:
+                    global customer_ws, doc
+                    if customer_ws is None and doc:
+                        customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                        
+                    if customer_ws is not None:
+                        rows = customer_ws.get_all_values()
+                        row_num = None
+                        for idx, r in enumerate(rows):
+                            if idx == 0: continue
+                            if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                                row_num = idx + 1
+                                break
+                                
+                        if row_num:
+                            # If name changed, cascade
+                            if name.lower() != customer_name.lower():
+                                rename_customer_in_sheets(customer_name, name)
+                            customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
+                except Exception as se:
+                    print("[sheets] Error mirroring customer edit to Sheets:", se)
+                    if not db_written:
+                        raise se
+
+            async_sheets_write(background_edit_customer_sheets)
 
             clear_cache()
             return redirect(f'/admin/customers/{name}')
@@ -4185,25 +4206,28 @@ def admin_customers_delete(customer_name):
                 if not is_connection_error:
                     return f"Database error deleting customer: {str(dbe)}", 500
 
-        # Mirror delete to Sheets
-        try:
-            if customer_ws is None and doc:
-                customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
-            if customer_ws is not None:
-                rows = customer_ws.get_all_values()
-                row_num = None
-                for idx, r in enumerate(rows):
-                    if idx == 0: continue
-                    if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
-                        row_num = idx + 1
-                        break
-                if row_num:
-                    customer_ws.update(f'B{row_num}:E{row_num}', [["", "", "", ""]])
-        except Exception as se:
-            print("[sheets] Error mirroring customer deletion to Sheets:", se)
-            if not db_deleted:
-                raise se
+        # Mirror delete to Sheets (Background Sync)
+        def background_delete_customer_sheets():
+            try:
+                global customer_ws, doc
+                if customer_ws is None and doc:
+                    customer_ws = doc.worksheet(CUSTOMER_SHEET_NAME)
+                if customer_ws is not None:
+                    rows = customer_ws.get_all_values()
+                    row_num = None
+                    for idx, r in enumerate(rows):
+                        if idx == 0: continue
+                        if len(r) > 1 and r[1].strip().lower() == customer_name.lower():
+                            row_num = idx + 1
+                            break
+                    if row_num:
+                        customer_ws.update(f'B{row_num}:E{row_num}', [["", "", "", ""]])
+            except Exception as se:
+                print("[sheets] Error mirroring customer deletion to Sheets:", se)
+                if not db_deleted:
+                    raise se
 
+        async_sheets_write(background_delete_customer_sheets)
         clear_cache()
         return redirect('/admin/customers')
     except Exception as e:
