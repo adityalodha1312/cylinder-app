@@ -219,6 +219,12 @@
       </svg>
       Bulk Upload
     </button>
+    <button class="btn-add-cyl" style="background: #dc2626; border: none; color: white; display: flex; align-items: center; gap: 6px;" onclick="confirmBulkDelete()" id="btnBulkDelete" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+      </svg>
+      Delete Selected (<span id="deleteCount">0</span>)
+    </button>
     <a href="/admin/cylinders/add" class="btn-add-cyl" id="add-cylinder-btn">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
@@ -425,6 +431,9 @@
     <table class="reg-table" style="width:100%; border-collapse:collapse;">
       <thead>
         <tr>
+          <th style="width: 40px; text-align: center;">
+            <input type="checkbox" id="selectAllStandard" onchange="toggleSelectAll('standard', this.checked)">
+          </th>
           <th>Cylinder UID</th>
           <th>Gas Type</th>
           <th>Type / Size</th>
@@ -446,6 +455,9 @@
           data-hydro="{{ c.hydro_badge }}"
           data-cyltype="{{ c.cylinder_type or 'Standard' }}"
         >
+          <td style="text-align: center;">
+            <input type="checkbox" class="cyl-checkbox standard-checkbox" value="{{ c.uid }}" onchange="updateDeleteCount()">
+          </td>
           <td class="uid-cell">
             <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
               {{ c.uid }}
@@ -530,6 +542,9 @@
     <table class="reg-table" style="width:100%; border-collapse:collapse;">
       <thead>
         <tr>
+          <th style="width: 40px; text-align: center;">
+            <input type="checkbox" id="selectAllDura" onchange="toggleSelectAll('dura', this.checked)">
+          </th>
           <th>Cylinder UID</th>
           <th>Current Gas</th>
           <th>Previous Gas</th>
@@ -551,6 +566,9 @@
           data-status="{{ c.status }}"
           data-cyltype="Dura"
         >
+          <td style="text-align: center;">
+            <input type="checkbox" class="cyl-checkbox dura-checkbox" value="{{ c.uid }}" onchange="updateDeleteCount()">
+          </td>
           <td class="uid-cell">
             <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
               {{ c.uid }}
@@ -953,5 +971,67 @@
     </div>
   </div>
 </div>
+
+<script>
+  function toggleSelectAll(type, checked) {
+    const checkboxes = document.querySelectorAll(`.${type}-checkbox:not(:disabled)`);
+    checkboxes.forEach(cb => {
+      // Only select visible rows (respects search filter)
+      if (cb.closest('tr').style.display !== 'none') {
+          cb.checked = checked;
+      }
+    });
+    updateDeleteCount();
+  }
+
+  function updateDeleteCount() {
+    const checked = document.querySelectorAll('.cyl-checkbox:checked');
+    const btn = document.getElementById('btnBulkDelete');
+    const countSpan = document.getElementById('deleteCount');
+    if(countSpan) countSpan.textContent = checked.length;
+    
+    if(btn) {
+      btn.disabled = checked.length === 0;
+      btn.style.opacity = checked.length === 0 ? '0.5' : '1';
+      btn.style.cursor = checked.length === 0 ? 'not-allowed' : 'pointer';
+    }
+  }
+
+  async function confirmBulkDelete() {
+    const checked = document.querySelectorAll('.cyl-checkbox:checked');
+    if (checked.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to permanently delete ${checked.length} selected cylinder(s) from the Database and Google Sheets?\n\nThis action cannot be undone.`)) {
+      return;
+    }
+    
+    const uids = Array.from(checked).map(cb => cb.value);
+    const btn = document.getElementById('btnBulkDelete');
+    btn.innerHTML = 'Deleting...';
+    btn.disabled = true;
+    
+    try {
+      const response = await fetch('/admin/cylinders/bulk_delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ uids: uids })
+      });
+      
+      if (response.ok) {
+        window.location.reload();
+      } else {
+        const err = await response.text();
+        alert('Error deleting cylinders: ' + err);
+        window.location.reload();
+      }
+    } catch (e) {
+      alert('Network error: ' + e);
+      window.location.reload();
+    }
+  }
+  
+  // Initialize bulk delete button state
+  document.addEventListener("DOMContentLoaded", updateDeleteCount);
+</script>
 
 {% endblock %}

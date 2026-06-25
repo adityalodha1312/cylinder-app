@@ -2824,6 +2824,72 @@ def admin_cylinders():
         due_soon   = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon'),
     )
 
+@app.route('/admin/cylinders/bulk_delete', methods=['POST'])
+@admin_required
+def admin_cylinders_bulk_delete():
+    data = request.get_json()
+    if not data or 'uids' not in data:
+        return "Invalid request format", 400
+        
+    uids_to_delete = [str(u).strip() for u in data['uids'] if str(u).strip()]
+    if not uids_to_delete:
+        return "No cylinders selected", 400
+        
+    global cyl_ws, cyl_maint_ws, doc
+    
+    try:
+        # Delete from PostgreSQL
+        if os.environ.get('DATABASE_URL'):
+            try:
+                CylinderMaintenance.query.filter(CylinderMaintenance.cylinder_uid.in_(uids_to_delete)).delete(synchronize_session=False)
+                Cylinder.query.filter(Cylinder.uid.in_(uids_to_delete)).delete(synchronize_session=False)
+                db.session.commit()
+                print(f"[db] Bulk deleted {len(uids_to_delete)} cylinders from PostgreSQL.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error in bulk delete:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return f"Database error: {str(dbe)}", 500
+
+        # Delete from Google Sheets
+        try:
+            if cyl_ws is None and doc:
+                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception: pass
+            if cyl_maint_ws is None and doc:
+                try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                except Exception: pass
+
+            uids_lower = set([u.lower() for u in uids_to_delete])
+
+            def bulk_delete_sheet(ws):
+                if not ws: return
+                rows = ws.get_all_values()
+                rows_to_del = []
+                for idx, r in enumerate(rows):
+                    if idx == 0: continue
+                    if len(r) > 0 and r[0].strip().lower() in uids_lower:
+                        rows_to_del.append(idx + 1)
+                
+                # Delete from bottom up to preserve indices
+                rows_to_del.sort(reverse=True)
+                for r_idx in rows_to_del:
+                    ws.delete_rows(r_idx)
+
+            bulk_delete_sheet(cyl_ws)
+            bulk_delete_sheet(cyl_maint_ws)
+
+        except Exception as se:
+            print("[sheets] Error mirroring bulk delete to Sheets:", se)
+
+        flash(f"Successfully deleted {len(uids_to_delete)} cylinders.", "success")
+        return "OK", 200
+        
+    except Exception as e:
+        return str(e), 500
+
 @app.route('/admin/cylinders/upload', methods=['POST'])
 @admin_required
 def admin_cylinders_upload():
