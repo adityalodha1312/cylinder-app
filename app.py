@@ -3072,6 +3072,63 @@ def admin_cylinders_add():
         user=session['user'], mode='add', error=None, form={},
         gas_types=gas_types, cylinder_types=cylinder_types)
 
+@app.route('/admin/cylinders/<uid>/delete', methods=['POST'])
+@admin_required
+def admin_cylinders_delete(uid):
+    global cyl_ws, cyl_maint_ws, doc
+    try:
+        # Delete from PostgreSQL
+        if os.environ.get('DATABASE_URL'):
+            try:
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                if c_db:
+                    db.session.delete(c_db)
+                m_db = CylinderMaintenance.query.filter(CylinderMaintenance.cylinder_uid.ilike(uid)).first()
+                if m_db:
+                    db.session.delete(m_db)
+                db.session.commit()
+                print(f"[db] Deleted cylinder {uid} from PostgreSQL.")
+            except Exception as dbe:
+                db.session.rollback()
+                print("[db] Error deleting cylinder from DB:", dbe)
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    flash(f"Database error deleting cylinder: {str(dbe)}", "danger")
+                    return redirect('/admin/cylinders')
+
+        # Delete from Google Sheets
+        try:
+            if cyl_ws is None and doc:
+                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception: pass
+            if cyl_maint_ws is None and doc:
+                try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                except Exception: pass
+
+            if cyl_ws:
+                rows = cyl_ws.get_all_values()
+                for idx, r in enumerate(rows):
+                    if idx == 0: continue
+                    if len(r) > 0 and r[0].strip().lower() == uid.lower():
+                        cyl_ws.delete_rows(idx + 1)
+                        break
+            if cyl_maint_ws:
+                mrows = cyl_maint_ws.get_all_values()
+                for idx, r in enumerate(mrows):
+                    if idx == 0: continue
+                    if len(r) > 0 and r[0].strip().lower() == uid.lower():
+                        cyl_maint_ws.delete_rows(idx + 1)
+                        break
+        except Exception as se:
+            print("[sheets] Error mirroring cylinder deletion to Sheets:", se)
+
+        flash(f"Cylinder {uid} deleted successfully.", "success")
+    except Exception as e:
+        flash(f"Error deleting cylinder: {str(e)}", "danger")
+        
+    return redirect('/admin/cylinders')
+
 @app.route('/admin/cylinders/<uid>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_cylinders_edit(uid):
