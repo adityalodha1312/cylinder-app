@@ -2985,7 +2985,16 @@ def admin_cylinders_upload():
                             return str(val).strip()
                 return default
 
-            cyl_type = get_col('Water Capacity', 'Cylinder Type', default='')
+            water_cap = get_col('Water Capacity', default='')
+            raw_cyl_type = get_col('Cylinder Type', default='')
+
+            cyl_type = raw_cyl_type
+            if not cyl_type:
+                if '46.7' in water_cap:
+                    cyl_type = 'Standard'
+                else:
+                    cyl_type = 'Standard' # Default to Standard if empty
+
             if 'DURA' in uid.upper() and cyl_type.upper() != 'DURA':
                 cyl_type = 'Dura'
                 
@@ -3016,7 +3025,7 @@ def admin_cylinders_upload():
             # 2. Add to Supabase CylinderMaintenance table
             m_db = CylinderMaintenance(
                 cylinder_uid=uid,
-                water_capacity=cyl_type,
+                water_capacity=water_cap if water_cap else raw_cyl_type, # Keep 46.7L in water capacity
                 fill_pressure=fill_pressure,
                 gas_capacity=gas_capacity,
                 unit=unit,
@@ -3035,7 +3044,7 @@ def admin_cylinders_upload():
                 uid, gas_type, cyl_type, owner, 'Active', 'Depot', today_str
             ])
             cyl_maint_rows_to_append.append([
-                uid, cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp
+                uid, water_cap if water_cap else raw_cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp
             ])
             
             existing_uids.add(uid)
