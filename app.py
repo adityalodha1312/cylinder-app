@@ -2873,10 +2873,23 @@ def admin_cylinders_bulk_delete():
                     if len(r) > 0 and r[0].strip().lower() in uids_lower:
                         rows_to_del.append(idx + 1)
                 
-                # Delete from bottom up to preserve indices
+                if not rows_to_del: return
+                
+                # Delete from bottom up to preserve indices in payload
                 rows_to_del.sort(reverse=True)
+                requests = []
                 for r_idx in rows_to_del:
-                    ws.delete_rows(r_idx)
+                    requests.append({
+                        "deleteDimension": {
+                            "range": {
+                                "sheetId": ws.id,
+                                "dimension": "ROWS",
+                                "startIndex": r_idx - 1,
+                                "endIndex": r_idx
+                            }
+                        }
+                    })
+                ws.spreadsheet.batch_update({"requests": requests})
 
             bulk_delete_sheet(cyl_ws)
             bulk_delete_sheet(cyl_maint_ws)
