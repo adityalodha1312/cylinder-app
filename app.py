@@ -387,23 +387,21 @@ def get_all_cylinders():
     if os.environ.get('DATABASE_URL'):
         try:
             cyls = Cylinder.query.all()
-            if cyls:
-                return [{
-                    'uid'           : c.uid,
-                    'gas_type'      : c.gas_type or '',
-                    'cylinder_type' : c.cylinder_type or '',
-                    'owner'         : c.owner or '',
-                    'status'        : c.status or 'Active',
-                    'location'      : c.location or 'Depot',
-                    'last_activity' : c.last_activity_date or '',
-                } for c in cyls]
+            return [{
+                'uid'           : c.uid,
+                'gas_type'      : c.gas_type or '',
+                'cylinder_type' : c.cylinder_type or '',
+                'owner'         : c.owner or '',
+                'status'        : c.status or 'Active',
+                'location'      : c.location or 'Depot',
+                'last_activity' : c.last_activity_date or '',
+            } for c in cyls]
         except Exception as e:
             print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
 
     now = time.time()
     if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
         return _data_cache['cylinders']
-        print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
 
     try:
         if cyl_ws is None:
@@ -445,26 +443,25 @@ def get_all_maintenance():
     if os.environ.get('DATABASE_URL'):
         try:
             maints = CylinderMaintenance.query.all()
-            if maints:
-                out = {}
-                for m in maints:
-                    if m.cylinder_uid:
-                        out[m.cylinder_uid] = {
-                            'uid'              : m.cylinder_uid,
-                            'water_capacity'   : m.water_capacity or '',
-                            'fill_pressure'    : m.fill_pressure or '',
-                            'gas_capacity'     : m.gas_capacity or '',
-                            'unit'             : m.unit or '',
-                            'is_mixture'       : m.is_mixture or 'No',
-                            'mix_ratio'        : m.mix_ratio or '',
-                            'manufacture_date' : m.manufacture_date or '',
-                            'last_hydro_date'  : m.last_hydro_date or '',
-                            'next_hydro_due'   : m.next_hydro_due or '',
-                            'hydro_test_status': m.hydro_test_status or '',
-                            'cert_no'          : m.cert_no or '',
-                            'is_uhp'           : m.is_uhp or 'No',
-                        }
-                return out
+            out = {}
+            for m in maints:
+                if m.cylinder_uid:
+                    out[m.cylinder_uid] = {
+                        'uid'              : m.cylinder_uid,
+                        'water_capacity'   : m.water_capacity or '',
+                        'fill_pressure'    : m.fill_pressure or '',
+                        'gas_capacity'     : m.gas_capacity or '',
+                        'unit'             : m.unit or '',
+                        'is_mixture'       : m.is_mixture or 'No',
+                        'mix_ratio'        : m.mix_ratio or '',
+                        'manufacture_date' : m.manufacture_date or '',
+                        'last_hydro_date'  : m.last_hydro_date or '',
+                        'next_hydro_due'   : m.next_hydro_due or '',
+                        'hydro_test_status': m.hydro_test_status or '',
+                        'cert_no'          : m.cert_no or '',
+                        'is_uhp'           : m.is_uhp or 'No',
+                    }
+            return out
         except Exception as e:
             print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
 
@@ -3709,15 +3706,14 @@ def get_all_customer_info():
     try:
         if os.environ.get('DATABASE_URL'):
             customers = Customer.query.all()
-            if customers:
-                return [{
-                    'id'             : c.customer_id,
-                    'name'           : c.name,
-                    'email'          : c.email or '',
-                    'phone'          : c.phone or '',
-                    'address'        : c.address or '',
-                    'cold_call_done' : bool(c.cold_call_done),
-                } for c in customers]
+            return [{
+                'id'             : c.customer_id,
+                'name'           : c.name,
+                'email'          : c.email or '',
+                'phone'          : c.phone or '',
+                'address'        : c.address or '',
+                'cold_call_done' : bool(c.cold_call_done),
+            } for c in customers]
     except Exception as e:
         print('[db] Error getting customer info from DB, falling back to Sheets:', e)
 
