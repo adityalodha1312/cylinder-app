@@ -2824,6 +2824,125 @@ def admin_cylinders():
         due_soon   = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon'),
     )
 
+@app.route('/admin/cylinders/upload', methods=['POST'])
+@admin_required
+def admin_cylinders_upload():
+    import pandas as pd
+    from datetime import date
+    global cyl_ws, cyl_maint_ws, doc
+    
+    if 'file' not in request.files:
+        flash("No file provided.", "danger")
+        return redirect('/admin/cylinders')
+        
+    file = request.files['file']
+    if file.filename == '':
+        flash("No file selected.", "danger")
+        return redirect('/admin/cylinders')
+        
+    try:
+        if file.filename.endswith('.csv'):
+            df = pd.read_csv(file)
+        elif file.filename.endswith(('.xls', '.xlsx')):
+            df = pd.read_excel(file)
+        else:
+            flash("Invalid file format. Please upload a CSV or Excel file.", "danger")
+            return redirect('/admin/cylinders')
+            
+        # Standardize column names to handle whitespace/case
+        df.columns = df.columns.str.strip()
+        
+        # Check required columns
+        if 'Cylinder ID' not in df.columns:
+            flash("The file must contain a 'Cylinder ID' column.", "danger")
+            return redirect('/admin/cylinders')
+            
+        added = 0
+        skipped = 0
+        
+        # Query existing uids to skip duplicates efficiently
+        existing_uids = set(c.uid for c in Cylinder.query.all())
+        
+        cyl_rows_to_append = []
+        cyl_maint_rows_to_append = []
+        today_str = date.today().strftime('%d-%m-%Y')
+        
+        for _, row in df.iterrows():
+            uid = str(row.get('Cylinder ID', '')).strip()
+            
+            if pd.isna(uid) or uid == '' or uid == 'nan':
+                continue
+                
+            if uid in existing_uids:
+                skipped += 1
+                continue
+                
+            # Get optional fields
+            gas_type = str(row.get('Gas Type', '')).strip() if 'Gas Type' in df.columns and not pd.isna(row.get('Gas Type')) else ''
+            cyl_type = str(row.get('Water Capacity', '')).strip() if 'Water Capacity' in df.columns and not pd.isna(row.get('Water Capacity')) else ''
+            
+            # 1. Add to Supabase Cylinder table
+            new_cylinder = Cylinder(
+                uid=uid,
+                gas_type=gas_type,
+                cylinder_type=cyl_type,
+                owner='Depot',
+                status='Active',
+                location='Depot',
+                last_activity_date=today_str
+            )
+            db.session.add(new_cylinder)
+            
+            # 2. Add to Supabase CylinderMaintenance table
+            m_db = CylinderMaintenance(
+                cylinder_uid=uid,
+                water_capacity=cyl_type,
+                is_uhp='No',
+                is_mixture='No'
+            )
+            db.session.add(m_db)
+            
+            # 3. Prepare Sheets Rows
+            cyl_rows_to_append.append([
+                uid, gas_type, cyl_type, 'Depot', 'Active', 'Depot', today_str
+            ])
+            cyl_maint_rows_to_append.append([
+                uid, cyl_type, '', '', '', 'No', '', '', '', '', '', '', 'No'
+            ])
+            
+            existing_uids.add(uid)
+            added += 1
+            
+        db.session.commit()
+        
+        # 4. Mirror to Google Sheets using append_rows for bulk efficiency
+        if added > 0:
+            try:
+                if cyl_ws is None and doc:
+                    try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception: pass
+                if cyl_maint_ws is None and doc:
+                    try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                    except Exception: pass
+                    
+                if cyl_ws:
+                    cyl_ws.append_rows(cyl_rows_to_append)
+                if cyl_maint_ws:
+                    cyl_maint_ws.append_rows(cyl_maint_rows_to_append)
+                    
+                flash(f"Successfully added {added} new cylinders to Database and Sheets! Skipped {skipped} duplicates.", "success")
+            except Exception as se:
+                print("[sheets] Error mirroring bulk upload to Sheets:", se)
+                flash(f"Added {added} to Database, but failed to sync to Google Sheets. Check server logs.", "warning")
+        else:
+            flash(f"No new cylinders added. Skipped {skipped} duplicates.", "info")
+            
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error processing file: {str(e)}", "danger")
+        
+    return redirect('/admin/cylinders')
+
 @app.route('/admin/cylinders/add', methods=['GET', 'POST'])
 @admin_required
 def admin_cylinders_add():
