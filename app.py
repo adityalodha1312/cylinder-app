@@ -2885,20 +2885,38 @@ def admin_cylinders_bulk_delete():
                     
                     if not rows_to_del: return
                     
-                    rows_to_del.sort(reverse=True)
+                    rows_to_del.sort()
+                    ranges = []
+                    start = rows_to_del[0]
+                    end = rows_to_del[0]
+                    for r_idx in rows_to_del[1:]:
+                        if r_idx == end + 1:
+                            end = r_idx
+                        else:
+                            ranges.append((start, end))
+                            start = r_idx
+                            end = r_idx
+                    ranges.append((start, end))
+                    
+                    # Sort ranges descending so deleting doesn't shift later ranges
+                    ranges.sort(key=lambda x: x[0], reverse=True)
+                    
                     requests = []
-                    for r_idx in rows_to_del:
+                    for r_start, r_end in ranges:
                         requests.append({
                             "deleteDimension": {
                                 "range": {
                                     "sheetId": ws.id,
                                     "dimension": "ROWS",
-                                    "startIndex": r_idx - 1,
-                                    "endIndex": r_idx
+                                    "startIndex": r_start - 1,
+                                    "endIndex": r_end
                                 }
                             }
                         })
-                    ws.spreadsheet.batch_update({"requests": requests})
+                    try:
+                        ws.spreadsheet.batch_update({"requests": requests})
+                    except Exception as e:
+                        print(f"[sheets] batch_update error on {ws.title}: {e}")
 
                 bulk_delete_sheet(cyl_ws)
                 bulk_delete_sheet(cyl_maint_ws)
