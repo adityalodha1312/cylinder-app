@@ -4177,6 +4177,194 @@ def build_gas_type_breakdown(outstanding_detail):
     return dict(sorted(breakdown.items()))
 
 
+# ================================================================
+#  USER MANAGEMENT ROUTES
+# ================================================================
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.username.asc()).all()
+    return render_template('users_list.html', user=session['user'], users=users)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+@admin_required
+def admin_users_add():
+    if request.method == 'POST':
+        name     = request.form.get('name', '').strip()
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        role     = request.form.get('role', 'driver').strip().lower()
+
+        if not username or not password or not name:
+            return render_template('users_form.html', user=session['user'], mode='add', error="Name, username, and password are required.", form=request.form)
+
+        # Check unique username
+        existing = User.query.filter(db.func.lower(User.username) == username.lower()).first()
+        if existing:
+            return render_template('users_form.html', user=session['user'], mode='add', error=f"Username '{username}' is already taken.", form=request.form)
+
+        if role not in ['driver', 'manager', 'owner']:
+            return render_template('users_form.html', user=session['user'], mode='add', error="Invalid role selected.", form=request.form)
+
+        try:
+            hashed_pw = generate_password_hash(password)
+            new_user = User(username=username, name=name, password=hashed_pw, role=role)
+            db.session.add(new_user)
+            db.session.commit()
+            
+            # Local background sync function
+            def background_add_user_sheets():
+                try:
+                    global users_ws, doc
+                    if users_ws is None and doc:
+                        try: users_ws = doc.worksheet(USERS_SHEET_NAME)
+                        except Exception: pass
+                    if users_ws:
+                        users_ws.append_row([
+                            username,
+                            hashed_pw,
+                            role,
+                            name
+                        ])
+                except Exception as se:
+                    print("[sheets] Error syncing user addition:", se)
+            
+            async_sheets_write(background_add_user_sheets)
+            flash(f"User '{username}' created successfully.", "success")
+            return redirect('/admin/users')
+            
+        except Exception as e:
+            db.session.rollback()
+            return render_template('users_form.html', user=session['user'], mode='add', error=f"Database error: {str(e)}", form=request.form)
+
+    return render_template('users_form.html', user=session['user'], mode='add', error=None, form={})
+
+@app.route('/admin/users/edit/<int:user_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_users_edit(user_id):
+    target_user = User.query.filter_by(id=user_id).first()
+    if not target_user:
+        flash("User not found.", "danger")
+        return redirect('/admin/users')
+
+    if request.method == 'POST':
+        name     = request.form.get('name', '').strip()
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        role     = request.form.get('role', 'driver').strip().lower()
+
+        if not username or not name:
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error="Name and username are required.", form=request.form)
+
+        # Check unique username
+        existing = User.query.filter(db.func.lower(User.username) == username.lower()).filter(User.id != user_id).first()
+        if existing:
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Username '{username}' is already taken.", form=request.form)
+
+        if role not in ['driver', 'manager', 'owner']:
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error="Invalid role selected.", form=request.form)
+
+        old_username = target_user.username
+        
+        try:
+            target_user.name = name
+            target_user.username = username
+            target_user.role = role
+            
+            if password:
+                hashed_pw = generate_password_hash(password)
+                target_user.password = hashed_pw
+            else:
+                hashed_pw = target_user.password
+                
+            db.session.commit()
+            
+            # Local background sync function
+            def background_edit_user_sheets():
+                try:
+                    global users_ws, doc
+                    if users_ws is None and doc:
+                        try: users_ws = doc.worksheet(USERS_SHEET_NAME)
+                        except Exception: pass
+                    if users_ws:
+                        rows = users_ws.get_all_values()
+                        for idx, r in enumerate(rows):
+                            if idx == 0: continue
+                            if len(r) > 0 and r[0].strip().lower() == old_username.strip().lower():
+                                users_ws.update(f'A{idx+1}:D{idx+1}', [[username, hashed_pw, role, name]])
+                                break
+                except Exception as se:
+                    print("[sheets] Error syncing user update:", se)
+            
+            async_sheets_write(background_edit_user_sheets)
+            
+            # If editing yourself, update session to reflect new role or username
+            if session['user']['username'].lower() == old_username.lower():
+                session['user']['username'] = username
+                session['user']['role'] = role
+                session['user']['name'] = name
+                
+            flash(f"User '{username}' updated successfully.", "success")
+            return redirect('/admin/users')
+            
+        except Exception as e:
+            db.session.rollback()
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Database error: {str(e)}", form=request.form)
+
+    # Prepopulate form
+    form_data = {
+        'name': target_user.name,
+        'username': target_user.username,
+        'role': target_user.role
+    }
+    return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=None, form=form_data)
+
+@app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
+@admin_required
+def admin_users_delete(user_id):
+    target_user = User.query.filter_by(id=user_id).first()
+    if not target_user:
+        flash("User not found.", "danger")
+        return redirect('/admin/users')
+    
+    # Prevent self-deletion
+    if target_user.username.lower() == session['user']['username'].lower():
+        flash("You cannot delete your own user account.", "danger")
+        return redirect('/admin/users')
+        
+    username = target_user.username
+    try:
+        db.session.delete(target_user)
+        db.session.commit()
+        
+        # Local background sync function
+        def background_delete_user_sheets():
+            try:
+                global users_ws, doc
+                if users_ws is None and doc:
+                    try: users_ws = doc.worksheet(USERS_SHEET_NAME)
+                    except Exception: pass
+                if users_ws:
+                    rows = users_ws.get_all_values()
+                    for idx, r in enumerate(rows):
+                        if idx == 0: continue
+                        if len(r) > 0 and r[0].strip().lower() == username.strip().lower():
+                            users_ws.delete_rows(idx + 1)
+                            break
+            except Exception as se:
+                print("[sheets] Error syncing user deletion:", se)
+                
+        async_sheets_write(background_delete_user_sheets)
+        flash(f"User '{username}' deleted successfully.", "success")
+        
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Database error deleting user: {str(e)}", "danger")
+        
+    return redirect('/admin/users')
+
+
 @app.route('/admin/customers')
 @admin_required
 def admin_customers():

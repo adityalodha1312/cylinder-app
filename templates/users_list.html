@@ -1,0 +1,168 @@
+{% extends "admin_base.html" %}
+
+{% block title %}User Management{% endblock %}
+
+{% block head %}
+<style>
+  .user-header-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .btn-add-user {
+    padding: 10px 16px;
+    background: var(--green-700);
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    transition: background 0.15s;
+  }
+  .btn-add-user:hover {
+    background: var(--green-500);
+  }
+  .role-badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    display: inline-block;
+  }
+  .role-owner {
+    background-color: #fef3c7;
+    color: #d97706;
+  }
+  .role-manager {
+    background-color: #dbeafe;
+    color: #1d4ed8;
+  }
+  .role-driver {
+    background-color: #e1f5ee;
+    color: #0f6e56;
+  }
+  .btn-action-edit {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 12px;
+    background: #fff;
+    color: var(--green-700);
+    border: 1.5px solid var(--green-100);
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s;
+  }
+  .btn-action-edit:hover {
+    background: var(--green-50);
+    border-color: var(--green-500);
+  }
+  .btn-action-delete {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px;
+    background: none;
+    border: none;
+    color: #dc2626;
+    cursor: pointer;
+    transition: color 0.15s;
+  }
+  .btn-action-delete:hover {
+    color: #991b1b;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="user-header-actions">
+  <div>
+    <h1 class="page-title" style="margin:0;">User Management</h1>
+    <p class="page-sub" style="margin:0;">Manage portal user accounts, roles, and credentials. Changes sync to Google Sheets "Users".</p>
+  </div>
+  <a href="/admin/users/add" class="btn-add-user">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"></line>
+      <line x1="5" y1="12" x2="19" y2="12"></line>
+    </svg>
+    Add User
+  </a>
+</div>
+
+<div class="table-wrap">
+  <table id="usersTable">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Username</th>
+        <th>Role</th>
+        <th>Created At</th>
+        <th style="width: 130px; text-align: right;">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for u in users %}
+      <tr class="table-row">
+        <td style="font-weight: 600; color: var(--dark-text);">{{ u.name or u.username }}</td>
+        <td>{{ u.username }}</td>
+        <td>
+          <span class="role-badge {% if u.role == 'owner' %}role-owner{% elif u.role == 'manager' %}role-manager{% else %}role-driver{% endif %}">
+            {{ u.role or 'driver' }}
+          </span>
+        </td>
+        <td style="color: var(--gray-text); font-size: 13.5px;">
+          {{ u.created_at.strftime('%d-%m-%Y') if u.created_at else '—' }}
+        </td>
+        <td style="text-align: right; vertical-align: middle;">
+          <div style="display: inline-flex; align-items: center; gap: 8px;">
+            <a href="/admin/users/edit/{{ u.id }}" class="btn-action-edit">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+              Edit
+            </a>
+            
+            {% if u.username.lower() != session['user']['username'].lower() %}
+            <form action="/admin/users/delete/{{ u.id }}" method="POST" onsubmit="return confirm('Are you sure you want to delete user \'{{ u.username }}\'?');" style="display: inline;">
+              <button type="submit" class="btn-action-delete" title="Delete User">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+            </form>
+            {% else %}
+            <!-- Disabled delete icon for logged-in user -->
+            <span style="padding: 6px; color: var(--gray-bd); cursor: not-allowed;" title="You cannot delete yourself">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.4">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </span>
+            {% endif %}
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="5" style="text-align: center; padding: 40px; color: var(--gray-text);">No users found.</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
