@@ -6624,6 +6624,26 @@ def admin_scanner_logs_delete(log_id):
         flash(f"Error deleting log: {str(e)}", "error")
     return redirect(url_for('admin_scanner_logs'))
 
+@app.route('/admin/scanner/logs/bulk_delete', methods=['POST'])
+@admin_required
+def admin_scanner_logs_bulk_delete():
+    data = request.json
+    log_ids = data.get('log_ids', [])
+    if not log_ids:
+        return jsonify({'success': False, 'error': 'No logs selected'})
+        
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({'success': False, 'error': 'Database required'})
+        
+    from models import AdminScanLog
+    try:
+        AdminScanLog.query.filter(AdminScanLog.id.in_(log_ids)).delete(synchronize_session=False)
+        db.session.commit()
+        return jsonify({'success': True, 'message': f'Deleted {len(log_ids)} logs'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)})
+
 @app.route('/admin/scanner/submit', methods=['POST'])
 @admin_required
 def admin_scanner_submit():

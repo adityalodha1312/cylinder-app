@@ -35,10 +35,15 @@
   <p class="page-sub">Internal notes/records of cylinder tracking before dispatch or after collection.</p>
 </div>
 
+<div style="margin-bottom: 16px;">
+  <button id="bulk-delete-btn" style="padding: 8px 16px; background: #dc3545; color: white; border: none; border-radius: 6px; cursor: pointer; display: none; font-weight: 600;" onclick="bulkDelete()">Delete Selected (<span id="selected-count">0</span>)</button>
+</div>
+
 <div class="table-container">
   <table id="scanLogsTable" class="display nowrap">
     <thead>
       <tr>
+        <th class="no-sort"><input type="checkbox" id="selectAll"></th>
         <th>Sr No.</th>
         <th>Record Date Time</th>
         <th>Cyl No. (UID)</th>
@@ -55,6 +60,7 @@
     <tbody>
       {% for log in logs %}
       <tr>
+        <td class="text-center"><input type="checkbox" class="row-checkbox" value="{{ log.id }}"></td>
         <td>{{ loop.index }}</td>
         <td>{{ log.date }} {{ log.time }}</td>
         <td style="font-weight: 600;">{{ log.uid }}</td>
@@ -99,15 +105,75 @@
       "order": [], // Keep original order
       "pageLength": 50,
       "dom": '<"top"Bf>rt<"bottom"lip><"clear">',
+      "columnDefs": [
+        { "orderable": false, "targets": [0, -1] }
+      ],
       "buttons": [
         {
           extend: 'excel',
           text: 'Export Excel',
           className: 'dt-button',
-          exportOptions: { columns: ':visible' }
+          exportOptions: { columns: ':visible:not(.no-sort):not(:last-child)' }
         }
       ]
     });
+
+    // Handle Select All checkbox
+    $('#selectAll').on('change', function() {
+      var isChecked = $(this).prop('checked');
+      $('.row-checkbox').prop('checked', isChecked);
+      updateBulkDeleteBtn();
+    });
+
+    // Handle individual row checkbox change
+    $(document).on('change', '.row-checkbox', function() {
+      if (!$(this).prop('checked')) {
+        $('#selectAll').prop('checked', false);
+      } else {
+        if ($('.row-checkbox:checked').length === $('.row-checkbox').length) {
+          $('#selectAll').prop('checked', true);
+        }
+      }
+      updateBulkDeleteBtn();
+    });
   });
+
+  function updateBulkDeleteBtn() {
+    var count = $('.row-checkbox:checked').length;
+    var btn = $('#bulk-delete-btn');
+    if (count > 0) {
+      btn.show();
+      $('#selected-count').text(count);
+    } else {
+      btn.hide();
+    }
+  }
+
+  function bulkDelete() {
+    var checked = $('.row-checkbox:checked');
+    if (checked.length === 0) return;
+    
+    if (!confirm('Are you sure you want to delete ' + checked.length + ' selected logs?')) return;
+    
+    var ids = [];
+    checked.each(function() {
+      ids.push(parseInt($(this).val()));
+    });
+    
+    fetch('/admin/scanner/logs/bulk_delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ log_ids: ids })
+    })
+    .then(res => res.json())
+    .then(data => {
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert("Error: " + data.error);
+      }
+    })
+    .catch(err => alert("Error: " + err));
+  }
 </script>
 {% endblock %}
