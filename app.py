@@ -2833,12 +2833,8 @@ def admin_cylinders():
     )
 
 @app.route('/admin/cylinders/sync_sheets', methods=['POST'])
-@login_required
+@admin_required
 def admin_cylinders_sync_sheets():
-    if not current_user.is_admin:
-        flash("Unauthorized", "danger")
-        return redirect('/admin/cylinders')
-
     def run_sync():
         try:
             from app import doc, CYLINDER_SHEET_NAME, CYLINDER_MAINT_NAME
