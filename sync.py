@@ -10,7 +10,7 @@ import gspread
 load_dotenv()
 
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, SystemSetting
 from werkzeug.security import generate_password_hash
 
 def parse_float(val):
@@ -441,9 +441,35 @@ def sync_sheets_to_db(doc):
                 db.session.delete(prod_obj)
                 
         db.session.commit()
+    # 9. Sync Settings
+    try:
+        settings_ws = doc.worksheet("Settings")
+        rows = settings_ws.get_all_values()
+        existing_settings = {s.key: s for s in SystemSetting.query.all()}
+        
+        sheet_keys = set()
+        if len(rows) > 1:
+            for r in rows[1:]:
+                if not r or not r[0].strip():
+                    continue
+                key = r[0].strip()
+                sheet_keys.add(key)
+                val = r[1].strip() if len(r) > 1 else ''
+                
+                if key in existing_settings:
+                    s = existing_settings[key]
+                    if s.value != val:
+                        s.value = val
+                        print(f"[sync] Updated setting: {key} -> {val}")
+                else:
+                    s = SystemSetting(key=key, value=val)
+                    db.session.add(s)
+                    print(f"[sync] Added setting: {key} -> {val}")
+                    
+        db.session.commit()
     except Exception as e:
-        db.session.rollback()
-        print("[sync] Error syncing Products sheet:", e)
+        # Settings sheet might not exist, ignore silently
+        pass
 
     print("[sync] Periodic sync finished.")
     return True

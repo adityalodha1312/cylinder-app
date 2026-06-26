@@ -214,3 +214,32 @@ class DuraGasHistory(db.Model):
             'fill_date': self.fill_date,
             'fill_time': self.fill_time
         }
+
+class SystemSetting(db.Model):
+    __tablename__ = 'system_settings'
+    key = db.Column(db.String(100), primary_key=True)
+    value = db.Column(db.String(255), nullable=False)
+
+class AdminScanLog(db.Model):
+    __tablename__ = 'admin_scan_logs'
+    id = db.Column(db.Integer, primary_key=True)
+    scan_date = db.Column(db.String(50), nullable=False)
+    scan_time = db.Column(db.String(50))
+    cylinder_uid = db.Column(db.String(100), nullable=False)
+    gas_type = db.Column(db.String(50))
+    customer = db.Column(db.String(255))
+    action = db.Column(db.String(50), nullable=False)
+    admin_name = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'date': self.scan_date,
+            'time': self.scan_time or '',
+            'uid': self.cylinder_uid,
+            'gas_type': self.gas_type or '',
+            'customer': self.customer or '',
+            'action': self.action,
+            'admin_name': self.admin_name or ''
+        }

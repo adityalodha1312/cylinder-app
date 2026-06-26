@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -378,6 +378,87 @@ def rename_customer_in_sheets(old_name, new_name):
                     scan_ws.update_cell(idx + 1, 6, new_n)
     except Exception as e:
         print("Error renaming customer in Scan Log:", e)
+
+
+# ── System Settings helpers ──────────────────────────────────────────────────
+SETTINGS_SHEET_NAME = "Settings"
+
+def get_setting(key, default_value):
+    """Gets setting from DB first, then from Google Sheets, with fallback."""
+    if os.environ.get('DATABASE_URL'):
+        try:
+            s = SystemSetting.query.filter_by(key=key).first()
+            if s:
+                return s.value
+        except Exception as e:
+            print("[settings] Error reading setting from DB:", e)
+            
+    # Try reading from Sheets if not found in DB
+    global doc
+    if doc:
+        try:
+            ws = doc.worksheet(SETTINGS_SHEET_NAME)
+            records = ws.get_all_values()
+            for r in records:
+                if len(r) >= 2 and r[0].strip().lower() == key.strip().lower():
+                    val = r[1].strip()
+                    # Cache in DB if possible
+                    if os.environ.get('DATABASE_URL') and val:
+                        try:
+                            s = SystemSetting(key=key, value=val)
+                            db.session.add(s)
+                            db.session.commit()
+                        except Exception:
+                            db.session.rollback()
+                    return val
+        except Exception:
+            # Settings worksheet might not exist yet
+            pass
+            
+    return default_value
+
+def set_setting(key, value):
+    """Sets setting in DB and updates Google Sheets in the background."""
+    if os.environ.get('DATABASE_URL'):
+        try:
+            s = SystemSetting.query.filter_by(key=key).first()
+            if not s:
+                s = SystemSetting(key=key, value=value)
+                db.session.add(s)
+            else:
+                s.value = value
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print("[settings] Error saving setting to DB:", e)
+            
+    # Background update to Google Sheets
+    def background_save_setting_sheets():
+        global doc
+        if not doc:
+            return
+        try:
+            try:
+                ws = doc.worksheet(SETTINGS_SHEET_NAME)
+            except Exception:
+                # Create the worksheet if missing
+                ws = doc.add_worksheet(title=SETTINGS_SHEET_NAME, rows=50, cols=2)
+                ws.append_row(["Setting Key", "Setting Value"])
+                
+            rows = ws.get_all_values()
+            row_num = None
+            for idx, r in enumerate(rows):
+                if len(r) > 0 and r[0].strip().lower() == key.strip().lower():
+                    row_num = idx + 1
+                    break
+            if row_num:
+                ws.update(f'B{row_num}', [[value]])
+            else:
+                ws.append_row([key, value])
+        except Exception as se:
+            print("[sheets] Error saving setting to Sheets:", se)
+
+    async_sheets_write(background_save_setting_sheets)
 
 
 # ── Cylinder Registry helpers ──────────────────────────────────────────────
@@ -4988,9 +5069,14 @@ def admin_customer_offer_form(customer_name):
     if not cust:
         return redirect('/admin/customers')
         
-    # Generate default Quotation Number: NAG/26-27/XXXX
-    import random
-    q_no = f"NAG/26-27/{random.randint(3000, 9999)}"
+    # Generate sequential Quotation Number: NAG/26-27/XXXX
+    try:
+        curr_num = int(get_setting('last_quotation_number', '6674'))
+    except (ValueError, TypeError):
+        curr_num = 6674
+    next_num = curr_num + 1
+    set_setting('last_quotation_number', str(next_num))
+    q_no = f"NAG/26-27/{next_num}"
     
     # Format today's date with suffix (e.g. 25th May 2026)
     today = date.today()
@@ -5038,8 +5124,14 @@ def admin_customer_offer_form(customer_name):
 @admin_required
 def admin_offer_new():
     """Standalone Commercial Offer form — not tied to a registered customer."""
-    import random
-    q_no = f"NAG/26-27/{random.randint(3000, 9999)}"
+    # Generate sequential Quotation Number: NAG/26-27/XXXX
+    try:
+        curr_num = int(get_setting('last_quotation_number', '6674'))
+    except (ValueError, TypeError):
+        curr_num = 6674
+    next_num = curr_num + 1
+    set_setting('last_quotation_number', str(next_num))
+    q_no = f"NAG/26-27/{next_num}"
     today = date.today()
     day = today.day
     suffix = "th" if 4 <= day <= 20 or 24 <= day <= 30 else ["st", "nd", "rd"][day % 10 - 1]
@@ -6490,6 +6582,93 @@ def start_scheduler():
     scheduler.add_job(run_sync, 'interval', minutes=5)
     scheduler.start()
     print("Background sync scheduler started successfully.")
+
+# ── Admin Scanning (Internal Logs) ──────────────────────────────────────────────
+@app.route('/admin/scanner')
+@admin_required
+def admin_scanner_page():
+    ensure_customer_columns()
+    all_customers = [c['name'] for c in get_all_customer_info() if c['name']]
+    return render_template('admin_scanner.html', customers=sorted(list(set(all_customers))))
+
+@app.route('/admin/scanner/logs')
+@admin_required
+def admin_scanner_logs():
+    logs = []
+    if os.environ.get('DATABASE_URL'):
+        from models import AdminScanLog
+        logs = AdminScanLog.query.order_by(AdminScanLog.id.desc()).all()
+        logs = [log.to_dict() for log in logs]
+    return render_template('admin_scan_logs.html', logs=logs)
+
+@app.route('/admin/scanner/submit', methods=['POST'])
+@admin_required
+def admin_scanner_submit():
+    data = request.json
+    action = data.get('action')
+    customer = data.get('customer')
+    uids = data.get('uids', [])
+    if not uids or not action:
+        return jsonify({'error': 'Missing required fields'}), 400
+
+    admin_name = session.get('user', {}).get('name', 'Admin')
+    now = datetime.now()
+    d_str = now.strftime('%d-%m-%Y')
+    t_str = now.strftime('%H:%M:%S')
+
+    # Resolve gas types for each uid
+    cyls_dict = {}
+    if os.environ.get('DATABASE_URL'):
+        db_cyls = Cylinder.query.filter(Cylinder.uid.in_(uids)).all()
+        cyls_dict = {c.uid.upper(): c.gas_type for c in db_cyls}
+    else:
+        sheet_cyls = get_all_cylinders()
+        for c in sheet_cyls:
+            if c['uid'].upper() in [u.upper() for u in uids]:
+                cyls_dict[c['uid'].upper()] = c.get('gas_type', '')
+
+    rows_to_append = []
+    if os.environ.get('DATABASE_URL'):
+        from models import AdminScanLog
+        try:
+            with db.session.no_autoflush:
+                for uid in uids:
+                    uid_upper = uid.upper()
+                    gas = cyls_dict.get(uid_upper, '')
+                    log = AdminScanLog(
+                        scan_date=d_str,
+                        scan_time=t_str,
+                        cylinder_uid=uid_upper,
+                        gas_type=gas,
+                        customer=customer,
+                        action=action,
+                        admin_name=admin_name
+                    )
+                    db.session.add(log)
+                    rows_to_append.append([d_str, t_str, uid_upper, gas, customer, action, admin_name])
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'error': str(e)}), 500
+
+    # Append to Google Sheets 'AdminScans' tab
+    def _append_admin_scans():
+        try:
+            client = gspread.authorize(creds)
+            sheet = client.open(SHEET_NAME)
+            try:
+                ws = sheet.worksheet("AdminScans")
+            except gspread.exceptions.WorksheetNotFound:
+                ws = sheet.add_worksheet(title="AdminScans", rows="1000", cols="10")
+                ws.append_row(["Date", "Time", "UID", "Gas Type", "Customer", "Action", "Admin Name"])
+            sheets_write_with_retry(ws.append_rows, rows_to_append)
+        except Exception as e:
+            print("[admin_scanner] Error appending to Sheets:", e)
+            
+    threading.Thread(target=_append_admin_scans).start()
+
+    return jsonify({'success': True, 'count': len(uids)})
+
 
 if __name__ == '__main__':
     start_scheduler()

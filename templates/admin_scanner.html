@@ -1,0 +1,218 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Admin Scanner{% endblock %}
+
+{% block head %}
+<script src="https://unpkg.com/html5-qrcode"></script>
+<style>
+  .scanner-page { max-width: 600px; margin: 0 auto; padding-bottom: 40px; }
+  .page-header { margin-bottom: 24px; }
+  .page-title { font-size: 22px; font-weight: 600; color: var(--green-900); }
+  .page-sub { font-size: 14px; color: var(--gray-700); margin-top: 4px; }
+  
+  .form-section {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    border-top: 4px solid var(--green-700);
+  }
+  .form-group { margin-bottom: 16px; }
+  .form-group label { display: block; font-size: 13px; font-weight: 600; color: var(--dark-text); margin-bottom: 6px; }
+  .form-group select, .form-group input {
+    width: 100%; padding: 10px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px;
+    font-size: 14px; outline: none; transition: border-color 0.15s;
+  }
+  .form-group select:focus, .form-group input:focus { border-color: var(--green-500); }
+  
+  #reader { width: 100%; border-radius: 8px; overflow: hidden; border: 1.5px solid var(--gray-bd); margin-bottom: 16px; }
+  #reader video { width: 100% !important; object-fit: cover; }
+  
+  .scan-feed {
+    max-height: 250px; overflow-y: auto; border: 1.5px solid var(--gray-bd);
+    border-radius: 8px; background: #fafafa; padding: 10px; margin-bottom: 16px;
+  }
+  .feed-item {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px; border-bottom: 1px dashed var(--gray-bd);
+  }
+  .feed-item:last-child { border-bottom: none; }
+  .feed-uid { font-weight: 600; font-size: 14px; }
+  .feed-remove { color: #dc3545; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 5px; }
+  
+  .btn-submit {
+    width: 100%; padding: 14px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 10px; font-size: 15px; font-weight: 600;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .btn-submit:hover { background: var(--green-500); }
+  .btn-submit:disabled { background: var(--gray-200); cursor: not-allowed; }
+  
+  .status-text { text-align: center; font-size: 14px; font-weight: 500; color: var(--green-700); height: 20px; margin-bottom: 10px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scanner-page">
+  <div class="page-header">
+    <h1 class="page-title">Admin Scanner (Internal Log)</h1>
+    <p class="page-sub">Scan cylinders for internal tracking. This does NOT change the real cylinder status.</p>
+  </div>
+  
+  <div class="form-section">
+    <div class="form-group">
+      <label>Action</label>
+      <select id="action-select">
+        <option value="Delivery">Delivery</option>
+        <option value="Collection">Collection</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Customer (Optional for internal notes)</label>
+      <select id="customer-select">
+        <option value="">-- Select Customer --</option>
+        {% for name in customers %}
+          <option value="{{ name }}">{{ name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+  </div>
+  
+  <div class="form-section">
+    <label style="display:block; font-size:13px; font-weight:600; margin-bottom:8px;">Camera Scanner</label>
+    <div id="reader"></div>
+    <div class="status-text" id="status-text"></div>
+    
+    <label style="display:block; font-size:13px; font-weight:600; margin-bottom:8px;">Scanned Cylinders (<span id="scan-count">0</span>)</label>
+    <div class="scan-feed" id="scan-feed">
+      <div id="empty-state" style="text-align:center; padding: 20px; color: var(--gray-700); font-size: 13px;">No cylinders scanned yet.</div>
+    </div>
+    
+    <div class="form-group" style="display: flex; gap: 8px;">
+      <input type="text" id="manual-uid" placeholder="Manual UID entry" onkeypress="if(event.key === 'Enter') addManual()">
+      <button type="button" onclick="addManual()" style="padding: 0 16px; border-radius: 8px; border: 1.5px solid var(--green-700); background: #fff; color: var(--green-700); font-weight: 600; cursor: pointer;">Add</button>
+    </div>
+    
+    <button class="btn-submit" id="submit-btn" onclick="submitScans()" disabled>Save Admin Log</button>
+  </div>
+</div>
+
+<script>
+  let scannedUIDs = new Set();
+  const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  let scanLocked = false;
+
+  function updateFeed() {
+    const feed = document.getElementById('scan-feed');
+    const emptyState = document.getElementById('empty-state');
+    const submitBtn = document.getElementById('submit-btn');
+    document.getElementById('scan-count').innerText = scannedUIDs.size;
+    
+    if (scannedUIDs.size === 0) {
+      feed.innerHTML = '<div id="empty-state" style="text-align:center; padding: 20px; color: var(--gray-700); font-size: 13px;">No cylinders scanned yet.</div>';
+      submitBtn.disabled = true;
+      return;
+    }
+    
+    submitBtn.disabled = false;
+    feed.innerHTML = '';
+    const arr = Array.from(scannedUIDs).reverse();
+    arr.forEach(uid => {
+      const item = document.createElement('div');
+      item.className = 'feed-item';
+      item.innerHTML = `
+        <span class="feed-uid">${uid}</span>
+        <span class="feed-remove" onclick="removeUID('${uid}')">×</span>
+      `;
+      feed.appendChild(item);
+    });
+  }
+
+  function addUID(uid) {
+    uid = uid.trim().toUpperCase();
+    if (!uid) return;
+    if (scannedUIDs.has(uid)) {
+      showStatus("⚠ Already scanned: " + uid);
+      return;
+    }
+    scannedUIDs.add(uid);
+    beep.play();
+    showStatus("✓ Added: " + uid);
+    updateFeed();
+  }
+
+  function removeUID(uid) {
+    scannedUIDs.delete(uid);
+    updateFeed();
+  }
+  
+  function addManual() {
+    const input = document.getElementById('manual-uid');
+    addUID(input.value);
+    input.value = '';
+  }
+
+  function showStatus(msg) {
+    const el = document.getElementById('status-text');
+    el.innerText = msg;
+    setTimeout(() => { el.innerText = ''; }, 2000);
+  }
+
+  function onScanSuccess(decodedText) {
+    if (scanLocked) return;
+    scanLocked = true;
+    
+    if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.pause === "function") {
+      try { html5QrcodeScanner.pause(true); } catch (e) { }
+    }
+    
+    addUID(decodedText);
+    
+    setTimeout(() => {
+      scanLocked = false;
+      if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
+        try { html5QrcodeScanner.resume(); } catch (e) { }
+      }
+    }, 0); // 0ms delay for rapid scanning
+  }
+
+  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+  html5QrcodeScanner.render(onScanSuccess);
+  
+  async function submitScans() {
+    if (scannedUIDs.size === 0) return;
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerText = "Saving...";
+    
+    const payload = {
+      action: document.getElementById('action-select').value,
+      customer: document.getElementById('customer-select').value,
+      uids: Array.from(scannedUIDs)
+    };
+    
+    try {
+      const res = await fetch('/admin/scanner/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to submit");
+      }
+      alert("Admin log saved successfully!");
+      scannedUIDs.clear();
+      updateFeed();
+      document.getElementById('customer-select').value = "";
+    } catch (err) {
+      alert("Error: " + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Save Admin Log";
+    }
+  }
+</script>
+{% endblock %}

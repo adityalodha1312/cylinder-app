@@ -46,7 +46,7 @@
 
   .form-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    grid-template-columns: repeat(2, 1fr);
     gap: 18px;
   }
   .form-group { display: flex; flex-direction: column; gap: 6px; }
@@ -68,6 +68,19 @@
   .form-group input:focus,
   .form-group select:focus { border-color: var(--green-500); }
   .form-group .hint { font-size: 11.5px; color: var(--gray-text); line-height: 1.4; }
+
+  /* ── Mobile: single column ── */
+  @media (max-width: 600px) {
+    .form-grid {
+      grid-template-columns: 1fr;
+    }
+    .form-group[style*="grid-column"] {
+      grid-column: span 1 !important;
+    }
+    .form-section {
+      padding: 18px 16px;
+    }
+  }
 
   /* Quote table */
   .quote-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
