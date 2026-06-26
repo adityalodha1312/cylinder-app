@@ -620,6 +620,19 @@
       </svg>
     </div>
 
+    <!-- Customer field — shown below scan mode when Delivery or Collection is selected -->
+    <div class="field" id="customer-field" style="display: none; margin-top: 12px;">
+      <label>Customer Name</label>
+      <div class="autocomplete-container">
+        <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+        <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
+          {% for name in customers %}
+            <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
   </div>
 
   <!-- PROGRESS TRACKER -->
@@ -638,18 +651,6 @@
     <div class="field">
       <label>{% if user and user['role'] == 'filler' %}Filler Name{% else %}Driver Name{% endif %}</label>
       <input type="text" id="driver-input" value="{{ user['name'] if user else '' }}" readonly style="background: var(--green-50); border-color: var(--green-100); font-weight: 600; cursor: not-allowed;">
-    </div>
-
-    <div class="field" id="customer-field" style="display: none;">
-      <label>Customer Name</label>
-      <div class="autocomplete-container">
-        <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
-        <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
-          {% for name in customers %}
-            <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
-          {% endfor %}
-        </div>
-      </div>
     </div>
 
     <button class="submit-btn" style="margin-top: 10px;" onclick="goToStep(2)">Continue to Scan</button>
@@ -1318,7 +1319,7 @@ function onScanSuccess(decodedText) {
         if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
           try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
         }
-      }, 2000);
+      }, 300);
       return;
     }
   }
@@ -1357,7 +1358,7 @@ function onScanSuccess(decodedText) {
     if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
       try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
     }
-  }, 2000);
+  }, 300);
 }
 
 let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 220 });
