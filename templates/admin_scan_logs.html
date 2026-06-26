@@ -49,6 +49,7 @@
         <th>Last Known Cust. (Auto)</th>
         <th>Last Activity (Auto)</th>
         <th>Aging (Auto)</th>
+        <th>Options</th>
       </tr>
     </thead>
     <tbody>
@@ -75,6 +76,11 @@
           {% else %}
             -
           {% endif %}
+        </td>
+        <td>
+          <form action="/admin/scanner/logs/{{ log.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this internal scan log?');">
+            <button type="submit" style="background: none; border: none; color: #dc3545; cursor: pointer; text-decoration: underline; font-size: 13px;">Delete</button>
+          </form>
         </td>
       </tr>
       {% endfor %}

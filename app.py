@@ -6605,6 +6605,24 @@ def admin_scanner_logs():
         logs = [log.to_dict() for log in logs]
     return render_template('admin_scan_logs.html', logs=logs)
 
+@app.route('/admin/scanner/logs/<int:log_id>/delete', methods=['POST'])
+@admin_required
+def admin_scanner_logs_delete(log_id):
+    if not os.environ.get('DATABASE_URL'):
+        flash("Delete requires database.", "error")
+        return redirect(url_for('admin_scanner_logs'))
+        
+    from models import AdminScanLog
+    log = AdminScanLog.query.get_or_404(log_id)
+    try:
+        db.session.delete(log)
+        db.session.commit()
+        flash("Scan log deleted successfully.", "success")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error deleting log: {str(e)}", "error")
+    return redirect(url_for('admin_scanner_logs'))
+
 @app.route('/admin/scanner/submit', methods=['POST'])
 @admin_required
 def admin_scanner_submit():
