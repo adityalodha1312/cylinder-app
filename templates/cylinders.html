@@ -193,6 +193,26 @@
     background: var(--green-50);
     color: var(--green-700);
   }
+  @media (max-width: 768px) {
+    .header-actions {
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      width: 100%;
+    }
+    .header-actions > * {
+      flex: 1 1 calc(50% - 5px);
+      justify-content: center;
+      white-space: nowrap;
+    }
+    .header-actions form {
+      flex: 1 1 calc(50% - 5px);
+      display: flex;
+    }
+    .header-actions form button {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 </style>
 {% endblock %}
 
@@ -212,22 +232,22 @@
     <h1 class="page-title">Cylinder Registry</h1>
     <p class="page-sub">Master asset list of all cylinders with hydro-test tracking</p>
   </div>
-  <div style="display: flex; gap: 10px; align-items: center;">
-    <button class="btn-add-cyl" style="background: #4f46e5; border: none; cursor: pointer; color: white; display: flex; align-items: center; gap: 6px;" onclick="document.getElementById('uploadModal').style.display='flex'">
+  <div class="header-actions" style="display: flex; gap: 10px; align-items: center;">
+    <button class="btn-add-cyl" style="background: #4f46e5; border: none; cursor: pointer; color: white; display: flex; align-items: center; gap: 6px; white-space: nowrap;" onclick="document.getElementById('uploadModal').style.display='flex'">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
       </svg>
       Bulk Upload
     </button>
     <form action="/admin/cylinders/sync_sheets" method="POST" style="margin: 0;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Syncing...';">
-      <button type="submit" class="btn-add-cyl" style="background: #10b981; border: none; cursor: pointer; color: white; display: flex; align-items: center; gap: 6px;">
+      <button type="submit" class="btn-add-cyl" style="background: #10b981; border: none; cursor: pointer; color: white; display: flex; align-items: center; gap: 6px; white-space: nowrap;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
         </svg>
         Sync Sheets
       </button>
     </form>
-    <button class="btn-add-cyl" style="background: #dc2626; border: none; color: white; display: flex; align-items: center; gap: 6px;" onclick="confirmBulkDelete()" id="btnBulkDelete" disabled>
+    <button class="btn-add-cyl" style="background: #dc2626; border: none; color: white; display: flex; align-items: center; gap: 6px; white-space: nowrap;" onclick="confirmBulkDelete()" id="btnBulkDelete" disabled>
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
         <polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
       </svg>
@@ -470,14 +490,14 @@
             <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
               {{ c.uid }}
               {% if c.gas_type %}
-                <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim if c.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if c.gas_type else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
                   {{ c.gas_type }}
                 </span>
               {% endif %}
             </a>
           </td>
           <td>
-            <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim if c.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+            <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if c.gas_type else 'gen' }}">
               {{ c.gas_type or '—' }}
             </span>
           </td>
@@ -581,20 +601,20 @@
             <a class="uid-link" href="/admin/cylinders/{{ c.uid }}" style="display: inline-flex; align-items: center; gap: 4px;">
               {{ c.uid }}
               {% if c.gas_type %}
-                <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim if c.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
+                <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if c.gas_type else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
                   {{ c.gas_type }}
                 </span>
               {% endif %}
             </a>
           </td>
           <td>
-            <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim if c.gas_type|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+            <span class="gas-badge gas-badge-{{ c.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if c.gas_type else 'gen' }}">
               {{ c.gas_type or '—' }}
             </span>
           </td>
           <td>
             {% if c.previous_gas %}
-              <span class="gas-badge gas-badge-{{ c.previous_gas|lower|trim if c.previous_gas|lower|trim in ['arg', 'oxy', 'n2', 'co2', 'acm', 'ahm'] else 'gen' }}">
+              <span class="gas-badge gas-badge-{{ c.previous_gas|lower|trim|replace(' ', '-')|replace('.', '') if c.previous_gas else 'gen' }}">
                 {{ c.previous_gas }}
               </span>
             {% else %}
