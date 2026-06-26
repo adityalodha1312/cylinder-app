@@ -3069,7 +3069,7 @@ def admin_cylinders():
 def admin_cylinders_sync_sheets():
     def run_sync():
         try:
-            from app import doc, CYLINDER_SHEET_NAME, CYLINDER_MAINT_NAME
+            from app import doc, CYLINDER_SHEET_NAME, CYLINDER_MAINT_NAME, USERS_SHEET_NAME
             if not doc:
                 return
             cylinders = Cylinder.query.all()
@@ -3104,6 +3104,20 @@ def admin_cylinders_sync_sheets():
                     maint_ws.append_rows(maint_rows)
             except Exception as e:
                 print("Error with Maintenance sheet:", e)
+
+            try:
+                users_ws = doc.worksheet(USERS_SHEET_NAME)
+                users_ws.resize(1)
+                users = User.query.all()
+                user_rows = []
+                for u in users:
+                    user_rows.append([
+                        u.username, u.password, u.role, u.name or u.username
+                    ])
+                if user_rows:
+                    users_ws.append_rows(user_rows)
+            except Exception as e:
+                print("Error with Users sheet sync:", e)
                 
         except Exception as e:
             print("[sheets] Error forcing sync:", e)
