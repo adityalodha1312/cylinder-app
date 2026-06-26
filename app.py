@@ -3433,7 +3433,8 @@ def admin_cylinders_edit(uid):
                         raise se
                         
             async_sheets_write(background_edit_cylinder_sheets)
-
+            
+            flash("Cylinder updated successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
             merged = {**cyl, **maint}
