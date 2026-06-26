@@ -1442,6 +1442,213 @@ def admin_activity():
         today_str = today_str
     )
 
+@app.route('/admin/activity/delete', methods=['POST'])
+@admin_required
+def delete_activity():
+    user = session.get('user')
+    if user.get('role') not in ['manager', 'owner']:
+        flash("Unauthorized: Only managers/owners can delete activity records.", "danger")
+        return redirect('/admin/activity')
+        
+    date_str = request.form.get('date', '').strip()
+    time_str = request.form.get('time', '').strip()
+    driver   = request.form.get('driver', '').strip()
+    action   = request.form.get('action', '').strip()
+    customer = request.form.get('customer', '').strip()
+
+    if not date_str or not action:
+        flash("Invalid activity parameters.", "danger")
+        return redirect('/admin/activity')
+
+    db_written = False
+    uids_to_revert = []
+    rows_to_del_data = []
+    
+    if os.environ.get('DATABASE_URL'):
+        try:
+            # Find scans to delete in DB
+            query = Scan.query.filter(
+                Scan.scan_date == date_str,
+                Scan.action == action
+            )
+            if time_str:
+                query = query.filter(Scan.scan_time == time_str)
+            if driver:
+                query = query.filter(Scan.driver == driver)
+            
+            scans_to_delete = query.all()
+            matched_scans = []
+            for s in scans_to_delete:
+                s_cust = s.customer or ''
+                s_cust_display = s_cust if s_cust else ('Depot' if s.action == 'Filling' else '—')
+                if s_cust_display.lower() == customer.lower() or s_cust.lower() == customer.lower():
+                    matched_scans.append(s)
+                    
+            if not matched_scans:
+                flash("No matching activity scans found in database.", "warning")
+                return redirect('/admin/activity')
+                
+            uids_to_revert = list(set(s.cylinder_uid for s in matched_scans))
+            rows_to_del_data = [{
+                'date': s.scan_date,
+                'time': s.scan_time or '',
+                'driver': s.driver or '',
+                'action': s.action,
+                'uid': s.cylinder_uid
+            } for s in matched_scans]
+            
+            # Delete the scans
+            for s in matched_scans:
+                db.session.delete(s)
+                
+            # Revert Cylinder statuses
+            for uid in uids_to_revert:
+                all_prev = Scan.query.filter(
+                    Scan.cylinder_uid.ilike(uid)
+                ).all()
+                remaining = [s for s in all_prev if s.id not in [m.id for m in matched_scans]]
+                
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                if c_db:
+                    if remaining:
+                        remaining.sort(key=lambda s: (parse_date(s.scan_date) or date.min, s.scan_time or ''), reverse=True)
+                        latest = remaining[0]
+                        if latest.action == 'Delivery':
+                            c_db.status = 'Delivered'
+                            c_db.location = latest.customer or 'Customer'
+                        elif latest.action == 'Collection':
+                            c_db.status = 'Empty'
+                            c_db.location = 'Depot'
+                        elif latest.action == 'Filling':
+                            c_db.status = 'Filled'
+                            c_db.location = 'Depot'
+                        c_db.last_activity_date = latest.scan_date
+                    else:
+                        c_db.status = 'Active'
+                        c_db.location = 'Depot'
+                        c_db.last_activity_date = ''
+
+            # Delete from CustomerMap
+            cmap_query = CustomerMap.query.filter(
+                CustomerMap.scan_date == date_str,
+                CustomerMap.action == action
+            )
+            if time_str:
+                cmap_query = cmap_query.filter(CustomerMap.scan_time == time_str)
+            if driver:
+                cmap_query = cmap_query.filter(CustomerMap.driver == driver)
+                
+            cmaps = cmap_query.all()
+            for cmap in cmaps:
+                cmap_cust = cmap.customer or ''
+                cmap_cust_display = cmap_cust if cmap_cust else ('Depot' if cmap.action == 'Filling' else '—')
+                if cmap_cust_display.lower() == customer.lower() or cmap_cust.lower() == customer.lower():
+                    db.session.delete(cmap)
+
+            db.session.commit()
+            db_written = True
+            
+        except Exception as dbe:
+            db.session.rollback()
+            print("[db] Error deleting activity scans:", dbe)
+            flash(f"Database error deleting activity: {str(dbe)}", "danger")
+            return redirect('/admin/activity')
+
+    # Build revert map for sheets
+    revert_map = {}
+    if os.environ.get('DATABASE_URL'):
+        for uid in uids_to_revert:
+            c_db = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+            if c_db:
+                revert_map[uid.upper()] = {
+                    'status': c_db.status or 'Active',
+                    'location': c_db.location or 'Depot',
+                    'last_activity': c_db.last_activity_date or ''
+                }
+            else:
+                revert_map[uid.upper()] = {
+                    'status': 'Active',
+                    'location': 'Depot',
+                    'last_activity': ''
+                }
+    else:
+        rows_to_del_data = [{
+            'date': date_str,
+            'time': time_str,
+            'driver': driver,
+            'action': action,
+            'uid': ''
+        }]
+
+    # Offload Sheets deletes to background
+    def background_delete_activity_sheets():
+        try:
+            global sheet, cyl_ws, doc
+            if sheet is None and doc:
+                try: sheet = doc.worksheet(SCAN_SHEET_NAME)
+                except Exception: pass
+            if cyl_ws is None and doc:
+                try: cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception: pass
+
+            if sheet and rows_to_del_data:
+                all_rows = sheet.get_all_values()
+                rows_to_delete_indices = []
+                for idx, r in enumerate(all_rows):
+                    if idx == 0:
+                        continue
+                    r_date   = r[0].strip() if len(r) > 0 else ''
+                    r_time   = r[1].strip() if len(r) > 1 else ''
+                    r_driver = r[2].strip() if len(r) > 2 else ''
+                    r_action = r[3].strip() if len(r) > 3 else ''
+                    r_uid    = r[4].strip() if len(r) > 4 else ''
+                    r_cust   = r[5].strip() if len(r) > 5 else ''
+                    
+                    for d_row in rows_to_del_data:
+                        date_matches = (r_date == d_row['date'])
+                        action_matches = (r_action == d_row['action'])
+                        time_matches = (not d_row['time'] or r_time == d_row['time'])
+                        driver_matches = (not d_row['driver'] or r_driver.lower() == d_row['driver'].lower())
+                        uid_matches = (not d_row['uid'] or r_uid.lower() == d_row['uid'].lower())
+                        
+                        if date_matches and action_matches and time_matches and driver_matches and uid_matches:
+                            r_cust_display = r_cust if r_cust else ('Depot' if r_action == 'Filling' else '—')
+                            if r_cust_display.lower() == customer.lower() or r_cust.lower() == customer.lower():
+                                rows_to_delete_indices.append(idx + 1)
+                                break
+                
+                rows_to_delete_indices.sort(reverse=True)
+                for row_idx in rows_to_delete_indices:
+                    sheets_write_with_retry(sheet.delete_rows, row_idx)
+
+            if cyl_ws and revert_map:
+                cyl_rows = cyl_ws.get_all_values()
+                uid_row_map = {}
+                for idx, r in enumerate(cyl_rows):
+                    if idx == 0:
+                        continue
+                    if r and r[0].strip():
+                        uid_row_map[r[0].strip().upper()] = idx + 1
+                
+                batch_data = []
+                for uid_upper, state in revert_map.items():
+                    row_num = uid_row_map.get(uid_upper)
+                    if row_num:
+                        batch_data.append({
+                            'range': f'E{row_num}:G{row_num}',
+                            'values': [[state['status'], state['location'], state['last_activity']]]
+                        })
+                if batch_data:
+                    sheets_write_with_retry(cyl_ws.batch_update, batch_data)
+                    
+        except Exception as se:
+            print("[sheets] Error mirroring activity deletion to Sheets:", se)
+
+    async_sheets_write(background_delete_activity_sheets)
+
+    flash("Activity record deleted successfully.", "success")
+    return redirect('/admin/activity')
+
 @app.route('/admin/daily_summary')
 @admin_required
 def admin_daily_summary():
@@ -5261,55 +5468,67 @@ def submit():
             if not is_connection_error:
                 return f"Database error logging scans: {str(dbe)}", 500
 
-    # Mirror to Sheets
-    try:
-        if rows_to_append:
-            sheets_write_with_retry(sheet.append_rows, rows_to_append)
+    # Mirror to Sheets in background
+    def background_mirror_scans():
+        try:
+            global sheet, cyl_ws, doc
+            if sheet is None and doc:
+                try:
+                    sheet = doc.worksheet(SCAN_SHEET_NAME)
+                except Exception:
+                    pass
+            if cyl_ws is None and doc:
+                try:
+                    cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                except Exception:
+                    pass
 
-        # Auto-update Cylinders registry sheet for each scanned UID
-        if cyl_ws is None and doc:
-            try:
-                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-            except Exception:
-                cyl_ws = None
-        if cyl_ws and rows_to_append:
-            cyl_rows = cyl_ws.get_all_values()
-            # Build UID → row index map
-            uid_row_map = {}
-            for idx, r in enumerate(cyl_rows):
-                if idx == 0:
-                    continue
-                if r and r[0].strip():
-                    uid_row_map[r[0].strip().upper()] = idx + 1
+            if sheet and rows_to_append:
+                sheets_write_with_retry(sheet.append_rows, rows_to_append)
 
-            today_str = datetime.now().strftime('%d-%m-%Y')
-            for row_data in rows_to_append:
-                scan_uid    = row_data[4].strip().upper()
-                scan_action = row_data[3].strip()
-                scan_cust   = row_data[5].strip() if len(row_data) > 5 else ''
-                row_num = uid_row_map.get(scan_uid)
-                if not row_num:
-                    continue  # UID not in registry — skip silently
-                if scan_action == 'Delivery':
-                    new_status   = 'Delivered'
-                    new_location = scan_cust or 'Customer'
-                elif scan_action == 'Collection':
-                    new_status   = 'Empty'
-                    new_location = 'Depot'
-                elif scan_action == 'Filling':
-                    new_status   = 'Filled'
-                    new_location = 'Depot'
-                else:
-                    continue
-                cyl_ws.update(f'E{row_num}:G{row_num}',
-                              [[new_status, new_location, today_str]])
-    except Exception as se:
-        print("[sheets] Error mirroring scans to Google Sheets:", se)
-        if not db_written:
-            raise se
+            if cyl_ws and rows_to_append:
+                cyl_rows = cyl_ws.get_all_values()
+                # Build UID → row index map
+                uid_row_map = {}
+                for idx, r in enumerate(cyl_rows):
+                    if idx == 0:
+                        continue
+                    if r and r[0].strip():
+                        uid_row_map[r[0].strip().upper()] = idx + 1
+
+                today_str = datetime.now().strftime('%d-%m-%Y')
+                batch_data = []
+                for row_data in rows_to_append:
+                    scan_uid    = row_data[4].strip().upper()
+                    scan_action = row_data[3].strip()
+                    scan_cust   = row_data[5].strip() if len(row_data) > 5 else ''
+                    row_num = uid_row_map.get(scan_uid)
+                    if not row_num:
+                        continue  # UID not in registry — skip silently
+                    if scan_action == 'Delivery':
+                        new_status   = 'Delivered'
+                        new_location = scan_cust or 'Customer'
+                    elif scan_action == 'Collection':
+                        new_status   = 'Empty'
+                        new_location = 'Depot'
+                    elif scan_action == 'Filling':
+                        new_status   = 'Filled'
+                        new_location = 'Depot'
+                    else:
+                        continue
+                    batch_data.append({
+                        'range': f'E{row_num}:G{row_num}',
+                        'values': [[new_status, new_location, today_str]]
+                    })
+                if batch_data:
+                    sheets_write_with_retry(cyl_ws.batch_update, batch_data)
+        except Exception as se:
+            print("[sheets] Error mirroring scans to Google Sheets in background:", se)
+
+    async_sheets_write(background_mirror_scans)
 
     clear_cache()
-    return f"{len(valid_cylinders)} cylinders saved successfully"
+    return f"{len(parsed_scans)} cylinders saved successfully"
 
 @app.route('/manager')
 def manager():
