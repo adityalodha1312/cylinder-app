@@ -51,6 +51,10 @@
     background-color: #e1f5ee;
     color: #0f6e56;
   }
+  .role-filler {
+    background-color: #f3e8ff;
+    color: #7e22ce;
+  }
   .btn-action-edit {
     display: inline-flex;
     align-items: center;
@@ -117,7 +121,7 @@
         <td style="font-weight: 600; color: var(--dark-text);">{{ u.name or u.username }}</td>
         <td>{{ u.username }}</td>
         <td>
-          <span class="role-badge {% if u.role == 'owner' %}role-owner{% elif u.role == 'manager' %}role-manager{% else %}role-driver{% endif %}">
+          <span class="role-badge {% if u.role == 'owner' %}role-owner{% elif u.role == 'manager' %}role-manager{% elif u.role == 'filler' %}role-filler{% else %}role-driver{% endif %}">
             {{ u.role or 'driver' }}
           </span>
         </td>

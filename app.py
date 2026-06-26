@@ -3510,8 +3510,10 @@ def admin_cylinders_add():
 
             async_sheets_write(background_add_cylinder_sheets)
 
+            flash(f"Cylinder '{uid}' added successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
+            flash(f"Error adding cylinder: {str(e)}", "danger")
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
                 error=str(e), form=data,
@@ -3683,6 +3685,7 @@ def admin_cylinders_edit(uid):
             flash("Cylinder updated successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
+            flash(f"Error updating cylinder: {str(e)}", "danger")
             merged = {**cyl, **maint}
             return render_template('cylinders_form.html',
                 user=session['user'], mode='edit',
@@ -4218,7 +4221,7 @@ def admin_users_add():
         if existing:
             return render_template('users_form.html', user=session['user'], mode='add', error=f"Username '{username}' is already taken.", form=request.form)
 
-        if role not in ['driver', 'manager', 'owner']:
+        if role not in ['driver', 'filler', 'manager', 'owner']:
             return render_template('users_form.html', user=session['user'], mode='add', error="Invalid role selected.", form=request.form)
 
         try:
@@ -4250,6 +4253,7 @@ def admin_users_add():
             
         except Exception as e:
             db.session.rollback()
+            flash(f"Error adding user: {str(e)}", "danger")
             return render_template('users_form.html', user=session['user'], mode='add', error=f"Database error: {str(e)}", form=request.form)
 
     return render_template('users_form.html', user=session['user'], mode='add', error=None, form={})
@@ -4276,7 +4280,7 @@ def admin_users_edit(user_id):
         if existing:
             return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Username '{username}' is already taken.", form=request.form)
 
-        if role not in ['driver', 'manager', 'owner']:
+        if role not in ['driver', 'filler', 'manager', 'owner']:
             return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error="Invalid role selected.", form=request.form)
 
         old_username = target_user.username
@@ -4324,6 +4328,7 @@ def admin_users_edit(user_id):
             
         except Exception as e:
             db.session.rollback()
+            flash(f"Error updating user: {str(e)}", "danger")
             return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Database error: {str(e)}", form=request.form)
 
     # Prepopulate form
@@ -4589,8 +4594,10 @@ def admin_customers_add():
             async_sheets_write(background_add_customer_sheets)
 
             clear_cache()
+            flash("Customer added successfully!", "success")
             return redirect('/admin/customers')
         except Exception as e:
+            flash(f"Error adding customer: {str(e)}", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='add',
                 error=str(e), form=request.form)
@@ -4682,8 +4689,10 @@ def admin_customers_edit(customer_name):
             async_sheets_write(background_edit_customer_sheets)
 
             clear_cache()
+            flash("Customer updated successfully!", "success")
             return redirect(f'/admin/customers/{name}')
         except Exception as e:
+            flash(f"Error updating customer: {str(e)}", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='edit', uid=customer_name,
                 error=str(e), form=request.form)
