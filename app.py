@@ -1367,6 +1367,31 @@ def logout():
 def admin():
     return redirect('/admin/dashboard')
 
+@app.route('/admin/sync_from_sheets', methods=['POST'])
+@admin_required
+def admin_sync_from_sheets():
+    user = session.get('user')
+    if user.get('role') not in ['manager', 'owner']:
+        flash("Unauthorized: Only managers/owners can trigger a manual sync.", "danger")
+        return redirect('/admin/dashboard')
+        
+    try:
+        from sync import sync_sheets_to_db
+        if doc:
+            success = sync_sheets_to_db(doc)
+            if success:
+                clear_cache()
+                flash("Successfully synced all tables (Scans, Cylinders, Customers, etc.) from Google Sheets to database!", "success")
+            else:
+                flash("Sync completed with warnings. Please check the logs.", "warning")
+        else:
+            flash("Sheets document is not connected. Unable to sync.", "danger")
+    except Exception as e:
+        print("[sync] Manual sync error:", e)
+        flash(f"Sync error: {str(e)}", "danger")
+        
+    return redirect('/admin/dashboard')
+
 @app.route('/admin/dashboard')
 @admin_required
 def admin_dashboard():

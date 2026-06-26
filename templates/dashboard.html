@@ -114,9 +114,25 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
-  <div class="page-title">Dashboard</div>
-  <div class="page-sub">Welcome back, {{ user.username if user else 'Admin' }} — here's your overview.</div>
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+  <div>
+    <div class="page-title">Dashboard</div>
+    <div class="page-sub">Welcome back, {{ user.username if user else 'Admin' }} — here's your overview.</div>
+  </div>
+  {% if user.role in ['manager', 'owner'] %}
+  <div>
+    <form action="/admin/sync_from_sheets" method="POST" style="margin: 0;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Syncing...';">
+      <button type="submit" style="background-color: var(--green-600, #1D9E75); color: white; padding: 10px 16px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#127c5b'" onmouseout="this.style.backgroundColor='#1D9E75'">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="23 4 23 10 17 10"></polyline>
+          <polyline points="1 20 1 14 7 14"></polyline>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+        </svg>
+        Sync Sheets → Database
+      </button>
+    </form>
+  </div>
+  {% endif %}
 </div>
 
 <!-- ── KPI CARDS ── -->
