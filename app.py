@@ -2832,6 +2832,58 @@ def admin_cylinders():
         due_soon   = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon'),
     )
 
+@app.route('/admin/cylinders/sync_sheets', methods=['POST'])
+@login_required
+def admin_cylinders_sync_sheets():
+    if not current_user.is_admin:
+        flash("Unauthorized", "danger")
+        return redirect('/admin/cylinders')
+
+    def run_sync():
+        try:
+            from app import doc, CYLINDER_SHEET_NAME, CYLINDER_MAINT_NAME
+            if not doc:
+                return
+            cylinders = Cylinder.query.all()
+            maints = {m.cylinder_uid: m for m in CylinderMaintenance.query.all()}
+            
+            cyl_rows = []
+            maint_rows = []
+            
+            for c in cylinders:
+                cyl_rows.append([
+                    c.uid, c.gas_type, c.cylinder_type, c.owner, c.status, c.location, c.last_activity_date
+                ])
+                m = maints.get(c.uid)
+                if m:
+                    maint_rows.append([
+                        c.uid, m.water_capacity, m.fill_pressure, m.gas_capacity, m.unit, m.is_mixture, '', 
+                        m.manufacture_date, m.last_hydro_date, m.next_hydro_due, m.hydro_test_status, m.cert_no, m.is_uhp
+                    ])
+
+            try:
+                cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                cyl_ws.resize(1)
+                if cyl_rows:
+                    cyl_ws.append_rows(cyl_rows)
+            except Exception as e:
+                print("Error with Cylinders sheet:", e)
+                
+            try:
+                maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                maint_ws.resize(1)
+                if maint_rows:
+                    maint_ws.append_rows(maint_rows)
+            except Exception as e:
+                print("Error with Maintenance sheet:", e)
+                
+        except Exception as e:
+            print("[sheets] Error forcing sync:", e)
+
+    async_sheets_write(run_sync)
+    flash("Background sync to Google Sheets started! Please wait 15-30 seconds for it to fully populate.", "info")
+    return redirect('/admin/cylinders')
+
 @app.route('/admin/cylinders/bulk_delete', methods=['POST'])
 @admin_required
 def admin_cylinders_bulk_delete():
