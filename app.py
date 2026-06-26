@@ -6659,7 +6659,7 @@ def admin_scanner_submit():
             try:
                 ws = sheet.worksheet("AdminScans")
             except gspread.exceptions.WorksheetNotFound:
-                ws = sheet.add_worksheet(title="AdminScans", rows="1000", cols="10")
+                ws = sheet.add_worksheet(title="AdminScans", rows=1000, cols=10)
                 ws.append_row(["Date", "Time", "UID", "Gas Type", "Customer", "Action", "Admin Name"])
             sheets_write_with_retry(ws.append_rows, rows_to_append)
         except Exception as e:

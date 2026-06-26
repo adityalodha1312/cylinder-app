@@ -51,6 +51,20 @@
   .btn-submit:disabled { background: var(--gray-200); cursor: not-allowed; }
   
   .status-text { text-align: center; font-size: 14px; font-weight: 500; color: var(--green-700); height: 20px; margin-bottom: 10px; }
+  
+  /* Searchable Dropdown */
+  .autocomplete-container { position: relative; }
+  .custom-dropdown-list {
+    position: absolute; top: 100%; left: 0; right: 0; background: white;
+    border: 1.5px solid var(--gray-bd); border-radius: 8px; max-height: 200px;
+    overflow-y: auto; z-index: 1000; margin-top: 4px; box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+  .dropdown-item {
+    padding: 10px 12px; font-size: 14px; color: var(--dark-text); cursor: pointer;
+    border-bottom: 1px solid #f0f1ed; text-align: left;
+  }
+  .dropdown-item:last-child { border-bottom: none; }
+  .dropdown-item:hover { background: var(--green-50); color: var(--green-700); font-weight: 500; }
 </style>
 {% endblock %}
 
@@ -69,14 +83,16 @@
         <option value="Collection">Collection</option>
       </select>
     </div>
-    <div class="form-group">
-      <label>Customer (Optional for internal notes)</label>
-      <select id="customer-select">
-        <option value="">-- Select Customer --</option>
-        {% for name in customers %}
-          <option value="{{ name }}">{{ name }}</option>
-        {% endfor %}
-      </select>
+    <div class="form-group" id="customer-field-container">
+      <label>Customer (Optional / Custom allowed)</label>
+      <div class="autocomplete-container">
+        <input type="text" id="customer-select" placeholder="Search or type custom customer name..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+        <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
+          {% for name in customers %}
+            <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
+          {% endfor %}
+        </div>
+      </div>
     </div>
   </div>
   
@@ -103,6 +119,46 @@
   let scannedUIDs = new Set();
   const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
   let scanLocked = false;
+
+  function showCustomerDropdown() {
+    let dropdown = document.getElementById("customer-dropdown");
+    if (dropdown) {
+      dropdown.style.display = "block";
+      filterCustomerDropdown();
+    }
+  }
+
+  function filterCustomerDropdown() {
+    let input = document.getElementById("customer-select").value.toLowerCase().trim();
+    let dropdown = document.getElementById("customer-dropdown");
+    if (!dropdown) return;
+    let items = dropdown.getElementsByClassName("dropdown-item");
+    let hasVisible = false;
+    for (let item of items) {
+      let text = item.textContent.toLowerCase();
+      if (text.includes(input)) {
+        item.style.display = "block";
+        hasVisible = true;
+      } else {
+        item.style.display = "none";
+      }
+    }
+    dropdown.style.display = hasVisible ? "block" : "none";
+  }
+
+  function selectCustomer(name) {
+    document.getElementById("customer-select").value = name;
+    let dropdown = document.getElementById("customer-dropdown");
+    if (dropdown) dropdown.style.display = "none";
+  }
+
+  document.addEventListener("click", function(e) {
+    let container = document.getElementById("customer-field-container");
+    let dropdown = document.getElementById("customer-dropdown");
+    if (container && dropdown && !container.contains(e.target)) {
+      dropdown.style.display = "none";
+    }
+  });
 
   function updateFeed() {
     const feed = document.getElementById('scan-feed');
