@@ -73,19 +73,27 @@
 
     /* Brand */
     .sidebar-brand {
-      padding: 22px 20px 20px;
+      padding: 16px 20px 14px;
       display: flex;
       align-items: center;
       gap: 12px;
       border-bottom: 1px solid rgba(255,255,255,0.12);
       text-decoration: none;
     }
-    .brand-icon {
-      width: 36px; height: 36px;
-      background: rgba(255,255,255,0.18);
+    .brand-logo-wrap {
+      background: #fff;
       border-radius: 10px;
-      display: flex; align-items: center; justify-content: center;
+      padding: 6px 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       flex-shrink: 0;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+    }
+    .brand-logo-wrap img {
+      height: 32px;
+      width: auto;
+      display: block;
     }
     .brand-text { color: #fff; }
     .brand-text .b-title { font-size: 14px; font-weight: 600; line-height: 1.2; }
@@ -596,19 +604,11 @@
 <!-- ── SIDEBAR ── -->
 <aside class="sidebar" id="sidebar">
   <a class="sidebar-brand" href="/admin/dashboard">
-    <div class="brand-icon">
-      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-        <rect x="10" y="4" width="12" height="24" rx="4" fill="rgba(255,255,255,0.3)"/>
-        <rect x="10" y="4" width="12" height="24" rx="4" stroke="white" stroke-width="1.8"/>
-        <ellipse cx="16" cy="4" rx="6" ry="2.5" fill="white" opacity="0.9"/>
-        <ellipse cx="16" cy="28" rx="6" ry="2.5" fill="white" opacity="0.5"/>
-        <line x1="13" y1="11" x2="19" y2="11" stroke="white" stroke-width="1" opacity="0.5"/>
-        <line x1="13" y1="15" x2="19" y2="15" stroke="white" stroke-width="1" opacity="0.5"/>
-      </svg>
+    <div class="brand-logo-wrap">
+      <img src="/static/img/noble_logo.png" alt="Noble Air Gases" />
     </div>
     <div class="brand-text">
-      <div class="b-title">Cylinder Tracker</div>
-      <div class="b-sub">Admin Portal</div>
+      <div class="b-sub" style="font-size:12px; opacity:0.85; font-weight:500; margin-top:0;">Admin Portal</div>
     </div>
   </a>
 
@@ -711,13 +711,10 @@
 
   <!-- Mobile top bar -->
   <div class="top-bar">
-    <div class="tb-brand">
-      <svg width="20" height="20" viewBox="0 0 32 32" fill="none">
-        <rect x="10" y="4" width="12" height="24" rx="4" fill="rgba(255,255,255,0.25)"/>
-        <rect x="10" y="4" width="12" height="24" rx="4" stroke="white" stroke-width="1.8"/>
-        <ellipse cx="16" cy="4" rx="6" ry="2.5" fill="white" opacity="0.9"/>
-        <ellipse cx="16" cy="28" rx="6" ry="2.5" fill="white" opacity="0.6"/>
-      </svg>
+    <div class="tb-brand" style="gap: 10px;">
+      <div style="background:#fff; border-radius:8px; padding:3px 8px; display:flex; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
+        <img src="/static/img/noble_logo.png" alt="Noble Air Gases" style="height:22px; width:auto; display:block;" />
+      </div>
       {{ self.title() }}
     </div>
     <button class="hamburger" id="hamburgerBtn" onclick="toggleSidebar()" aria-label="Open menu">
