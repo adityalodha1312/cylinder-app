@@ -54,10 +54,14 @@ with app.app_context():
         try:
             from sqlalchemy import text
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS gas_type VARCHAR(50);"))
+            # Auto-add new internal log context fields
+            db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
+            db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_activity_date VARCHAR(50);"))
+            db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
             db.session.commit()
-            print("[startup] Checked and added scans.gas_type column if missing.")
+            print("[startup] Checked and added scans.gas_type and admin_scan_logs context columns if missing.")
         except Exception as e:
-            print("[startup] scans.gas_type alter check failed:", e)
+            print("[startup] table alter check failed:", e)
     print("[startup] DB tables verified/created.")
 
 # Session Security Configuration
@@ -6616,16 +6620,25 @@ def admin_scanner_submit():
     d_str = now.strftime('%d-%m-%Y')
     t_str = now.strftime('%H:%M:%S')
 
-    # Resolve gas types for each uid
+    # Resolve context data for each uid
     cyls_dict = {}
     if os.environ.get('DATABASE_URL'):
         db_cyls = Cylinder.query.filter(Cylinder.uid.in_(uids)).all()
-        cyls_dict = {c.uid.upper(): c.gas_type for c in db_cyls}
+        for c in db_cyls:
+            cyls_dict[c.uid.upper()] = {
+                'gas_type': c.gas_type or '',
+                'owner': c.owner or '',
+                'last_activity_date': c.last_activity_date or ''
+            }
     else:
         sheet_cyls = get_all_cylinders()
         for c in sheet_cyls:
             if c['uid'].upper() in [u.upper() for u in uids]:
-                cyls_dict[c['uid'].upper()] = c.get('gas_type', '')
+                cyls_dict[c['uid'].upper()] = {
+                    'gas_type': c.get('gas_type', ''),
+                    'owner': c.get('owner', ''),
+                    'last_activity_date': c.get('last_activity_date', '')
+                }
 
     rows_to_append = []
     if os.environ.get('DATABASE_URL'):
@@ -6634,7 +6647,18 @@ def admin_scanner_submit():
             with db.session.no_autoflush:
                 for uid in uids:
                     uid_upper = uid.upper()
-                    gas = cyls_dict.get(uid_upper, '')
+                    c_data = cyls_dict.get(uid_upper, {})
+                    gas = c_data.get('gas_type', '')
+                    owner = c_data.get('owner', '')
+                    last_act_str = c_data.get('last_activity_date', '')
+                    
+                    days_out = None
+                    if last_act_str:
+                        try:
+                            last_act = datetime.strptime(last_act_str, '%d-%m-%Y')
+                            days_out = (now - last_act).days
+                        except:
+                            pass
                     log = AdminScanLog(
                         scan_date=d_str,
                         scan_time=t_str,
@@ -6642,10 +6666,16 @@ def admin_scanner_submit():
                         gas_type=gas,
                         customer=customer,
                         action=action,
-                        admin_name=admin_name
+                        admin_name=admin_name,
+                        last_known_customer=owner,
+                        last_activity_date=last_act_str,
+                        days_outstanding=days_out
                     )
                     db.session.add(log)
-                    rows_to_append.append([d_str, t_str, uid_upper, gas, customer, action, admin_name])
+                    rows_to_append.append([
+                        d_str, t_str, uid_upper, gas, customer, action, admin_name,
+                        owner, last_act_str, days_out if days_out is not None else ""
+                    ])
             db.session.commit()
         except Exception as e:
             db.session.rollback()
@@ -6659,8 +6689,11 @@ def admin_scanner_submit():
             try:
                 ws = sheet.worksheet("AdminScans")
             except gspread.exceptions.WorksheetNotFound:
-                ws = sheet.add_worksheet(title="AdminScans", rows=1000, cols=10)
-                ws.append_row(["Date", "Time", "UID", "Gas Type", "Customer", "Action", "Admin Name"])
+                ws = sheet.add_worksheet(title="AdminScans", rows=1000, cols=12)
+                ws.append_row([
+                    "Date", "Time", "UID", "Gas Type", "Customer", "Action", "Admin Name", 
+                    "Last Known Customer", "Last Activity Date", "Days Outstanding"
+                ])
             sheets_write_with_retry(ws.append_rows, rows_to_append)
         except Exception as e:
             print("[admin_scanner] Error appending to Sheets:", e)

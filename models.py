@@ -230,6 +230,9 @@ class AdminScanLog(db.Model):
     customer = db.Column(db.String(255))
     action = db.Column(db.String(50), nullable=False)
     admin_name = db.Column(db.String(100))
+    last_known_customer = db.Column(db.String(255))
+    last_activity_date = db.Column(db.String(50))
+    days_outstanding = db.Column(db.Integer)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -241,5 +244,8 @@ class AdminScanLog(db.Model):
             'gas_type': self.gas_type or '',
             'customer': self.customer or '',
             'action': self.action,
-            'admin_name': self.admin_name or ''
+            'admin_name': self.admin_name or '',
+            'last_known_customer': self.last_known_customer or '',
+            'last_activity_date': self.last_activity_date or '',
+            'days_outstanding': self.days_outstanding
         }

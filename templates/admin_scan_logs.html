@@ -46,6 +46,9 @@
         <th>Customer</th>
         <th>Action</th>
         <th>Scanned By</th>
+        <th>Last Known Cust. (Auto)</th>
+        <th>Last Activity (Auto)</th>
+        <th>Aging (Auto)</th>
       </tr>
     </thead>
     <tbody>
@@ -62,6 +65,17 @@
           </span>
         </td>
         <td>{{ log.admin_name }}</td>
+        <td>{{ log.last_known_customer }}</td>
+        <td>{{ log.last_activity_date }}</td>
+        <td>
+          {% if log.days_outstanding != None %}
+            <span style="color: {% if log.days_outstanding > 10 %}#dc3545; font-weight: 600;{% else %}#0F6E56{% endif %};">
+              {{ log.days_outstanding }} Days
+            </span>
+          {% else %}
+            -
+          {% endif %}
+        </td>
       </tr>
       {% endfor %}
     </tbody>
