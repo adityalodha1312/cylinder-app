@@ -1361,7 +1361,7 @@ function onScanSuccess(decodedText) {
   }, 0);
 }
 
-let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 220 });
+const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250, showZoomSliderIfSupported: true });
 html5QrcodeScanner.render(onScanSuccess);
 </script>
 

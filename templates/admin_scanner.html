@@ -234,7 +234,7 @@
     }, 0); // 0ms delay for rapid scanning
   }
 
-  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250, showZoomSliderIfSupported: true });
   html5QrcodeScanner.render(onScanSuccess);
   
   async function submitScans() {
