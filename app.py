@@ -3076,14 +3076,17 @@ def admin_cylinders_upload():
             is_uhp = get_col('Is UHP?', 'Is UHP (Ultra High Purity)?', 'Is UHP', default='No')
             cert_no = get_col('Test Certificate No.', 'Test Certificate No', 'Cert No', default='')
             
+            status_val = get_col('Status', default='Active')
+            location_val = get_col('Location', default='Depot')
+            
             # 1. Add to Supabase Cylinder table
             new_cylinder = Cylinder(
                 uid=uid,
                 gas_type=gas_type,
                 cylinder_type=cyl_type,
                 owner=owner,
-                status='Active',
-                location='Depot',
+                status=status_val,
+                location=location_val,
                 last_activity_date=today_str
             )
             db.session.add(new_cylinder)
@@ -3107,7 +3110,7 @@ def admin_cylinders_upload():
             
             # 3. Prepare Sheets Rows
             cyl_rows_to_append.append([
-                uid, gas_type, cyl_type, owner, 'Active', 'Depot', today_str
+                uid, gas_type, cyl_type, owner, status_val, location_val, today_str
             ])
             cyl_maint_rows_to_append.append([
                 uid, water_cap if water_cap else raw_cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp
