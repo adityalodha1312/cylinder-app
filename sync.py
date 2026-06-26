@@ -441,6 +441,10 @@ def sync_sheets_to_db(doc):
                 db.session.delete(prod_obj)
                 
         db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        print("[sync] Error syncing Products sheet:", e)
+
     # 9. Sync Settings
     try:
         settings_ws = doc.worksheet("Settings")
