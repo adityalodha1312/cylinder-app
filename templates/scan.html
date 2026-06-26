@@ -1319,7 +1319,7 @@ function onScanSuccess(decodedText) {
         if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
           try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
         }
-      }, 300);
+      }, 0);
       return;
     }
   }
@@ -1358,7 +1358,7 @@ function onScanSuccess(decodedText) {
     if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
       try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
     }
-  }, 300);
+  }, 0);
 }
 
 let html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 220 });
