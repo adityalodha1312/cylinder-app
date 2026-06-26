@@ -2819,7 +2819,7 @@ def calculate_daily_dispatch_report(target_date_str):
 def admin_cylinders():
     cylinders = merge_cylinder_data()
     products = get_products_config()
-    gas_types = sorted(list(set(p['gas_type'] for p in products if p.get('gas_type'))))
+    gas_types = sorted(list(set(c['gas_type'] for c in cylinders if c.get('gas_type'))))
     statuses  = ['Empty', 'Filled', 'Delivered']
     return render_template('cylinders.html',
         user       = session['user'],
