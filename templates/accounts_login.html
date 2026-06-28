@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accounts Login – Cylinder Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: linear-gradient(135deg, #0F6E56 0%, #04342C 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 380px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.25);
+    }
+    .logo-wrap {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    .logo-wrap img { height: 40px; }
+    .logo-text { font-size: 16px; font-weight: 700; color: #0F6E56; line-height: 1.2; }
+    .logo-sub { font-size: 11px; color: #888; font-weight: 400; }
+    h1 { font-size: 22px; font-weight: 700; color: #04342C; margin-bottom: 6px; }
+    .subtitle { font-size: 13px; color: #777; margin-bottom: 28px; }
+    label { display: block; font-size: 12px; font-weight: 600; color: #555; margin-bottom: 6px; }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: 11px 14px;
+      border: 1.5px solid #d8d9d4;
+      border-radius: 10px;
+      font-size: 14px;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+      margin-bottom: 18px;
+    }
+    input:focus { border-color: #0F6E56; }
+    .btn {
+      width: 100%;
+      padding: 13px;
+      background: #0F6E56;
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn:hover { background: #04342C; }
+    .alert-error {
+      background: #FEE2E2;
+      color: #B91C1C;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 18px;
+    }
+    .badge {
+      display: inline-block;
+      background: #E1F5EE;
+      color: #0F6E56;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo-wrap">
+      <img src="/static/img/noble_logo.png" alt="Noble Air Gases" onerror="this.style.display='none'">
+      <div>
+        <div class="logo-text">Noble Air Gases</div>
+        <div class="logo-sub">Cylinder Tracker</div>
+      </div>
+    </div>
+    <span class="badge">ACCOUNTS PORTAL</span>
+    <h1>Welcome Back</h1>
+    <p class="subtitle">Sign in to access the Accounts Panel</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert-error">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    <form method="POST" action="/accounts/login">
+      <label for="username">Username</label>
+      <input type="text" id="username" name="username" placeholder="Enter username" required autofocus>
+      <label for="password">Password</label>
+      <input type="password" id="password" name="password" placeholder="Enter password" required>
+      <button type="submit" class="btn">Sign In</button>
+    </form>
+  </div>
+</body>
+</html>

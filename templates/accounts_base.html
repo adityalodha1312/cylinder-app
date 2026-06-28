@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Accounts{% endblock %} – Cylinder Tracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --green-50: #E1F5EE;
+      --green-500: #1D9E75;
+      --green-700: #0F6E56;
+      --green-900: #04342C;
+      --gray-bg: #f7f8f6;
+      --gray-bd: #d8d9d4;
+      --gray-text: #5F5E5A;
+      --dark-text: #2C2C2A;
+    }
+    /* Gas badge colors matching admin panel */
+    .gas-badge { display:inline-flex; align-items:center; padding:3px 8px; border-radius:6px; font-size:11px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; border:1px solid transparent; white-space:nowrap; }
+    .gas-badge-arg { background:#e8f0fe; color:#1a73e8; border-color:#d2e3fc; }
+    .gas-badge-oxy { background:#e0f7fa; color:#00838f; border-color:#b2ebf2; }
+    .gas-badge-n2  { background:#f3e5f5; color:#6a1b9a; border-color:#e1bee7; }
+    .gas-badge-co2 { background:#fff3e0; color:#e65100; border-color:#ffe0b2; }
+    .gas-badge-acm { background:#e0f2f1; color:#00695c; border-color:#b2dfdb; }
+    .gas-badge-ahm { background:#fce4ec; color:#c2185b; border-color:#f8bbd0; }
+    .gas-badge-helium { background:#fff8e1; color:#f57f17; border-color:#ffecb3; }
+    .gas-badge-hydrogen { background:#ffebee; color:#c62828; border-color:#ffcdd2; }
+    .gas-badge-gen { background:#f5f5f5; color:#616161; border-color:#e0e0e0; }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'DM Sans', sans-serif; background: var(--gray-bg); color: var(--dark-text); min-height: 100vh; }
+
+    /* Topbar */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--green-700);
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 24px; height: 56px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+    .topbar-brand { display:flex; align-items:center; gap:10px; text-decoration:none; }
+    .topbar-brand img { height:30px; background:#fff; border-radius:6px; padding:2px 6px; }
+    .topbar-brand-text { color:#fff; font-size:15px; font-weight:700; }
+    .topbar-badge { background: rgba(255,255,255,0.18); color:#fff; font-size:11px; font-weight:700; padding:3px 10px; border-radius:20px; margin-left:6px; }
+    .topbar-nav { display:flex; align-items:center; gap:4px; }
+    .topbar-nav a { color:rgba(255,255,255,0.85); text-decoration:none; font-size:13px; font-weight:500; padding:7px 14px; border-radius:8px; transition:background 0.15s; }
+    .topbar-nav a:hover, .topbar-nav a.active { background:rgba(255,255,255,0.15); color:#fff; }
+    .topbar-user { display:flex; align-items:center; gap:10px; }
+    .topbar-user-name { color:rgba(255,255,255,0.85); font-size:13px; }
+    .logout-btn { color:rgba(255,255,255,0.7); font-size:12px; text-decoration:none; padding:5px 10px; border:1px solid rgba(255,255,255,0.25); border-radius:6px; transition:all 0.15s; }
+    .logout-btn:hover { background:rgba(255,255,255,0.15); color:#fff; }
+
+    /* Main */
+    .main { max-width: 1200px; margin: 0 auto; padding: 24px 20px; }
+
+    /* Cards */
+    .card { background:#fff; border-radius:14px; box-shadow:0 1px 4px rgba(0,0,0,0.08); padding:24px; margin-bottom:20px; }
+
+    /* Page header */
+    .page-header { margin-bottom: 20px; }
+    .page-title { font-size: 22px; font-weight: 700; color: var(--dark-text); }
+    .page-sub { font-size: 13px; color: var(--gray-text); margin-top: 4px; }
+
+    /* Table */
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    th { background: var(--green-50); color: var(--green-900); font-weight: 600; padding: 10px 14px; border-bottom: 1.5px solid var(--gray-bd); text-align: left; white-space: nowrap; }
+    td { padding: 10px 14px; border-bottom: 1px solid #eeeee9; vertical-align: middle; }
+    tr:hover td { background: #fafaf8; }
+
+    /* Badges */
+    .badge-pending { background:#FFF3CD; color:#92400E; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+    .badge-billed  { background:#D1FAE5; color:#065F46; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+
+    /* Buttons */
+    .btn { display:inline-block; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; cursor:pointer; border:none; transition:all 0.15s; }
+    .btn-primary { background: var(--green-700); color:#fff; }
+    .btn-primary:hover { background: var(--green-900); }
+    .btn-outline { background:transparent; border:1.5px solid var(--gray-bd); color:var(--dark-text); }
+    .btn-outline:hover { border-color: var(--green-700); color: var(--green-700); }
+    .btn-danger { background:#dc3545; color:#fff; }
+    .btn-danger:hover { background:#b91c1c; }
+    .btn-warning { background:#f59e0b; color:#fff; }
+    .btn-warning:hover { background:#d97706; }
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* Alerts */
+    .alert { padding:12px 16px; border-radius:10px; font-size:13px; margin-bottom:16px; }
+    .alert-success { background:#D1FAE5; color:#065F46; }
+    .alert-error   { background:#FEE2E2; color:#B91C1C; }
+
+    /* Gas summary chips */
+    .gas-chips { display:flex; flex-wrap:wrap; gap:6px; }
+
+    /* Form elements */
+    .form-group { margin-bottom:16px; }
+    .form-group label { display:block; font-size:12px; font-weight:600; color:#555; margin-bottom:6px; }
+    .form-group input, .form-group textarea, .form-group select {
+      width:100%; padding:10px 12px; border:1.5px solid var(--gray-bd); border-radius:8px;
+      font-size:14px; font-family:inherit; outline:none; transition:border-color 0.2s;
+    }
+    .form-group input:focus, .form-group textarea:focus { border-color: var(--green-700); }
+
+    @media (max-width: 640px) {
+      .topbar-nav { display: none; }
+      .main { padding: 16px 12px; }
+    }
+  </style>
+</head>
+<body>
+  <nav class="topbar">
+    <a href="/accounts/dashboard" class="topbar-brand">
+      <img src="/static/img/noble_logo.png" alt="NAG" onerror="this.style.display='none'">
+      <span class="topbar-brand-text">Noble Air Gases</span>
+      <span class="topbar-badge">ACCOUNTS</span>
+    </a>
+    <div class="topbar-nav">
+      <a href="/accounts/dashboard" class="{{ 'active' if '/accounts/dashboard' in request.path else '' }}">All Batches</a>
+    </div>
+    <div class="topbar-user">
+      {% if session.user %}
+        <span class="topbar-user-name">{{ session.user.name or session.user.username }}</span>
+      {% endif %}
+      <a href="/accounts/logout" class="logout-btn">Logout</a>
+    </div>
+  </nav>
+
+  <div class="main">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for cat, msg in messages %}
+        <div class="alert alert-{{ 'success' if cat == 'success' else 'error' }}">{{ msg }}</div>
+      {% endfor %}
+    {% endwith %}
+
+    {% block content %}{% endblock %}
+  </div>
+</body>
+</html>

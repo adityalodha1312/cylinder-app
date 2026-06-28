@@ -1,0 +1,163 @@
+{% extends "accounts_base.html" %}
+{% block title %}Batch {{ batch.batch_ref }}{% endblock %}
+
+{% block content %}
+<div style="margin-bottom:16px;">
+  <a href="/accounts/dashboard" style="color:#0F6E56; font-size:13px; text-decoration:none;">← Back to All Batches</a>
+</div>
+
+<!-- Header -->
+<div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
+  <div>
+    <div style="font-size:12px; font-weight:700; color:#0F6E56; letter-spacing:.5px; text-transform:uppercase; margin-bottom:4px;">{{ batch.batch_ref }}</div>
+    <h1 class="page-title">{{ batch.customer or 'No Customer' }}</h1>
+    <p class="page-sub">{{ batch.batch_date }} at {{ batch.batch_time }} &nbsp;·&nbsp; Scanned by {{ batch.admin_name }}</p>
+  </div>
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    {% if batch.status == 'Pending' %}
+      <form action="/accounts/batch/{{ batch.id }}/mark_billed" method="POST" style="display:inline;" onsubmit="return confirm('Mark this batch as Billed?');">
+        <button type="submit" class="btn btn-primary">✓ Mark as Billed</button>
+      </form>
+    {% else %}
+      <span class="badge-billed" style="padding:8px 16px; border-radius:8px; font-size:13px;">✓ Billed</span>
+      <form action="/accounts/batch/{{ batch.id }}/unmark_billed" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-outline btn-sm">Revert to Pending</button>
+      </form>
+    {% endif %}
+    <form action="/accounts/batch/{{ batch.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Delete this entire batch? This cannot be undone.');">
+      <button type="submit" class="btn btn-danger btn-sm">Delete Batch</button>
+    </form>
+  </div>
+</div>
+
+<!-- Info Cards -->
+<div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
+  <div class="card" style="flex:1; min-width:130px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; margin-bottom:4px;">Status</div>
+    <span class="badge-{{ batch.status | lower }}" style="font-size:14px; padding:4px 12px; border-radius:8px;">{{ batch.status }}</span>
+  </div>
+  <div class="card" style="flex:1; min-width:130px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; margin-bottom:4px;">Total Cylinders</div>
+    <div style="font-size:28px; font-weight:700; color:#0F6E56;">{{ batch.items | length }}</div>
+  </div>
+  {% if batch.billed_at %}
+  <div class="card" style="flex:2; min-width:180px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; margin-bottom:4px;">Billed Info</div>
+    <div style="font-size:14px; font-weight:600;">{{ batch.billed_by }}</div>
+    <div style="font-size:12px; color:#888;">{{ batch.billed_at.strftime('%d-%m-%Y %H:%M') if batch.billed_at else '' }}</div>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Gas Summary -->
+{% set gas_sum = batch.gas_summary() %}
+{% if gas_sum %}
+<div class="card" style="margin-bottom:20px;">
+  <div style="font-size:13px; font-weight:700; color:#555; margin-bottom:12px;">Gas Type Summary</div>
+  <div class="gas-chips" style="gap:10px;">
+    {% for gas, cnt in gas_sum.items() %}
+      {% set g_lower = gas | lower %}
+      {% if 'arg' in g_lower or 'ar' == g_lower %}
+        <span class="gas-badge gas-badge-arg" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'oxy' in g_lower or 'o2' in g_lower %}
+        <span class="gas-badge gas-badge-oxy" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'nitr' in g_lower or 'n2' in g_lower %}
+        <span class="gas-badge gas-badge-n2" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'co2' in g_lower or 'carbon' in g_lower %}
+        <span class="gas-badge gas-badge-co2" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'helium' in g_lower or 'he' == g_lower %}
+        <span class="gas-badge gas-badge-helium" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}
+        <span class="gas-badge gas-badge-hydrogen" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% elif 'acetyl' in g_lower %}
+        <span class="gas-badge gas-badge-acm" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% else %}
+        <span class="gas-badge gas-badge-gen" style="font-size:14px; padding:6px 14px;">{{ cnt }} × {{ gas }}</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+</div>
+{% endif %}
+
+<!-- Edit Form -->
+<div class="card" style="margin-bottom:20px;">
+  <div style="font-size:13px; font-weight:700; color:#555; margin-bottom:16px;">Edit Batch Details</div>
+  <form action="/accounts/batch/{{ batch.id }}/edit" method="POST">
+    <div style="display:flex; gap:14px; flex-wrap:wrap;">
+      <div class="form-group" style="flex:1; min-width:200px;">
+        <label>Customer Name</label>
+        <input type="text" name="customer" value="{{ batch.customer or '' }}" placeholder="Customer name">
+      </div>
+      <div class="form-group" style="flex:2; min-width:200px;">
+        <label>Notes</label>
+        <input type="text" name="notes" value="{{ batch.notes or '' }}" placeholder="Add billing notes or remarks...">
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
+  </form>
+</div>
+
+<!-- Cylinder List -->
+<div class="card" style="padding:0; overflow:hidden;">
+  <div style="padding:16px 20px; border-bottom:1px solid #eeeee9; display:flex; align-items:center; justify-content:space-between;">
+    <span style="font-size:13px; font-weight:700; color:#555;">Cylinder List</span>
+    <input type="text" id="cyl-search" placeholder="Search UID..." style="padding:7px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none; width:200px;">
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Cylinder UID</th>
+          <th>Gas Type</th>
+          <th>Remove</th>
+        </tr>
+      </thead>
+      <tbody id="cyl-tbody">
+        {% for item in batch.items %}
+        <tr data-uid="{{ item.cylinder_uid | lower }}">
+          <td style="color:#888; font-size:12px;">{{ loop.index }}</td>
+          <td style="font-weight:700; font-size:14px;">{{ item.cylinder_uid }}</td>
+          <td>
+            {% set g_lower = (item.gas_type or '') | lower %}
+            {% if 'arg' in g_lower or 'ar' == g_lower %}
+              <span class="gas-badge gas-badge-arg">{{ item.gas_type }}</span>
+            {% elif 'oxy' in g_lower or 'o2' in g_lower %}
+              <span class="gas-badge gas-badge-oxy">{{ item.gas_type }}</span>
+            {% elif 'nitr' in g_lower or 'n2' in g_lower %}
+              <span class="gas-badge gas-badge-n2">{{ item.gas_type }}</span>
+            {% elif 'co2' in g_lower or 'carbon' in g_lower %}
+              <span class="gas-badge gas-badge-co2">{{ item.gas_type }}</span>
+            {% elif 'helium' in g_lower or 'he' == g_lower %}
+              <span class="gas-badge gas-badge-helium">{{ item.gas_type }}</span>
+            {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}
+              <span class="gas-badge gas-badge-hydrogen">{{ item.gas_type }}</span>
+            {% elif 'acetyl' in g_lower %}
+              <span class="gas-badge gas-badge-acm">{{ item.gas_type }}</span>
+            {% else %}
+              <span class="gas-badge gas-badge-gen">{{ item.gas_type or 'Unknown' }}</span>
+            {% endif %}
+          </td>
+          <td>
+            <form action="/accounts/batch/{{ batch.id }}/item/{{ item.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Remove this cylinder from the batch?');">
+              <button type="submit" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:12px; text-decoration:underline;">Remove</button>
+            </form>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="4" style="text-align:center; padding:30px; color:#aaa;">No cylinders in this batch.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  document.getElementById('cyl-search').addEventListener('input', function() {
+    const q = this.value.toLowerCase();
+    document.querySelectorAll('#cyl-tbody tr[data-uid]').forEach(row => {
+      row.style.display = !q || row.dataset.uid.includes(q) ? '' : 'none';
+    });
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,119 @@
+{% extends "admin_base.html" %}
+{% block title %}Accounts Batches{% endblock %}
+
+{% block extra_head %}
+<style>
+  .gas-chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .badge-pending { background:#FFF3CD; color:#92400E; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+  .badge-billed  { background:#D1FAE5; color:#065F46; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
+  .filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+  .filter-bar input, .filter-bar select {
+    padding:9px 12px; border:1.5px solid var(--gray-bd); border-radius:8px;
+    font-size:13px; font-family:inherit; outline:none;
+  }
+  .filter-bar input { flex:1; min-width:200px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Accounts Batches</h1>
+  <p class="page-sub">Read-only view of all accounts scan batches. Billing actions are done by the Accounts team.</p>
+</div>
+
+<!-- Stats -->
+{% set pending_count = batches | selectattr('status', 'equalto', 'Pending') | list | length %}
+{% set billed_count  = batches | selectattr('status', 'equalto', 'Billed')  | list | length %}
+<div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
+  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Total</div>
+    <div style="font-size:28px; font-weight:700; color:var(--green-700);">{{ batches | length }}</div>
+  </div>
+  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Pending</div>
+    <div style="font-size:28px; font-weight:700; color:#92400E;">{{ pending_count }}</div>
+  </div>
+  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Billed</div>
+    <div style="font-size:28px; font-weight:700; color:#065F46;">{{ billed_count }}</div>
+  </div>
+</div>
+
+<!-- Filter -->
+<div class="filter-bar">
+  <input type="text" id="search-input" placeholder="🔍  Search customer or batch ref...">
+  <select id="status-filter">
+    <option value="">All Statuses</option>
+    <option value="Pending">Pending</option>
+    <option value="Billed">Billed</option>
+  </select>
+</div>
+
+<div class="table-container" style="padding:0; overflow:hidden;">
+  <div style="overflow-x:auto;">
+    <table class="dataTable" style="width:100%;">
+      <thead>
+        <tr>
+          <th>Batch Ref</th>
+          <th>Date & Time</th>
+          <th>Customer</th>
+          <th>Gas Summary</th>
+          <th>Cylinders</th>
+          <th>Status</th>
+          <th>Billed By</th>
+        </tr>
+      </thead>
+      <tbody id="batches-tbody">
+        {% for b in batches %}
+        {% set gas_sum = b.gas_summary() %}
+        <tr data-customer="{{ b.customer | lower }}" data-ref="{{ b.batch_ref | lower }}" data-status="{{ b.status }}">
+          <td style="font-weight:700; color:var(--green-700); font-size:12px;">{{ b.batch_ref or '—' }}</td>
+          <td style="white-space:nowrap;">{{ b.batch_date }}<br><span style="font-size:11px; color:#888;">{{ b.batch_time }}</span></td>
+          <td style="font-weight:600;">{{ b.customer or '—' }}</td>
+          <td>
+            <div class="gas-chips">
+              {% for gas, cnt in gas_sum.items() %}
+                {% set g_lower = gas | lower %}
+                {% if 'arg' in g_lower %}<span class="gas-badge gas-badge-arg">{{ cnt }} {{ gas }}</span>
+                {% elif 'oxy' in g_lower or 'o2' in g_lower %}<span class="gas-badge gas-badge-oxy">{{ cnt }} {{ gas }}</span>
+                {% elif 'nitr' in g_lower or 'n2' in g_lower %}<span class="gas-badge gas-badge-n2">{{ cnt }} {{ gas }}</span>
+                {% elif 'co2' in g_lower or 'carbon' in g_lower %}<span class="gas-badge gas-badge-co2">{{ cnt }} {{ gas }}</span>
+                {% elif 'helium' in g_lower %}<span class="gas-badge gas-badge-helium">{{ cnt }} {{ gas }}</span>
+                {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}<span class="gas-badge gas-badge-hydrogen">{{ cnt }} {{ gas }}</span>
+                {% elif 'acetyl' in g_lower %}<span class="gas-badge gas-badge-acm">{{ cnt }} {{ gas }}</span>
+                {% else %}<span class="gas-badge gas-badge-gen">{{ cnt }} {{ gas }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </td>
+          <td style="font-weight:700; text-align:center;">{{ b.items | length }}</td>
+          <td><span class="badge-{{ b.status | lower }}">{{ b.status }}</span></td>
+          <td style="font-size:12px; color:#777;">
+            {% if b.billed_by %}{{ b.billed_by }}<br><span style="font-size:11px;">{{ b.billed_at.strftime('%d-%m-%Y %H:%M') if b.billed_at else '' }}</span>{% else %}—{% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="7" style="text-align:center; padding:40px; color:#aaa;">No batches yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const searchInput  = document.getElementById('search-input');
+  const statusFilter = document.getElementById('status-filter');
+  const rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
+  function filterRows() {
+    const q = searchInput.value.toLowerCase();
+    const s = statusFilter.value;
+    rows.forEach(row => {
+      const matchQ = !q || row.dataset.customer.includes(q) || row.dataset.ref.includes(q);
+      const matchS = !s || row.dataset.status === s;
+      row.style.display = (matchQ && matchS) ? '' : 'none';
+    });
+  }
+  searchInput.addEventListener('input', filterRows);
+  statusFilter.addEventListener('change', filterRows);
+</script>
+{% endblock %}

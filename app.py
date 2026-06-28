@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -63,6 +63,38 @@ with app.app_context():
             print("[startup] Checked and added scans.gas_type and admin_scan_logs context columns if missing.")
         except Exception as e:
             print("[startup] table alter check failed:", e)
+
+    # Create accounts tables if they don't exist
+    try:
+        from sqlalchemy import text as sa_text
+        db.session.execute(sa_text("""
+            CREATE TABLE IF NOT EXISTS accounts_batches (
+                id SERIAL PRIMARY KEY,
+                batch_ref VARCHAR(30) UNIQUE,
+                batch_date VARCHAR(50) NOT NULL,
+                batch_time VARCHAR(50),
+                customer VARCHAR(255),
+                admin_name VARCHAR(100),
+                status VARCHAR(20) DEFAULT 'Pending',
+                billed_at TIMESTAMP,
+                billed_by VARCHAR(100),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        db.session.execute(sa_text("""
+            CREATE TABLE IF NOT EXISTS accounts_batch_items (
+                id SERIAL PRIMARY KEY,
+                batch_id INTEGER REFERENCES accounts_batches(id) ON DELETE CASCADE,
+                cylinder_uid VARCHAR(100),
+                gas_type VARCHAR(50)
+            );
+        """))
+        db.session.commit()
+        print("[startup] Accounts tables verified/created.")
+    except Exception as e:
+        db.session.rollback()
+        print("[startup] Accounts table creation failed:", e)
     print("[startup] DB tables verified/created.")
 
 # Session Security Configuration
@@ -767,6 +799,16 @@ def admin_required(f):
             return redirect('/login')
         if session['user']['role'] not in ['manager', 'owner']:
             return redirect('/login')
+        return f(*args, **kwargs)
+    return decorated
+
+def accounts_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'user' not in session:
+            return redirect('/accounts/login')
+        if session['user']['role'] not in ['accounts', 'manager', 'owner']:
+            return redirect('/accounts/login')
         return f(*args, **kwargs)
     return decorated
 
@@ -6689,8 +6731,13 @@ def admin_scanner_submit():
                     c_data = cyls_dict.get(uid_upper, {})
                     gas = c_data.get('gas_type', '')
                     owner = c_data.get('owner', '')
-                    last_act_str = c_data.get('last_activity_date', '')
-                    
+
+                    # Aging = days since last DELIVERY scan (purely internal, no registry change)
+                    last_delivery = Scan.query.filter_by(
+                        cylinder_uid=uid_upper, action='Delivery'
+                    ).order_by(Scan.id.desc()).first()
+                    last_act_str = last_delivery.scan_date if last_delivery else ''
+
                     days_out = None
                     if last_act_str:
                         try:
@@ -6720,6 +6767,40 @@ def admin_scanner_submit():
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
 
+    # Auto-save to Accounts Batch (purely internal, no registry changes)
+    if os.environ.get('DATABASE_URL') and rows_to_append:
+        try:
+            # Generate batch ref: ACCT-YYYYMMDD-<id>
+            today_compact = now.strftime('%Y%m%d')
+            batch_count = AccountsBatch.query.filter(
+                AccountsBatch.batch_date == d_str
+            ).count() + 1
+            batch_ref = f'ACCT-{today_compact}-{batch_count:03d}'
+
+            acct_batch = AccountsBatch(
+                batch_ref=batch_ref,
+                batch_date=d_str,
+                batch_time=t_str,
+                customer=customer,
+                admin_name=admin_name,
+                status='Pending'
+            )
+            db.session.add(acct_batch)
+            db.session.flush()  # get acct_batch.id
+
+            for uid in uids:
+                uid_upper = uid.upper()
+                gas = cyls_dict.get(uid_upper, {}).get('gas_type', '') if isinstance(cyls_dict.get(uid_upper), dict) else ''
+                db.session.add(AccountsBatchItem(
+                    batch_id=acct_batch.id,
+                    cylinder_uid=uid_upper,
+                    gas_type=gas
+                ))
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print("[accounts] Error saving accounts batch:", e)
+
     # Append to Google Sheets 'AdminScans' tab
     def _append_admin_scans():
         try:
@@ -6742,10 +6823,126 @@ def admin_scanner_submit():
     return jsonify({'success': True, 'count': len(uids)})
 
 
+# ================================================================
+#  ACCOUNTS PANEL ROUTES  (purely internal, no registry changes)
+# ================================================================
+
+@app.route('/accounts/login', methods=['GET', 'POST'])
+def accounts_login():
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '').strip()
+        user = check_login(username, password)
+        if user and user['role'] in ['accounts', 'manager', 'owner']:
+            session['user'] = user
+            return redirect('/accounts/dashboard')
+        flash('Invalid credentials or insufficient permissions.', 'error')
+    return render_template('accounts_login.html')
+
+@app.route('/accounts/logout')
+def accounts_logout():
+    session.pop('user', None)
+    return redirect('/accounts/login')
+
+@app.route('/accounts/dashboard')
+@accounts_required
+def accounts_dashboard():
+    batches = []
+    if os.environ.get('DATABASE_URL'):
+        batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
+    return render_template('accounts_dashboard.html', batches=batches)
+
+@app.route('/accounts/batch/<int:batch_id>')
+@accounts_required
+def accounts_batch_detail(batch_id):
+    batch = AccountsBatch.query.get_or_404(batch_id)
+    return render_template('accounts_batch_detail.html', batch=batch)
+
+@app.route('/accounts/batch/<int:batch_id>/edit', methods=['POST'])
+@accounts_required
+def accounts_batch_edit(batch_id):
+    batch = AccountsBatch.query.get_or_404(batch_id)
+    batch.customer = request.form.get('customer', batch.customer)
+    batch.notes = request.form.get('notes', batch.notes)
+    try:
+        db.session.commit()
+        flash('Batch updated successfully.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
+
+@app.route('/accounts/batch/<int:batch_id>/mark_billed', methods=['POST'])
+@accounts_required
+def accounts_batch_mark_billed(batch_id):
+    batch = AccountsBatch.query.get_or_404(batch_id)
+    batch.status = 'Billed'
+    batch.billed_at = datetime.utcnow()
+    batch.billed_by = session.get('user', {}).get('name', 'Accounts')
+    try:
+        db.session.commit()
+        flash('Batch marked as Billed.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
+
+@app.route('/accounts/batch/<int:batch_id>/unmark_billed', methods=['POST'])
+@accounts_required
+def accounts_batch_unmark_billed(batch_id):
+    batch = AccountsBatch.query.get_or_404(batch_id)
+    batch.status = 'Pending'
+    batch.billed_at = None
+    batch.billed_by = None
+    try:
+        db.session.commit()
+        flash('Batch reverted to Pending.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
+
+@app.route('/accounts/batch/<int:batch_id>/item/<int:item_id>/delete', methods=['POST'])
+@accounts_required
+def accounts_batch_item_delete(batch_id, item_id):
+    item = AccountsBatchItem.query.get_or_404(item_id)
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        flash('Cylinder removed from batch.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
+
+@app.route('/accounts/batch/<int:batch_id>/delete', methods=['POST'])
+@accounts_required
+def accounts_batch_delete(batch_id):
+    batch = AccountsBatch.query.get_or_404(batch_id)
+    try:
+        db.session.delete(batch)
+        db.session.commit()
+        flash('Batch deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect(url_for('accounts_dashboard'))
+
+# Admin read-only view of accounts batches
+@app.route('/admin/accounts_batches')
+@admin_required
+def admin_accounts_batches():
+    batches = []
+    if os.environ.get('DATABASE_URL'):
+        batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
+    return render_template('admin_accounts_batches.html', batches=batches)
+
+
 if __name__ == '__main__':
     start_scheduler()
     app.run(debug=True)
 else:
     # Also start scheduler when running under WSGI server (like Gunicorn), but not during migrations
     if not os.environ.get('RUN_MIGRATION') == '1':
-        start_scheduler()
+        start_scheduler()
+

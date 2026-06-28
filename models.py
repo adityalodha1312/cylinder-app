@@ -249,3 +249,57 @@ class AdminScanLog(db.Model):
             'last_activity_date': self.last_activity_date or '',
             'days_outstanding': self.days_outstanding
         }
+
+class AccountsBatch(db.Model):
+    __tablename__ = 'accounts_batches'
+    id          = db.Column(db.Integer, primary_key=True)
+    batch_ref   = db.Column(db.String(30), unique=True)
+    batch_date  = db.Column(db.String(50), nullable=False)
+    batch_time  = db.Column(db.String(50))
+    customer    = db.Column(db.String(255))
+    admin_name  = db.Column(db.String(100))
+    status      = db.Column(db.String(20), default='Pending')
+    billed_at   = db.Column(db.DateTime)
+    billed_by   = db.Column(db.String(100))
+    notes       = db.Column(db.Text)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+    items       = db.relationship('AccountsBatchItem', backref='batch', lazy=True, cascade='all, delete-orphan')
+
+    def gas_summary(self):
+        """Returns dict of gas_type -> count for all items in batch."""
+        summary = {}
+        for item in self.items:
+            g = item.gas_type or 'Unknown'
+            summary[g] = summary.get(g, 0) + 1
+        return summary
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'batch_ref': self.batch_ref or '',
+            'batch_date': self.batch_date,
+            'batch_time': self.batch_time or '',
+            'customer': self.customer or '',
+            'admin_name': self.admin_name or '',
+            'status': self.status or 'Pending',
+            'billed_at': self.billed_at.strftime('%d-%m-%Y %H:%M') if self.billed_at else '',
+            'billed_by': self.billed_by or '',
+            'notes': self.notes or '',
+            'gas_summary': self.gas_summary(),
+            'total_cylinders': len(self.items)
+        }
+
+class AccountsBatchItem(db.Model):
+    __tablename__ = 'accounts_batch_items'
+    id           = db.Column(db.Integer, primary_key=True)
+    batch_id     = db.Column(db.Integer, db.ForeignKey('accounts_batches.id'), nullable=False)
+    cylinder_uid = db.Column(db.String(100))
+    gas_type     = db.Column(db.String(50))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'batch_id': self.batch_id,
+            'cylinder_uid': self.cylinder_uid or '',
+            'gas_type': self.gas_type or ''
+        }

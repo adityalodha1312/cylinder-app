@@ -1,0 +1,120 @@
+{% extends "accounts_base.html" %}
+{% block title %}Accounts Batches{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Accounts Batches</h1>
+  <p class="page-sub">All cylinder scan batches for billing reference. Click a batch to view details.</p>
+</div>
+
+<!-- Summary Stats -->
+{% set pending_count = batches | selectattr('status', 'equalto', 'Pending') | list | length %}
+{% set billed_count  = batches | selectattr('status', 'equalto', 'Billed')  | list | length %}
+<div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
+  <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Total Batches</div>
+    <div style="font-size:28px; font-weight:700; color:#0F6E56;">{{ batches | length }}</div>
+  </div>
+  <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Pending Billing</div>
+    <div style="font-size:28px; font-weight:700; color:#92400E;">{{ pending_count }}</div>
+  </div>
+  <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
+    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Billed</div>
+    <div style="font-size:28px; font-weight:700; color:#065F46;">{{ billed_count }}</div>
+  </div>
+</div>
+
+<!-- Filter bar -->
+<div class="card" style="padding:14px 16px; margin-bottom:14px;">
+  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <input type="text" id="search-input" placeholder="🔍  Search customer, batch ref..." style="flex:1; min-width:200px; padding:9px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none;">
+    <select id="status-filter" style="padding:9px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none;">
+      <option value="">All Statuses</option>
+      <option value="Pending">Pending</option>
+      <option value="Billed">Billed</option>
+    </select>
+  </div>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <div class="table-wrap">
+    <table id="batches-table">
+      <thead>
+        <tr>
+          <th>Batch Ref</th>
+          <th>Date & Time</th>
+          <th>Customer</th>
+          <th>Gas Summary</th>
+          <th>Cylinders</th>
+          <th>Status</th>
+          <th>Billed By</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="batches-tbody">
+        {% for b in batches %}
+        {% set gas_sum = b.gas_summary() %}
+        <tr data-customer="{{ b.customer | lower }}" data-ref="{{ b.batch_ref | lower }}" data-status="{{ b.status }}">
+          <td style="font-weight:700; color:#0F6E56; font-size:12px;">{{ b.batch_ref or '—' }}</td>
+          <td style="white-space:nowrap;">{{ b.batch_date }}<br><span style="font-size:11px; color:#888;">{{ b.batch_time }}</span></td>
+          <td style="font-weight:600;">{{ b.customer or '—' }}</td>
+          <td>
+            <div class="gas-chips">
+              {% for gas, cnt in gas_sum.items() %}
+                {% set g_lower = gas | lower %}
+                {% if 'arg' in g_lower or 'ar' == g_lower %}
+                  <span class="gas-badge gas-badge-arg">{{ cnt }} {{ gas }}</span>
+                {% elif 'oxy' in g_lower or 'o2' in g_lower %}
+                  <span class="gas-badge gas-badge-oxy">{{ cnt }} {{ gas }}</span>
+                {% elif 'nitr' in g_lower or 'n2' in g_lower %}
+                  <span class="gas-badge gas-badge-n2">{{ cnt }} {{ gas }}</span>
+                {% elif 'co2' in g_lower or 'carbon' in g_lower %}
+                  <span class="gas-badge gas-badge-co2">{{ cnt }} {{ gas }}</span>
+                {% elif 'helium' in g_lower or 'he' == g_lower %}
+                  <span class="gas-badge gas-badge-helium">{{ cnt }} {{ gas }}</span>
+                {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}
+                  <span class="gas-badge gas-badge-hydrogen">{{ cnt }} {{ gas }}</span>
+                {% elif 'acetyl' in g_lower %}
+                  <span class="gas-badge gas-badge-acm">{{ cnt }} {{ gas }}</span>
+                {% else %}
+                  <span class="gas-badge gas-badge-gen">{{ cnt }} {{ gas }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </td>
+          <td style="font-weight:700; text-align:center;">{{ b.items | length }}</td>
+          <td><span class="badge-{{ b.status | lower }}">{{ b.status }}</span></td>
+          <td style="font-size:12px; color:#777;">
+            {% if b.billed_by %}{{ b.billed_by }}<br><span style="font-size:11px;">{{ b.billed_at.strftime('%d-%m-%Y %H:%M') if b.billed_at else '' }}</span>{% else %}—{% endif %}
+          </td>
+          <td>
+            <a href="/accounts/batch/{{ b.id }}" class="btn btn-outline btn-sm">View</a>
+          </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" style="text-align:center; padding:40px; color:#aaa;">No batches yet. Batches are created automatically when the admin scans cylinders.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+  const searchInput  = document.getElementById('search-input');
+  const statusFilter = document.getElementById('status-filter');
+  const rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
+
+  function filterRows() {
+    const q = searchInput.value.toLowerCase();
+    const s = statusFilter.value;
+    rows.forEach(row => {
+      const matchQ = !q || row.dataset.customer.includes(q) || row.dataset.ref.includes(q);
+      const matchS = !s || row.dataset.status === s;
+      row.style.display = (matchQ && matchS) ? '' : 'none';
+    });
+  }
+  searchInput.addEventListener('input', filterRows);
+  statusFilter.addEventListener('change', filterRows);
+</script>
+{% endblock %}
