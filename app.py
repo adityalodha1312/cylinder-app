@@ -1474,6 +1474,8 @@ def login():
             session['user'] = user
             if user['role'] in ['manager', 'owner']:
                 return redirect('/admin')
+            elif user['role'] == 'accounts':
+                return redirect('/accounts/dashboard')
             else:
                 return redirect('/')
         return render_template('login.html', error='Invalid username or password')
@@ -4349,7 +4351,7 @@ def admin_users_add():
         if existing:
             return render_template('users_form.html', user=session['user'], mode='add', error=f"Username '{username}' is already taken.", form=request.form)
 
-        if role not in ['driver', 'filler', 'manager', 'owner']:
+        if role not in ['driver', 'filler', 'manager', 'owner', 'accounts']:
             return render_template('users_form.html', user=session['user'], mode='add', error="Invalid role selected.", form=request.form)
 
         try:
@@ -4408,7 +4410,7 @@ def admin_users_edit(user_id):
         if existing:
             return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Username '{username}' is already taken.", form=request.form)
 
-        if role not in ['driver', 'filler', 'manager', 'owner']:
+        if role not in ['driver', 'filler', 'manager', 'owner', 'accounts']:
             return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error="Invalid role selected.", form=request.form)
 
         old_username = target_user.username
