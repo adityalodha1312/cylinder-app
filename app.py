@@ -806,9 +806,9 @@ def accounts_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user' not in session:
-            return redirect('/accounts/login')
+            return redirect('/login')
         if session['user']['role'] not in ['accounts', 'manager', 'owner']:
-            return redirect('/accounts/login')
+            return redirect('/login')
         return f(*args, **kwargs)
     return decorated
 
@@ -6831,20 +6831,13 @@ def admin_scanner_submit():
 
 @app.route('/accounts/login', methods=['GET', 'POST'])
 def accounts_login():
-    if request.method == 'POST':
-        username = request.form.get('username', '').strip()
-        password = request.form.get('password', '').strip()
-        user = check_login(username, password)
-        if user and user['role'] in ['accounts', 'manager', 'owner']:
-            session['user'] = user
-            return redirect('/accounts/dashboard')
-        flash('Invalid credentials or insufficient permissions.', 'error')
-    return render_template('accounts_login.html')
+    # No separate login — use the single main login page
+    return redirect('/login')
 
 @app.route('/accounts/logout')
 def accounts_logout():
     session.pop('user', None)
-    return redirect('/accounts/login')
+    return redirect('/login')
 
 @app.route('/accounts/dashboard')
 @accounts_required

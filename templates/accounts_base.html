@@ -115,9 +115,6 @@
       <span class="topbar-brand-text">Noble Air Gases</span>
       <span class="topbar-badge">ACCOUNTS</span>
     </a>
-    <div class="topbar-nav">
-      <a href="/accounts/dashboard" class="{{ 'active' if '/accounts/dashboard' in request.path else '' }}">All Batches</a>
-    </div>
     <div class="topbar-user">
       {% if session.user %}
         <span class="topbar-user-name">{{ session.user.name or session.user.username }}</span>
