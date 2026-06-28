@@ -157,11 +157,13 @@
         <select id="role" name="role" required>
           <option value="driver" {% if form and form.role == 'driver' %}selected{% endif %}>driver</option>
           <option value="filler" {% if form and form.role == 'filler' %}selected{% endif %}>filler</option>
+          <option value="accounts" {% if form and form.role == 'accounts' %}selected{% endif %}>accounts</option>
           <option value="manager" {% if form and form.role == 'manager' %}selected{% endif %}>manager</option>
           <option value="owner" {% if form and form.role == 'owner' %}selected{% endif %}>owner</option>
         </select>
         <span class="hint">
           <strong>driver / filler</strong>: can only access scan app (tailored UI).<br>
+          <strong>accounts</strong>: access to Accounts Billing Panel only.<br>
           <strong>manager / owner</strong>: full admin panel access.
         </span>
       </div>
