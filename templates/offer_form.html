@@ -161,9 +161,29 @@
       <!-- Customer/Party Name (standalone mode only) -->
       <div class="form-group" style="grid-column: span 2;">
         <label for="customer_name">Party / Company Name <span class="req">*</span></label>
-        <input type="text" id="customer_name" name="customer_name" value="{{ customer_name }}" placeholder="e.g. Tata Motors Ltd." required>
+        <select id="customer_name" name="customer_name" onchange="toggleCustomCustomer(this.value)" required>
+          <option value="">-- Select Customer --</option>
+          <option value="custom">Type Custom Name...</option>
+          {% for c in customers %}
+          <option value="{{ c.name }}">{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <input type="text" id="custom_customer_name" name="custom_customer_name" placeholder="e.g. Tata Motors Ltd." style="display:none; margin-top: 8px;">
         <span class="hint">This name will appear on the PDF as &quot;M/s [Name]&quot;.</span>
       </div>
+
+      <script>
+      function toggleCustomCustomer(val) {
+        const customInput = document.getElementById('custom_customer_name');
+        if (val === 'custom') {
+          customInput.style.display = 'block';
+          customInput.required = true;
+        } else {
+          customInput.style.display = 'none';
+          customInput.required = false;
+        }
+      }
+      </script>
       {% else %}
       <input type="hidden" name="customer_name" value="{{ customer_name }}">
       {% endif %}

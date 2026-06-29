@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -59,8 +59,9 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_activity_date VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
+            db.session.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(100);"))
             db.session.commit()
-            print("[startup] Checked and added scans.gas_type and admin_scan_logs context columns if missing.")
+            print("[startup] Checked and added scans.gas_type, admin_scan_logs context, and customers.gst_number columns if missing.")
         except Exception as e:
             print("[startup] table alter check failed:", e)
 
@@ -4223,6 +4224,7 @@ def get_all_customer_info():
                 'email'          : c.email or '',
                 'phone'          : c.phone or '',
                 'address'        : c.address or '',
+                'gst_number'     : c.gst_number or '',
                 'cold_call_done' : bool(c.cold_call_done),
             } for c in customers]
     except Exception as e:
@@ -4248,6 +4250,7 @@ def get_all_customer_info():
                 'email'          : row[2].strip() if len(row) > 2 else '',
                 'phone'          : row[3].strip() if len(row) > 3 else '',
                 'address'        : row[4].strip() if len(row) > 4 else '',
+                'gst_number'     : row[6].strip() if len(row) > 6 else '', # Column G
                 'cold_call_done' : is_done,
             })
         return out
@@ -4694,6 +4697,7 @@ def admin_customers_add():
         email = request.form.get('email', '').strip()
         phone = request.form.get('phone', '').strip()
         address = request.form.get('address', '').strip()
+        gst_number = request.form.get('gst_number', '').strip()
         
         if not name:
             return render_template('customers_form.html',
@@ -4728,7 +4732,8 @@ def admin_customers_add():
                         name=name,
                         email=email,
                         phone=phone,
-                        address=address
+                        address=address,
+                        gst_number=gst_number
                     )
                     db.session.add(cust_db)
                     db.session.commit()
@@ -4766,7 +4771,7 @@ def admin_customers_add():
                             existing_row = all_rows[empty_row_idx - 1]
                             existing_id = existing_row[0].strip() if len(existing_row) > 0 else ""
                             new_id_sheets = existing_id if existing_id else new_id
-                            customer_ws.update(f'A{empty_row_idx}:E{empty_row_idx}', [[new_id_sheets, name, email, phone, address]])
+                            customer_ws.update(f'A{empty_row_idx}:G{empty_row_idx}', [[new_id_sheets, name, email, phone, address, '', gst_number]])
                         else:
                             customer_ws.append_row([new_id, name, email, phone, address])
                 except Exception as se:
@@ -4806,6 +4811,7 @@ def admin_customers_edit(customer_name):
         email = request.form.get('email', '').strip()
         phone = request.form.get('phone', '').strip()
         address = request.form.get('address', '').strip()
+        gst_number = request.form.get('gst_number', '').strip()
         
         if not name:
             return render_template('customers_form.html',
@@ -4830,6 +4836,7 @@ def admin_customers_edit(customer_name):
                         c_db.email = email
                         c_db.phone = phone
                         c_db.address = address
+                        c_db.gst_number = gst_number
                         db.session.commit()
                         db_written = True
                         print(f"[db] Updated customer {name} in PostgreSQL.")
@@ -4863,7 +4870,7 @@ def admin_customers_edit(customer_name):
                             # If name changed, cascade
                             if name.lower() != customer_name.lower():
                                 rename_customer_in_sheets(customer_name, name)
-                            customer_ws.update(f'A{row_num}:E{row_num}', [[cust.get('id', ''), name, email, phone, address]])
+                            customer_ws.update(f'A{row_num}:G{row_num}', [[cust.get('id', ''), name, email, phone, address, '', gst_number]])
                 except Exception as se:
                     print("[sheets] Error mirroring customer edit to Sheets:", se)
                     if not db_written:
@@ -5255,9 +5262,11 @@ def admin_offer_new():
         {"label": "5. Valve Damage",         "value": "Rs. 1000/- per Valve"},
         {"label": "6. Cylinder Lost / Damage", "value": "Rs.10,000/- Per Cylinder"}
     ]
+    customers = get_all_customer_info()
     return render_template('offer_form.html',
         user=session['user'],
         customer=None,
+        customers=customers,
         customer_name='',
         q_no=q_no,
         date_str=date_str,
@@ -5265,6 +5274,43 @@ def admin_offer_new():
         terms_list=default_terms_list,
         standalone=True
     )
+
+# ================================================================
+#  COMMERCIAL OFFERS DASHBOARD
+# ================================================================
+
+@app.route('/admin/offers')
+@admin_required
+def admin_offers():
+    offers = []
+    if os.environ.get('DATABASE_URL'):
+        offers = CommercialOffer.query.order_by(CommercialOffer.created_at.desc()).all()
+    return render_template('admin_offers.html', user=session['user'], offers=offers)
+
+@app.route('/admin/offers/<int:offer_id>/download')
+@admin_required
+def admin_offers_download(offer_id):
+    if not os.environ.get('DATABASE_URL'):
+        return redirect('/admin/offers')
+        
+    offer = CommercialOffer.query.get_or_404(offer_id)
+    import json
+    try:
+        data = json.loads(offer.form_data)
+        return _generate_offer_pdf(offer.customer_name, saved_data=data)
+    except Exception as e:
+        flash(f"Error generating PDF from saved data: {str(e)}", "danger")
+        return redirect('/admin/offers')
+
+@app.route('/admin/offers/<int:offer_id>/delete', methods=['POST'])
+@admin_required
+def admin_offers_delete(offer_id):
+    if os.environ.get('DATABASE_URL'):
+        offer = CommercialOffer.query.get_or_404(offer_id)
+        db.session.delete(offer)
+        db.session.commit()
+        flash("Offer deleted successfully.", "success")
+    return redirect('/admin/offers')
 
 @app.route('/admin/offer/generate', methods=['POST'])
 @admin_required
@@ -5281,24 +5327,71 @@ def admin_generate_offer_pdf(customer_name):
     customer_name = unquote(customer_name).strip()
     return _generate_offer_pdf(customer_name)
 
-def _generate_offer_pdf(customer_name):
-    # Extract form values
-    attn = request.form.get('attn', '').strip()
-    tel = request.form.get('tel', '').strip()
-    q_date = request.form.get('date', '').strip()
-    q_no = request.form.get('q_no', '').strip()
-    ref = request.form.get('ref', '').strip()
+def _generate_offer_pdf(customer_name, saved_data=None):
+    import json
+    
+    # Use saved_data if provided (for regeneration), else extract from request.form
+    if saved_data:
+        data = saved_data
+        is_new = False
+    else:
+        # Extract form values into a standard dict that can be serialized to JSON
+        data = {
+            'attn': request.form.get('attn', '').strip(),
+            'tel': request.form.get('tel', '').strip(),
+            'date': request.form.get('date', '').strip(),
+            'q_no': request.form.get('q_no', '').strip(),
+            'ref': request.form.get('ref', '').strip(),
+            'product_names': request.form.getlist('product_name[]'),
+            'product_contents': request.form.getlist('product_content[]'),
+            'product_prices': request.form.getlist('product_price[]'),
+            'product_units': request.form.getlist('product_unit[]'),
+            'term_labels': request.form.getlist('term_label[]'),
+            'term_values': request.form.getlist('term_value[]'),
+            'gst_number': ''
+        }
+        
+        # Try to find GST number from DB if this is a known customer
+        if os.environ.get('DATABASE_URL'):
+            cust_db = Customer.query.filter(Customer.name.ilike(customer_name)).first()
+            if cust_db and cust_db.gst_number:
+                data['gst_number'] = cust_db.gst_number
+                
+        is_new = True
 
-    # Product lists from dynamic fields
-    product_names = request.form.getlist('product_name[]')
-    product_contents = request.form.getlist('product_content[]')
-    product_prices = request.form.getlist('product_price[]')
-    product_units = request.form.getlist('product_unit[]')
+    attn = data.get('attn', '')
+    tel = data.get('tel', '')
+    q_date = data.get('date', '')
+    q_no = data.get('q_no', '')
+    ref = data.get('ref', '')
+    gst_number = data.get('gst_number', '')
 
-    # Dynamic T&C rows (both label and value editable)
-    term_labels = request.form.getlist('term_label[]')
-    term_values = request.form.getlist('term_value[]')
+    product_names = data.get('product_names', [])
+    product_contents = data.get('product_contents', [])
+    product_prices = data.get('product_prices', [])
+    product_units = data.get('product_units', [])
+
+    term_labels = data.get('term_labels', [])
+    term_values = data.get('term_values', [])
     terms_pairs = list(zip(term_labels, term_values))
+    
+    # Save the new offer to DB
+    if is_new and os.environ.get('DATABASE_URL'):
+        try:
+            total = sum(float(p) for p in product_prices if p.replace('.', '', 1).isdigit())
+            offer = CommercialOffer(
+                offer_ref=q_no,
+                date=q_date,
+                customer_name=customer_name,
+                total_amount=str(total),
+                generated_by=session['user']['name'],
+                form_data=json.dumps(data)
+            )
+            db.session.add(offer)
+            db.session.commit()
+        except Exception as e:
+            db.session.rollback()
+            print("[db] Error saving commercial offer:", e)
     
     # Generate PDF using ReportLab
     from io import BytesIO
@@ -5390,6 +5483,14 @@ def _generate_offer_pdf(customer_name):
             Paragraph(f": {ref}", left_cell_style)
         ]
     ]
+    
+    if gst_number:
+        meta_data.append([
+            Paragraph("<b>GST No.</b>", left_cell_bold_style),
+            Paragraph(f": {gst_number}", left_cell_style),
+            Paragraph("", left_cell_bold_style),
+            Paragraph("", left_cell_style)
+        ])
     meta_table = Table(meta_data, colWidths=[50, 220, 50, 220])
     meta_table.setStyle(TableStyle([
         ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),

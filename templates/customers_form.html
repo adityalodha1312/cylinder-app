@@ -173,6 +173,15 @@
           placeholder="e.g. Plot No. 45, Industrial Area Phase 1">
         <span class="hint">Physical delivery address for customer records.</span>
       </div>
+
+      <!-- GST Number -->
+      <div class="form-group">
+        <label for="gst_number">GST Number</label>
+        <input type="text" id="gst_number" name="gst_number"
+          value="{{ form.gst_number if form else form['GST Number'] if 'GST Number' in form else '' }}"
+          placeholder="e.g. 27AAAAA0000A1Z5" style="text-transform: uppercase;">
+        <span class="hint">For commercial offers and billing.</span>
+      </div>
     </div>
   </div>
 

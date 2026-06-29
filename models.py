@@ -26,6 +26,7 @@ class Customer(db.Model):
     email = db.Column(db.String(255))
     phone = db.Column(db.String(50))
     address = db.Column(db.Text)
+    gst_number = db.Column(db.String(100))
     cold_call_done = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -36,6 +37,7 @@ class Customer(db.Model):
             'Email': self.email or '',
             'Phone': self.phone or '',
             'Address': self.address or '',
+            'GST Number': self.gst_number or '',
             'Cold Call Done': self.cold_call_done
         }
 
@@ -331,4 +333,26 @@ class DriverJob(db.Model):
             'completed_at': self.completed_at.strftime('%d-%m-%Y %H:%M') if self.completed_at else '',
             'notes': self.notes or ''
             # NOTE: customer is intentionally excluded — never sent to driver
+        }
+
+class CommercialOffer(db.Model):
+    __tablename__ = 'commercial_offers'
+    id = db.Column(db.Integer, primary_key=True)
+    offer_ref = db.Column(db.String(50), unique=True)
+    date = db.Column(db.String(50))
+    customer_name = db.Column(db.String(255))
+    total_amount = db.Column(db.String(50))
+    generated_by = db.Column(db.String(100))
+    form_data = db.Column(db.Text) # JSON string of all form params
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'offer_ref': self.offer_ref or '',
+            'date': self.date or '',
+            'customer_name': self.customer_name or '',
+            'total_amount': self.total_amount or '',
+            'generated_by': self.generated_by or '',
+            'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else ''
         }

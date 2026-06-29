@@ -1,0 +1,167 @@
+{% extends "admin_base.html" %}
+{% block title %}Commercial Offers{% endblock %}
+
+{% block head %}
+<style>
+  .page-header {
+    display: flex; justify-content: space-between; align-items: flex-end;
+    margin-bottom: 24px; flex-wrap: wrap; gap: 16px;
+  }
+  .page-title { font-size: 24px; font-weight: 700; color: var(--dark-text); margin: 0; line-height: 1.2; }
+  .page-sub { font-size: 14px; color: var(--gray-text); margin-top: 6px; margin-bottom: 0; }
+  
+  .btn-new {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 10px 18px; border-radius: 8px; font-size: 14px; font-weight: 600;
+    background: var(--green-700); color: #fff; text-decoration: none;
+    transition: background 0.2s, transform 0.1s;
+    border: none;
+  }
+  .btn-new:hover { background: var(--green-500); transform: translateY(-1px); }
+
+  /* ── Responsive Table / Cards ── */
+  .table-card {
+    background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 12px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05); overflow: hidden;
+  }
+  .tbl-wrapper { overflow-x: auto; }
+  .tbl { width: 100%; border-collapse: collapse; min-width: 800px; }
+  .tbl th, .tbl td { padding: 14px 18px; text-align: left; font-size: 14px; border-bottom: 1px solid var(--gray-bd); }
+  .tbl th { background: #f7f8f6; font-weight: 600; color: var(--dark-text); white-space: nowrap; text-transform: uppercase; font-size: 12.5px; letter-spacing: 0.5px; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tbody tr { transition: background 0.15s; }
+  .tbl tbody tr:hover { background: #fdfdfd; }
+  
+  .offer-date { font-weight: 600; color: var(--gray-text); font-size: 13px; }
+  .offer-ref { font-family: monospace; font-size: 13px; font-weight: 700; color: var(--green-900); background: var(--green-50); padding: 3px 8px; border-radius: 6px; border: 1px solid #d1dfd1; }
+  .offer-cust { font-weight: 700; color: var(--dark-text); }
+  .offer-amt { font-weight: 700; color: var(--orange-700, #c25e3b); }
+  
+  .action-btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-dl {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 12px; background: #e9ecef; color: #495057; border: 1.5px solid #ced4da;
+    border-radius: 6px; font-size: 12.5px; font-weight: 600; text-decoration: none; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-dl:hover { background: #dde0e3; color: #212529; border-color: #c4c8cb; }
+  .btn-del {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 6px 12px; background: #fff; color: #dc3545; border: 1.5px solid #dc3545;
+    border-radius: 6px; font-size: 12.5px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-del:hover { background: #dc3545; color: #fff; }
+
+  /* Mobile layout */
+  .mobile-cards { display: none; }
+  .m-card {
+    background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 12px;
+    padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+  }
+  .m-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--gray-bd); }
+  .m-card-body { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .m-card-actions { display: flex; gap: 8px; }
+
+  @media (max-width: 850px) {
+    .tbl-wrapper { display: none; }
+    .mobile-cards { display: block; }
+  }
+
+  .empty-state { text-align: center; padding: 60px 20px; color: var(--gray-text); }
+  .empty-state svg { width: 48px; height: 48px; stroke: #ccc; margin-bottom: 16px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Commercial Offers</h1>
+    <p class="page-sub">View and download historical commercial offers.</p>
+  </div>
+  <a href="/admin/offer/new" class="btn-new">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/>
+    </svg>
+    Create New Offer
+  </a>
+</div>
+
+{% if not offers %}
+<div class="table-card">
+  <div class="empty-state">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/>
+    </svg>
+    <h3>No Offers Generated Yet</h3>
+    <p style="margin-top: 8px; font-size: 14px;">Create your first commercial offer to start building a history.</p>
+  </div>
+</div>
+{% else %}
+
+<!-- Desktop Table -->
+<div class="table-card tbl-wrapper">
+  <table class="tbl">
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Ref No.</th>
+        <th>Party / Company</th>
+        <th>Amount</th>
+        <th>Created By</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in offers %}
+      <tr>
+        <td class="offer-date">{{ o.date }}</td>
+        <td><span class="offer-ref">{{ o.offer_ref }}</span></td>
+        <td class="offer-cust">{{ o.customer_name }}</td>
+        <td class="offer-amt">₹{{ o.total_amount }}</td>
+        <td style="font-size: 13px; color: var(--gray-text);">{{ o.generated_by }}</td>
+        <td>
+          <div class="action-btns">
+            <a href="/admin/offers/{{ o.id }}/download" class="btn-dl">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Download
+            </a>
+            <form action="/admin/offers/{{ o.id }}/delete" method="POST" style="margin:0;" onsubmit="return confirm('Delete this offer permanently?');">
+              <button type="submit" class="btn-del">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Delete
+              </button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile Cards -->
+<div class="mobile-cards">
+  {% for o in offers %}
+  <div class="m-card">
+    <div class="m-card-header">
+      <span class="offer-ref">{{ o.offer_ref }}</span>
+      <span class="offer-date">{{ o.date }}</span>
+    </div>
+    <div class="m-card-body">
+      <div style="font-size: 15px;" class="offer-cust">{{ o.customer_name }}</div>
+      <div style="display:flex; justify-content:space-between; font-size:13.5px; margin-top:4px;">
+        <span class="offer-amt">₹{{ o.total_amount }}</span>
+        <span style="color:var(--gray-text);">By: {{ o.generated_by }}</span>
+      </div>
+    </div>
+    <div class="m-card-actions">
+      <a href="/admin/offers/{{ o.id }}/download" class="btn-dl" style="flex:1; justify-content:center;">Download</a>
+      <form action="/admin/offers/{{ o.id }}/delete" method="POST" style="margin:0; flex:1;" onsubmit="return confirm('Delete this offer?');">
+        <button type="submit" class="btn-del" style="width:100%; justify-content:center;">Delete</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+{% endif %}
+{% endblock %}

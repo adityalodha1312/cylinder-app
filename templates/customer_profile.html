@@ -191,6 +191,9 @@
         {% else %}
           <span class="meta-badge empty">📍 No Address</span>
         {% endif %}
+        {% if info.gst_number %}
+          <span class="meta-badge">📋 GST: {{ info.gst_number }}</span>
+        {% endif %}
       </div>
     </div>
   </div>
