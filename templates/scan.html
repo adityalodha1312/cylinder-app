@@ -1255,10 +1255,13 @@ async function validateRow(inputEl) {
           }
         }
       } else {
-        badgeEl.classList.add("conflict");
-        badgeEl.innerText = "⚠️ Conflict: Already at Depot (In Stock)";
-        inputEl.dataset.action = "";
-        invalidRows.add(rowDiv);
+        badgeEl.classList.add("warning");
+        if (currentStatus === "Filled") {
+          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Filled/In Depot)";
+        } else {
+          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Empty/In Depot)";
+        }
+        inputEl.dataset.action = "Collection";
       }
     }
   } catch (err) {

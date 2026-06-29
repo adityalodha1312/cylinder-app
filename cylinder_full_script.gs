@@ -1281,6 +1281,64 @@ function sendCustomerReceipt(rowNum) {
     return;
   }
 
+  // Look up other pending rows for the same customer on the same date to group them
+  const lastRow = mapSheet.getLastRow();
+  const allMapRows = mapSheet.getRange(2, 1, lastRow - 1, 9).getValues();
+  const groupedRows = []; // Array of object: { rowNum, action, count, uids }
+  
+  // Include the current row first
+  groupedRows.push({
+    rowNum: rowNum,
+    action: action,
+    count: count,
+    uids: uids
+  });
+  
+  for (let i = 0; i < allMapRows.length; i++) {
+    const curRowNum = i + 2;
+    if (curRowNum === rowNum) continue;
+    
+    const rDate = formatDate(allMapRows[i][0]);
+    const rAction = String(allMapRows[i][3]).trim();
+    const rCount = parseInt(allMapRows[i][4]) || 0;
+    const rUids = String(allMapRows[i][5]).trim();
+    const rCust = String(allMapRows[i][6]).trim();
+    const rSend = String(allMapRows[i][7]).toUpperCase();
+    const rStatus = String(allMapRows[i][8]).trim();
+    
+    // Group if same customer, same date, and is pending/sending
+    if (rCust.toLowerCase() === customerName.toLowerCase() && 
+        rDate === dateVal && 
+        rSend === 'TRUE' && 
+        (rStatus === 'Sending...' || rStatus === 'Pending')) {
+      groupedRows.push({
+        rowNum: curRowNum,
+        action: rAction,
+        count: rCount,
+        uids: rUids
+      });
+    }
+  }
+
+  // Aggregate grouped totals
+  let totalDelivered = 0;
+  let totalCollected = 0;
+  let deliveryUids = [];
+  let collectionUids = [];
+  
+  for (let g of groupedRows) {
+    if (g.action === 'Delivery') {
+      totalDelivered += g.count;
+      if (g.uids) deliveryUids.push(g.uids);
+    } else if (g.action === 'Collection') {
+      totalCollected += g.count;
+      if (g.uids) collectionUids.push(g.uids);
+    }
+  }
+  
+  const deliveryUidsStr = deliveryUids.join(', ');
+  const collectionUidsStr = collectionUids.join(', ');
+
   // Get daily totals for this customer
   const dailyTotals = getCustomerDailyTotals(customerName, dateVal);
   const deliveredToday = dailyTotals.delivered;
@@ -1291,7 +1349,68 @@ function sendCustomerReceipt(rowNum) {
   const outstandingCount = outstandingData.count;
   const outstandingUidsList = outstandingData.uidsList;
 
-  const subject = `Cylinder Receipt: ${action} Summary — ${customerName}`;
+  // Determine email type and subject
+  let emailActionType = action;
+  let transactionRowsHtml = '';
+  
+  if (totalDelivered > 0 && totalCollected > 0) {
+    emailActionType = 'Delivery & Collection';
+    transactionRowsHtml = `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Transaction Type</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;color:#0F6E56;">Delivery &amp; Collection</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Date &amp; Time</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${dateVal} &nbsp;·&nbsp; ${timeVal}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Driver/Dispatcher</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${driver}</td>
+      </tr>
+      <tr style="background:#f0fbf6;">
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#0F6E56;font-weight:600;">Cylinders Delivered</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;color:#0F6E56;">${totalDelivered}</td>
+      </tr>
+      <tr style="background:#f0fbf6;">
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;vertical-align:top;font-size:12px;padding-left:20px;">Delivered UIDs</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-size:11px;font-family:monospace;color:#2C2C2A;word-break:break-all;">${deliveryUidsStr}</td>
+      </tr>
+      <tr style="background:#fffcf5;">
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#c2410c;font-weight:600;">Cylinders Collected</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;color:#c2410c;">${totalCollected}</td>
+      </tr>
+      <tr style="background:#fffcf5;">
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;vertical-align:top;font-size:12px;padding-left:20px;">Collected UIDs</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-size:11px;font-family:monospace;color:#2C2C2A;word-break:break-all;">${collectionUidsStr}</td>
+      </tr>
+    `;
+  } else {
+    transactionRowsHtml = `
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Transaction Type</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;color:${action === 'Delivery' ? '#0F6E56' : '#c2410c'};">${action}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Date &amp; Time</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${dateVal} &nbsp;·&nbsp; ${timeVal}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Driver/Dispatcher</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${driver}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Cylinder Count</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;">${count}</td>
+      </tr>
+      <tr>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;vertical-align:top;">Cylinder UIDs</td>
+        <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-size:12px;font-family:monospace;color:#2C2C2A;word-break:break-all;">${uids}</td>
+      </tr>
+    `;
+  }
+
+  const subject = `Cylinder Receipt: ${emailActionType} Summary — ${customerName}`;
   
   // Branded HTML email body
   const htmlBody = `
@@ -1302,7 +1421,7 @@ function sendCustomerReceipt(rowNum) {
       <!-- Banner Header -->
       <div style="background:#0F6E56;padding:24px;text-align:center;color:#ffffff;">
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:1px;font-weight:600;opacity:0.85;">Transaction Receipt</div>
-        <h2 style="margin:6px 0 0;font-size:22px;font-weight:600;letter-spacing:-0.3px;">Cylinder ${action}</h2>
+        <h2 style="margin:6px 0 0;font-size:22px;font-weight:600;letter-spacing:-0.3px;">Cylinder ${emailActionType}</h2>
       </div>
 
       <div style="padding:28px 24px;">
@@ -1320,26 +1439,7 @@ function sendCustomerReceipt(rowNum) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Transaction Type</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;color:${action === 'Delivery' ? '#0F6E56' : '#c2410c'};">${action}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Date &amp; Time</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${dateVal} &nbsp;·&nbsp; ${timeVal}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Driver/Dispatcher</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;">${driver}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;">Cylinder Count</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-weight:600;">${count}</td>
-            </tr>
-            <tr>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;color:#5F5E5A;vertical-align:top;">Cylinder UIDs</td>
-              <td style="padding:10px 12px;border-bottom:1px solid #eeeee9;font-size:12px;font-family:monospace;color:#2C2C2A;word-break:break-all;">${uids}</td>
-            </tr>
+            ${transactionRowsHtml}
           </tbody>
         </table>
 
@@ -1396,15 +1496,20 @@ function sendCustomerReceipt(rowNum) {
     });
     
     const nowTimestamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "dd-MM-yyyy HH:mm");
-    mapSheet.getRange(rowNum, 8).setValue(false); // Auto-uncheck on success
-    mapSheet.getRange(rowNum, 9).setValue("Sent @ " + nowTimestamp);
+    for (let g of groupedRows) {
+      mapSheet.getRange(g.rowNum, 8).setValue(false); // Auto-uncheck on success
+      mapSheet.getRange(g.rowNum, 9).setValue("Sent @ " + nowTimestamp);
+    }
     ss.toast("✅ Receipt sent to " + email, "Success");
   } catch (err) {
     ss.toast("❌ Failed to send email: " + err.toString(), "Error");
-    mapSheet.getRange(rowNum, 8).setValue(false);
-    mapSheet.getRange(rowNum, 9).setValue("Error: " + err.toString().substring(0, 40));
+    for (let g of groupedRows) {
+      mapSheet.getRange(g.rowNum, 8).setValue(false);
+      mapSheet.getRange(g.rowNum, 9).setValue("Error: " + err.toString().substring(0, 40));
+    }
   }
 }
+
 
 function getCustomerOutstandingCount(customerName) {
   return getCustomerOutstandingData(customerName).count;
