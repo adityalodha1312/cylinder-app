@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -95,6 +95,30 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print("[startup] Accounts table creation failed:", e)
+
+    # Create driver_jobs table if not exists
+    try:
+        from sqlalchemy import text as sa_text2
+        db.session.execute(sa_text2("""
+            CREATE TABLE IF NOT EXISTS driver_jobs (
+                id SERIAL PRIMARY KEY,
+                job_ref VARCHAR(30) UNIQUE,
+                driver_username VARCHAR(100) NOT NULL,
+                customer VARCHAR(255) NOT NULL,
+                action VARCHAR(20) NOT NULL,
+                status VARCHAR(20) DEFAULT 'Pending',
+                queue_position INTEGER DEFAULT 0,
+                assigned_by VARCHAR(100),
+                assigned_at TIMESTAMP DEFAULT NOW(),
+                completed_at TIMESTAMP,
+                notes VARCHAR(255)
+            );
+        """))
+        db.session.commit()
+        print("[startup] driver_jobs table verified/created.")
+    except Exception as e:
+        db.session.rollback()
+        print("[startup] driver_jobs table creation failed:", e)
     print("[startup] DB tables verified/created.")
 
 # Session Security Configuration
@@ -2071,9 +2095,38 @@ def admin_products_save():
 @admin_required
 def admin_drivers():
     data = build_driver_stats()
+    driver_jobs = {}
+    if os.environ.get('DATABASE_URL'):
+        try:
+            drivers_with_roles = User.query.filter(User.role.in_(['driver', 'filler'])).all()
+            for d in drivers_with_roles:
+                pending = DriverJob.query.filter_by(
+                    driver_username=d.username, status='Pending'
+                ).order_by(DriverJob.queue_position).all()
+                completed_today = DriverJob.query.filter(
+                    DriverJob.driver_username == d.username,
+                    DriverJob.status == 'Completed',
+                    db.func.date(DriverJob.completed_at) == datetime.now().date()
+                ).all()
+                driver_jobs[d.username] = {
+                    'pending': pending,
+                    'completed_today': completed_today,
+                    'driver_name': d.name or d.username
+                }
+        except Exception as e:
+            print("[admin_drivers] error loading job queues:", e)
+
+    customers_list = []
+    try:
+        customers_list = [c.name for c in Customer.query.order_by(Customer.name).all()]
+    except Exception as e:
+        print("[admin_drivers] error loading customers list:", e)
+
     return render_template('drivers.html',
-        user = session['user'],
-        data = data
+        user=session['user'],
+        data=data,
+        driver_jobs=driver_jobs,
+        customers_list=customers_list
     )
 
 @app.route('/admin/movement')
@@ -5686,6 +5739,8 @@ def submit():
 
     parsed_scans = []
     driver = ""
+    active_job = None
+    driver_username = session.get('user', {}).get('username', '')
 
     # Support JSON payload (modern split-actions submission)
     if request.is_json:
@@ -5694,9 +5749,31 @@ def submit():
         customer = data.get('customer', '').strip()
         scans = data.get('scans', [])
         
+        if not driver_username and driver:
+            try:
+                user_obj = User.query.filter((User.name == driver) | (User.username == driver)).first()
+                if user_obj:
+                    driver_username = user_obj.username
+            except Exception:
+                pass
+        if not driver_username:
+            driver_username = driver
+
+        if os.environ.get('DATABASE_URL') and driver_username:
+            try:
+                active_job = DriverJob.query.filter_by(
+                    driver_username=driver_username, status='Pending'
+                ).order_by(DriverJob.queue_position).first()
+                if active_job:
+                    customer = active_job.customer
+            except Exception:
+                pass
+
         for s in scans:
             uid = s.get('uid', '').strip()
             action = s.get('action', '').strip()
+            if active_job:
+                action = active_job.action
             if uid and action:
                 cust_val = customer if action in ['Delivery', 'Collection'] else ''
                 parsed_scans.append({
@@ -5710,6 +5787,27 @@ def submit():
         driver    = request.form['driver']
         customer  = request.form.get('customer', '').strip()
         cylinders = request.form.getlist('cylinders')
+        
+        if not driver_username and driver:
+            try:
+                user_obj = User.query.filter((User.name == driver) | (User.username == driver)).first()
+                if user_obj:
+                    driver_username = user_obj.username
+            except Exception:
+                pass
+        if not driver_username:
+            driver_username = driver
+
+        if os.environ.get('DATABASE_URL') and driver_username:
+            try:
+                active_job = DriverJob.query.filter_by(
+                    driver_username=driver_username, status='Pending'
+                ).order_by(DriverJob.queue_position).first()
+                if active_job:
+                    customer = active_job.customer
+                    action = active_job.action
+            except Exception:
+                pass
     
         for uid in cylinders:
             uid = uid.strip()
@@ -5903,6 +6001,36 @@ def submit():
             print("[sheets] Error mirroring scans to Google Sheets in background:", se)
 
     async_sheets_write(background_mirror_scans)
+
+    # Mark driver's active job as Completed (purely internal, no registry change)
+    if os.environ.get('DATABASE_URL'):
+        try:
+            driver_username = session.get('user', {}).get('username', '')
+            if not driver_username and driver:
+                try:
+                    user_obj = User.query.filter((User.name == driver) | (User.username == driver)).first()
+                    if user_obj:
+                        driver_username = user_obj.username
+                except Exception:
+                    pass
+            if not driver_username:
+                driver_username = driver
+
+            active_job = DriverJob.query.filter_by(
+                driver_username=driver_username, status='Pending'
+            ).order_by(DriverJob.queue_position).first()
+            if active_job:
+                active_job.status = 'Completed'
+                active_job.completed_at = datetime.now()
+                # Shift remaining queue positions down
+                DriverJob.query.filter(
+                    DriverJob.driver_username == driver_username,
+                    DriverJob.status == 'Pending'
+                ).update({'queue_position': DriverJob.queue_position - 1})
+                db.session.commit()
+        except Exception as je:
+            db.session.rollback()
+            print('[job] Error completing job:', je)
 
     clear_cache()
     return f"{len(parsed_scans)} cylinders saved successfully"
@@ -6933,7 +7061,171 @@ def admin_accounts_batches():
     return render_template('admin_accounts_batches.html', batches=batches)
 
 
+# ================================================================
+#  DRIVER JOB QUEUE ROUTES
+# ================================================================
+
+@app.route('/admin/drivers/assign_job', methods=['POST'])
+@admin_required
+def admin_assign_job():
+    driver_username = request.form.get('driver_username', '').strip()
+    customer = request.form.get('customer', '').strip()
+    action = request.form.get('action', '').strip()
+    notes = request.form.get('notes', '').strip()
+    admin_name = session.get('user', {}).get('name', 'Admin')
+
+    if not driver_username or not customer or not action:
+        flash('Driver, customer and action are required.', 'error')
+        return redirect('/admin/drivers')
+
+    if not os.environ.get('DATABASE_URL'):
+        flash('Database required for job assignment.', 'error')
+        return redirect('/admin/drivers')
+
+    try:
+        # Get next queue position for this driver
+        max_pos = db.session.query(db.func.max(DriverJob.queue_position)).filter(
+            DriverJob.driver_username == driver_username,
+            DriverJob.status == 'Pending'
+        ).scalar() or 0
+
+        # Generate job ref
+        today_compact = datetime.now().strftime('%Y%m%d')
+        job_count = DriverJob.query.filter(
+            db.func.date(DriverJob.assigned_at) == datetime.now().date()
+        ).count() + 1
+        job_ref = f'JOB-{today_compact}-{job_count:03d}'
+
+        job = DriverJob(
+            job_ref=job_ref,
+            driver_username=driver_username,
+            customer=customer,
+            action=action,
+            status='Pending',
+            queue_position=max_pos + 1,
+            assigned_by=admin_name,
+            notes=notes
+        )
+        db.session.add(job)
+        db.session.commit()
+        flash(f'Job {job_ref} assigned to {driver_username}.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error assigning job: {str(e)}', 'error')
+
+    return redirect('/admin/drivers')
+
+
+@app.route('/admin/drivers/job/<int:job_id>/cancel', methods=['POST'])
+@admin_required
+def admin_cancel_job(job_id):
+    job = DriverJob.query.get_or_404(job_id)
+    if job.status != 'Pending':
+        flash('Only pending jobs can be cancelled.', 'error')
+        return redirect('/admin/drivers')
+    driver = job.driver_username
+    pos = job.queue_position
+    try:
+        job.status = 'Cancelled'
+        # Shift remaining queue positions down
+        DriverJob.query.filter(
+            DriverJob.driver_username == driver,
+            DriverJob.status == 'Pending',
+            DriverJob.queue_position > pos
+        ).update({'queue_position': DriverJob.queue_position - 1})
+        db.session.commit()
+        flash('Job cancelled.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error: {str(e)}', 'error')
+    return redirect('/admin/drivers')
+
+
+@app.route('/admin/drivers/job/<int:job_id>/move_up', methods=['POST'])
+@admin_required
+def admin_job_move_up(job_id):
+    job = DriverJob.query.get_or_404(job_id)
+    if job.status != 'Pending' or job.queue_position <= 1:
+        return redirect('/admin/drivers')
+    try:
+        # Swap with the job above
+        above = DriverJob.query.filter(
+            DriverJob.driver_username == job.driver_username,
+            DriverJob.status == 'Pending',
+            DriverJob.queue_position == job.queue_position - 1
+        ).first()
+        if above:
+            above.queue_position = job.queue_position
+            job.queue_position = job.queue_position - 1
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+    return redirect('/admin/drivers')
+
+
+@app.route('/admin/drivers/job/<int:job_id>/move_down', methods=['POST'])
+@admin_required
+def admin_job_move_down(job_id):
+    job = DriverJob.query.get_or_404(job_id)
+    if job.status != 'Pending':
+        return redirect('/admin/drivers')
+    try:
+        below = DriverJob.query.filter(
+            DriverJob.driver_username == job.driver_username,
+            DriverJob.status == 'Pending',
+            DriverJob.queue_position == job.queue_position + 1
+        ).first()
+        if below:
+            below.queue_position = job.queue_position
+            job.queue_position = job.queue_position + 1
+            db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+    return redirect('/admin/drivers')
+
+
+@app.route('/api/driver/active_job')
+@login_required
+def api_driver_active_job():
+    """Returns the driver's current active job — customer name intentionally excluded."""
+    username = session.get('user', {}).get('username', '')
+    if not os.environ.get('DATABASE_URL') or not username:
+        return jsonify({'job': None})
+    try:
+        pending = DriverJob.query.filter_by(
+            driver_username=username, status='Pending'
+        ).order_by(DriverJob.queue_position).all()
+
+        if not pending:
+            return jsonify({'job': None, 'total': 0, 'position': 0})
+
+        current = pending[0]
+        total = len(pending)
+        # Count completed jobs for this driver today for display index
+        completed_today = DriverJob.query.filter(
+            DriverJob.driver_username == username,
+            DriverJob.status == 'Completed',
+            db.func.date(DriverJob.completed_at) == datetime.now().date()
+        ).count()
+
+        return jsonify({
+            'job': {
+                'id': current.id,
+                'job_ref': current.job_ref,
+                'action': current.action,
+                'notes': current.notes or '',
+                # customer intentionally NOT included
+            },
+            'position': completed_today + 1,
+            'total': completed_today + total
+        })
+    except Exception as e:
+        print('[active_job] error:', e)
+        return jsonify({'job': None})
+
+
 if __name__ == '__main__':
+
     start_scheduler()
     app.run(debug=True)
 else:

@@ -585,6 +585,28 @@
   ⚠️ You are currently offline. Scans will be saved and synced automatically when you reconnect.
 </div>
 
+<!-- JOB QUEUE BANNERS -->
+<div id="job-banner" style="display: none; margin: 12px 14px 0 14px; background: #e1f5ee; border: 1.5px solid #0f6e56; border-radius: 12px; padding: 14px 18px; box-shadow: 0 2px 8px rgba(15,110,86,0.12);">
+  <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <div>
+      <div style="font-size: 11px; font-weight: 700; color: #04342c; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 2px;">Active Job</div>
+      <div id="job-ref-display" style="font-size: 16px; font-weight: 700; color: #0f6e56;">JOB-XXXX</div>
+      <div id="job-notes-display" style="font-size: 12px; color: #5f5e5a; margin-top: 2px;"></div>
+    </div>
+    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+      <span id="job-action-badge" style="display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px;"></span>
+      <span id="job-count-badge" style="font-size: 11px; font-weight: 600; color: #04342c;">Job 0 of 0</span>
+    </div>
+  </div>
+</div>
+
+<div id="no-job-banner" style="display: none; margin: 12px 14px 0 14px; background: #fef3c7; border: 1.5px solid #d97706; border-radius: 12px; padding: 16px 18px; text-align: center; box-shadow: 0 2px 8px rgba(217,119,6,0.1);">
+  <div style="font-size: 20px; margin-bottom: 6px;">⏳</div>
+  <div style="font-size: 14px; font-weight: 700; color: #92400e;">No Job Assigned Yet</div>
+  <div style="font-size: 12px; color: #b45309; margin-top: 2px;">Please contact your administrator to assign a delivery or collection job. The submit button is disabled.</div>
+</div>
+
+
 <!-- MAIN FORM -->
 <div class="form-body" id="main-form">
 
@@ -731,6 +753,64 @@
 const validCustomers = {{ customers | tojson }};
 let invalidRows = new Set();
 let isRevalidating = false;
+window.currentJob = null;
+const userRole = "{{ user.role if user else 'driver' }}";
+
+async function fetchActiveJob() {
+  try {
+    let res = await fetch("/api/driver/active_job");
+    let data = await res.json();
+    if (data.job) {
+      window.currentJob = data.job;
+      document.getElementById("job-banner").style.display = "block";
+      document.getElementById("no-job-banner").style.display = "none";
+      document.getElementById("job-ref-display").innerText = data.job.job_ref;
+      document.getElementById("job-notes-display").innerText = data.job.notes ? "Note: " + data.job.notes : "";
+      
+      let actionBadge = document.getElementById("job-action-badge");
+      actionBadge.innerText = data.job.action;
+      actionBadge.className = "job-action-badge " + (data.job.action === "Delivery" ? "badge-delivery" : "badge-collection");
+      
+      document.getElementById("job-count-badge").innerText = `Job ${data.position} of ${data.total}`;
+      
+      let actionSelect = document.getElementById("action-select");
+      actionSelect.value = data.job.action;
+      actionSelect.disabled = true;
+      actionSelect.style.background = "var(--green-50)";
+      actionSelect.style.cursor = "not-allowed";
+      
+      document.getElementById("customer-field").style.display = "none";
+      document.getElementById("customer-select").value = "ASSIGNED_JOB";
+      
+      let submitBtn = document.getElementById("submit-btn");
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.style.background = "";
+        submitBtn.style.cursor = "";
+      }
+    } else {
+      window.currentJob = null;
+      document.getElementById("job-banner").style.display = "none";
+      document.getElementById("no-job-banner").style.display = "block";
+      
+      let actionSelect = document.getElementById("action-select");
+      actionSelect.disabled = true;
+      document.getElementById("customer-field").style.display = "none";
+      
+      let submitBtn = document.getElementById("submit-btn");
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.background = "#ccc";
+        submitBtn.style.cursor = "not-allowed";
+      }
+    }
+  } catch (err) {
+    console.error("Error fetching active job:", err);
+  }
+  toggleCustomerField();
+  updateTheme();
+  goToStep(1);
+}
 
 function showCustomerDropdown() {
   let dropdown = document.getElementById("customer-dropdown");
@@ -787,9 +867,13 @@ function toggleCustomerField() {
 let currentStep = 1;
 
 document.addEventListener("DOMContentLoaded", () => {
-  toggleCustomerField();
-  updateTheme();
-  goToStep(1);
+  if (userRole === "driver") {
+    fetchActiveJob();
+  } else {
+    toggleCustomerField();
+    updateTheme();
+    goToStep(1);
+  }
 });
 
 function goToStep(step) {
@@ -803,7 +887,7 @@ function goToStep(step) {
     
     // Validate customer (if action requires it)
     let action = document.getElementById("action-select").value;
-    if (action === "Delivery" || action === "Collection") {
+    if ((action === "Delivery" || action === "Collection") && !window.currentJob) {
       let customer = document.getElementById("customer-select").value.trim();
       if (!customer) {
         alert("Please select a Customer Name");
@@ -1080,7 +1164,7 @@ async function validateRow(inputEl) {
           badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
         }
         inputEl.dataset.action = "Collection";
-        if (owner) {
+        if (owner && !window.currentJob) {
           let custSelect = document.getElementById("customer-select");
           let currentCustomer = custSelect.value.trim();
           if (!currentCustomer) {
@@ -1111,7 +1195,7 @@ async function validateRow(inputEl) {
           badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
         }
         inputEl.dataset.action = "Collection";
-        if (owner) {
+        if (owner && !window.currentJob) {
           let custSelect = document.getElementById("customer-select");
           let currentCustomer = custSelect.value.trim();
           if (!currentCustomer) {
@@ -1188,7 +1272,7 @@ async function submitForm() {
 
   // Enforce customer selection for Delivery or Collection scans
   let customer = "";
-  if (globalAction === "Delivery" || globalAction === "Collection") {
+  if ((globalAction === "Delivery" || globalAction === "Collection") && !window.currentJob) {
     customer = document.getElementById("customer-select").value.trim();
     if (!customer) { alert("Please select a Customer Name"); return; }
     
@@ -1200,6 +1284,8 @@ async function submitForm() {
     }
     customer = matchedCustomer;
     document.getElementById("customer-select").value = customer;
+  } else if (window.currentJob) {
+    customer = "ASSIGNED_JOB";
   }
 
   for (let i = 0; i < inputs.length; i++) {

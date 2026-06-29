@@ -303,3 +303,32 @@ class AccountsBatchItem(db.Model):
             'cylinder_uid': self.cylinder_uid or '',
             'gas_type': self.gas_type or ''
         }
+
+class DriverJob(db.Model):
+    __tablename__ = 'driver_jobs'
+    id             = db.Column(db.Integer, primary_key=True)
+    job_ref        = db.Column(db.String(30), unique=True)
+    driver_username= db.Column(db.String(100), nullable=False)
+    customer       = db.Column(db.String(255), nullable=False)  # never exposed to driver
+    action         = db.Column(db.String(20), nullable=False)   # Delivery / Collection
+    status         = db.Column(db.String(20), default='Pending') # Pending / Completed / Cancelled
+    queue_position = db.Column(db.Integer, default=0)
+    assigned_by    = db.Column(db.String(100))
+    assigned_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    completed_at   = db.Column(db.DateTime)
+    notes          = db.Column(db.String(255))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'job_ref': self.job_ref or '',
+            'driver_username': self.driver_username,
+            'action': self.action,
+            'status': self.status,
+            'queue_position': self.queue_position,
+            'assigned_by': self.assigned_by or '',
+            'assigned_at': self.assigned_at.strftime('%d-%m-%Y %H:%M') if self.assigned_at else '',
+            'completed_at': self.completed_at.strftime('%d-%m-%Y %H:%M') if self.completed_at else '',
+            'notes': self.notes or ''
+            # NOTE: customer is intentionally excluded — never sent to driver
+        }
