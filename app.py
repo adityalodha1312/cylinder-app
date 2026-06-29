@@ -130,8 +130,8 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 @app.after_request
 def add_header(response):
-    # Prevent browser caching for admin and API endpoints
-    if request.path.startswith('/admin') or request.path.startswith('/api'):
+    # Prevent browser and CDN caching for all dynamic endpoints to ensure independent sessions
+    if not request.path.startswith('/static'):
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '-1'
