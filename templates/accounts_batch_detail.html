@@ -101,9 +101,16 @@
 <div class="card" style="padding:0; overflow:hidden;">
   <div style="padding:16px 20px; border-bottom:1px solid #eeeee9; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
     <span style="font-size:13px; font-weight:700; color:#555;">Cylinder List</span>
-    <div style="display:flex; align-items:center; gap:12px;">
-      <button id="copy-uids-btn" class="btn btn-outline btn-sm" style="background:#f0f7f5; color:#0F6E56; border-color:#0F6E56;">📋 Copy all UIDs</button>
-      <input type="text" id="cyl-search" placeholder="Search UID..." style="padding:7px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none; width:200px;">
+    <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm copy-btn" data-target="all" style="background:#f0f7f5; color:#0F6E56; border-color:#0F6E56;">📋 Copy All</button>
+        {% if gas_sum and gas_sum.keys()|length > 1 %}
+          {% for gas in gas_sum.keys() %}
+            <button class="btn btn-outline btn-sm copy-btn" data-target="{{ gas | lower }}" style="color:#666; border-color:#d8d9d4; background:#fff;">📋 {{ gas }}</button>
+          {% endfor %}
+        {% endif %}
+      </div>
+      <input type="text" id="cyl-search" placeholder="Search UID..." style="padding:7px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none; width:180px;">
     </div>
   </div>
   <div class="table-wrap">
@@ -118,7 +125,7 @@
       </thead>
       <tbody id="cyl-tbody">
         {% for item in batch.items %}
-        <tr data-uid="{{ item.cylinder_uid | lower }}">
+        <tr data-uid="{{ item.cylinder_uid | lower }}" data-gas="{{ (item.gas_type or '') | lower }}">
           <td style="color:#888; font-size:12px;">{{ loop.index }}</td>
           <td style="font-weight:700; font-size:14px;">{{ item.cylinder_uid }}</td>
           <td>
@@ -163,22 +170,31 @@
     });
   });
 
-  document.getElementById('copy-uids-btn').addEventListener('click', function() {
-    const uids = Array.from(document.querySelectorAll('#cyl-tbody tr[data-uid]'))
-                      .map(row => row.dataset.uid.toUpperCase());
-    if (uids.length === 0) {
-      alert("No UIDs to copy.");
-      return;
-    }
-    const textToCopy = uids.join(', ');
-    navigator.clipboard.writeText(textToCopy).then(() => {
-      const originalText = this.innerHTML;
-      this.innerHTML = "✅ Copied!";
-      setTimeout(() => { this.innerHTML = originalText; }, 2000);
-    }).catch(err => {
-      console.error('Failed to copy text: ', err);
-      // Fallback
-      prompt("Copy UIDs:", textToCopy);
+  document.querySelectorAll('.copy-btn').forEach(btn => {
+    btn.addEventListener('click', function() {
+      const targetGas = this.dataset.target;
+      let rows = Array.from(document.querySelectorAll('#cyl-tbody tr[data-uid]'));
+      
+      if (targetGas !== 'all') {
+        rows = rows.filter(row => row.dataset.gas === targetGas);
+      }
+      
+      const uids = rows.map(row => row.dataset.uid.toUpperCase());
+      if (uids.length === 0) {
+        alert("No UIDs to copy.");
+        return;
+      }
+      
+      const textToCopy = uids.join(', ');
+      navigator.clipboard.writeText(textToCopy).then(() => {
+        const originalText = this.innerHTML;
+        this.innerHTML = "✅ Copied!";
+        setTimeout(() => { this.innerHTML = originalText; }, 2000);
+      }).catch(err => {
+        console.error('Failed to copy text: ', err);
+        // Fallback
+        prompt("Copy UIDs:", textToCopy);
+      });
     });
   });
 </script>
