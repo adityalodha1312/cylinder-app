@@ -7208,6 +7208,15 @@ def api_driver_active_job():
             db.func.date(DriverJob.completed_at) == datetime.now().date()
         ).count()
 
+        serialized_pending = []
+        for p in pending:
+            serialized_pending.append({
+                'id': p.id,
+                'job_ref': p.job_ref,
+                'action': p.action,
+                'notes': p.notes or ''
+            })
+
         return jsonify({
             'job': {
                 'id': current.id,
@@ -7216,12 +7225,14 @@ def api_driver_active_job():
                 'notes': current.notes or '',
                 # customer intentionally NOT included
             },
+            'pending_jobs': serialized_pending,
             'position': completed_today + 1,
             'total': completed_today + total
         })
     except Exception as e:
         print('[active_job] error:', e)
         return jsonify({'job': None})
+
 
 
 if __name__ == '__main__':
