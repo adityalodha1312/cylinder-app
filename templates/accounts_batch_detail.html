@@ -99,9 +99,12 @@
 
 <!-- Cylinder List -->
 <div class="card" style="padding:0; overflow:hidden;">
-  <div style="padding:16px 20px; border-bottom:1px solid #eeeee9; display:flex; align-items:center; justify-content:space-between;">
+  <div style="padding:16px 20px; border-bottom:1px solid #eeeee9; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
     <span style="font-size:13px; font-weight:700; color:#555;">Cylinder List</span>
-    <input type="text" id="cyl-search" placeholder="Search UID..." style="padding:7px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none; width:200px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <button id="copy-uids-btn" class="btn btn-outline btn-sm" style="background:#f0f7f5; color:#0F6E56; border-color:#0F6E56;">📋 Copy all UIDs</button>
+      <input type="text" id="cyl-search" placeholder="Search UID..." style="padding:7px 12px; border:1.5px solid #d8d9d4; border-radius:8px; font-size:13px; font-family:inherit; outline:none; width:200px;">
+    </div>
   </div>
   <div class="table-wrap">
     <table>
@@ -157,6 +160,25 @@
     const q = this.value.toLowerCase();
     document.querySelectorAll('#cyl-tbody tr[data-uid]').forEach(row => {
       row.style.display = !q || row.dataset.uid.includes(q) ? '' : 'none';
+    });
+  });
+
+  document.getElementById('copy-uids-btn').addEventListener('click', function() {
+    const uids = Array.from(document.querySelectorAll('#cyl-tbody tr[data-uid]'))
+                      .map(row => row.dataset.uid.toUpperCase());
+    if (uids.length === 0) {
+      alert("No UIDs to copy.");
+      return;
+    }
+    const textToCopy = uids.join(', ');
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      const originalText = this.innerHTML;
+      this.innerHTML = "✅ Copied!";
+      setTimeout(() => { this.innerHTML = originalText; }, 2000);
+    }).catch(err => {
+      console.error('Failed to copy text: ', err);
+      // Fallback
+      prompt("Copy UIDs:", textToCopy);
     });
   });
 </script>
