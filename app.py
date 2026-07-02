@@ -1487,6 +1487,8 @@ def login():
     if 'user' in session:
         if session['user']['role'] in ['manager', 'owner']:
             return redirect('/admin')
+        elif session['user']['role'] == 'accounts':
+            return redirect('/accounts/dashboard')
         else:
             return redirect('/')
 
@@ -5810,8 +5812,11 @@ def admin_orders_generate():
 @login_required
 def home():
     user = session.get('user')
-    if user and user.get('role') in ['manager', 'owner']:
-        return redirect('/admin')
+    if user:
+        if user.get('role') in ['manager', 'owner']:
+            return redirect('/admin')
+        elif user.get('role') == 'accounts':
+            return redirect('/accounts/dashboard')
     return redirect('/scan')
 
 @app.route('/scan')
