@@ -31,6 +31,11 @@
     background: #f7f8f6;
     color: var(--gray-900);
     min-height: 100vh;
+    animation: softLoad 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  @keyframes softLoad {
+    0% { opacity: 0; transform: translateY(8px); }
+    100% { opacity: 1; transform: translateY(0); }
   }
   .header {
     background: var(--green-700);
