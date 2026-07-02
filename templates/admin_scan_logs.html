@@ -76,9 +76,15 @@
         <td>{{ log.last_activity_date }}</td>
         <td>
           {% if log.days_outstanding != None %}
-            <span style="color: {% if log.days_outstanding > 10 %}#dc3545; font-weight: 600;{% else %}#0F6E56{% endif %};">
-              {{ log.days_outstanding }} Days
-            </span>
+            {% if log.action == 'Delivery' %}
+              <span style="color: #c25e3b; font-weight: 600;">
+                {{ log.days_outstanding }} Days (With Cust.)
+              </span>
+            {% else %}
+              <span style="color: #1E40AF; font-weight: 600;">
+                {{ log.days_outstanding }} Days (In Depot)
+              </span>
+            {% endif %}
           {% else %}
             -
           {% endif %}

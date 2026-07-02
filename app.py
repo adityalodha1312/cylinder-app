@@ -6875,8 +6875,17 @@ def admin_scanner_logs():
     logs = []
     if os.environ.get('DATABASE_URL'):
         from models import AdminScanLog
-        logs = AdminScanLog.query.order_by(AdminScanLog.id.desc()).all()
-        logs = [log.to_dict() for log in logs]
+        from datetime import datetime
+        db_logs = AdminScanLog.query.order_by(AdminScanLog.id.desc()).all()
+        now = datetime.now()
+        for log in db_logs:
+            log_dict = log.to_dict()
+            try:
+                log_date = datetime.strptime(log.scan_date, '%d-%m-%Y')
+                log_dict['days_outstanding'] = (now - log_date).days
+            except:
+                pass
+            logs.append(log_dict)
     return render_template('admin_scan_logs.html', logs=logs)
 
 @app.route('/admin/scanner/logs/<int:log_id>/delete', methods=['POST'])
