@@ -6874,25 +6874,9 @@ def admin_scanner_page():
 def admin_scanner_logs():
     logs = []
     if os.environ.get('DATABASE_URL'):
-        from models import AdminScanLog, Cylinder
-        from datetime import datetime
-        
-        db_logs = AdminScanLog.query.order_by(AdminScanLog.id.desc()).all()
-        # Fetch all cylinders to know current outstanding status
-        cylinders = {c.uid.upper(): c for c in Cylinder.query.all()}
-        now = datetime.now()
-        
-        for log in db_logs:
-            log_dict = log.to_dict()
-            c = cylinders.get(log.cylinder_uid.upper())
-            # If the cylinder is CURRENTLY outstanding, dynamically calculate aging from last_activity_date
-            if c and c.owner and log.last_activity_date:
-                try:
-                    last_act = datetime.strptime(log.last_activity_date, '%d-%m-%Y')
-                    log_dict['days_outstanding'] = (now - last_act).days
-                except:
-                    pass
-            logs.append(log_dict)
+        from models import AdminScanLog
+        logs = AdminScanLog.query.order_by(AdminScanLog.id.desc()).all()
+        logs = [log.to_dict() for log in logs]
     return render_template('admin_scan_logs.html', logs=logs)
 
 @app.route('/admin/scanner/logs/<int:log_id>/delete', methods=['POST'])
