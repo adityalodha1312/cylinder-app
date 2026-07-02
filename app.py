@@ -1481,6 +1481,10 @@ def admin_api_mapping_mismatches():
 #  AUTH ROUTES
 # ================================================================
 
+@app.route('/sw.js')
+def service_worker():
+    return send_from_directory('static', 'sw.js', mimetype='application/javascript')
+
 @app.route('/login', methods=['GET', 'POST'])
 @app.route('/admin/login', methods=['GET', 'POST'])   # alias — login.html posts here
 def login():
