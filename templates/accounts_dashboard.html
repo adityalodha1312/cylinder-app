@@ -13,15 +13,15 @@
 <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
   <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
     <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Total Batches</div>
-    <div style="font-size:28px; font-weight:700; color:#0F6E56;">{{ batches | length }}</div>
+    <div id="stat-total" style="font-size:28px; font-weight:700; color:#0F6E56;">{{ batches | length }}</div>
   </div>
   <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
     <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Pending Billing</div>
-    <div style="font-size:28px; font-weight:700; color:#92400E;">{{ pending_count }}</div>
+    <div id="stat-pending" style="font-size:28px; font-weight:700; color:#92400E;">{{ pending_count }}</div>
   </div>
   <div class="card" style="flex:1; min-width:140px; padding:16px 20px; display:flex; flex-direction:column; gap:4px;">
     <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; letter-spacing:.5px;">Billed</div>
-    <div style="font-size:28px; font-weight:700; color:#065F46;">{{ billed_count }}</div>
+    <div id="stat-billed" style="font-size:28px; font-weight:700; color:#065F46;">{{ billed_count }}</div>
   </div>
 </div>
 
@@ -103,7 +103,7 @@
 <script>
   const searchInput  = document.getElementById('search-input');
   const statusFilter = document.getElementById('status-filter');
-  const rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
+  let rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
 
   function filterRows() {
     const q = searchInput.value.toLowerCase();
@@ -116,5 +116,33 @@
   }
   searchInput.addEventListener('input', filterRows);
   statusFilter.addEventListener('change', filterRows);
+
+  // Auto-refresh logic (Polling)
+  let refreshInterval = setInterval(() => {
+    fetch(window.location.href)
+      .then(r => r.text())
+      .then(html => {
+        let doc = new DOMParser().parseFromString(html, 'text/html');
+        
+        // Update stats
+        const newTotal = doc.getElementById('stat-total');
+        const newPending = doc.getElementById('stat-pending');
+        const newBilled = doc.getElementById('stat-billed');
+        
+        if(newTotal) document.getElementById('stat-total').innerHTML = newTotal.innerHTML;
+        if(newPending) document.getElementById('stat-pending').innerHTML = newPending.innerHTML;
+        if(newBilled) document.getElementById('stat-billed').innerHTML = newBilled.innerHTML;
+        
+        // Update table body
+        const newTbody = doc.getElementById('batches-tbody');
+        if(newTbody) {
+          document.getElementById('batches-tbody').innerHTML = newTbody.innerHTML;
+          // Re-bind rows for filtering
+          rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
+          filterRows(); // Re-apply current filter
+        }
+      })
+      .catch(err => console.error('Failed to fetch new batches:', err));
+  }, 10000); // 10 seconds
 </script>
 {% endblock %}
