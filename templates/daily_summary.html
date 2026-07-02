@@ -164,6 +164,8 @@
   </button>
 </div>
 
+<!-- Dynamic Content Wrapper -->
+<div id="daily-summary-content">
 <!-- KPI Row -->
 <div class="summary-grid">
   <!-- Deliveries -->
@@ -430,5 +432,29 @@
   <div class="empty-day">🎉 No outstanding cylinders — all collected!</div>
   {% endif %}
 </div>
+</div> <!-- End Dynamic Content Wrapper -->
+
+<script>
+  // Auto-refresh logic (Polling)
+  let refreshInterval = setInterval(() => {
+    // Only auto-refresh if the user hasn't explicitly selected a past date
+    const datePicker = document.getElementById('summary-date-picker');
+    const today = new Date().toISOString().split('T')[0];
+    if (datePicker && datePicker.value !== '' && datePicker.value !== today) {
+      return; // Do not auto-refresh historical views
+    }
+
+    fetch(window.location.href)
+      .then(r => r.text())
+      .then(html => {
+        let doc = new DOMParser().parseFromString(html, 'text/html');
+        let newContent = doc.getElementById('daily-summary-content');
+        if (newContent) {
+          document.getElementById('daily-summary-content').innerHTML = newContent.innerHTML;
+        }
+      })
+      .catch(err => console.error('Failed to auto-refresh:', err));
+  }, 10000); // 10 seconds
+</script>
 
 {% endblock %}

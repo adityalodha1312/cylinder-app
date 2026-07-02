@@ -734,5 +734,28 @@
     document.getElementById('kpi-pending').innerText = pendingCount;
     document.getElementById('kpi-unmapped').innerText = unmappedCount;
   }
+
+  // Auto-refresh polling
+  setInterval(() => {
+    // Don't interrupt if user is interacting, searching, editing, or waiting for a receipt to send
+    const searchVal = document.getElementById('receipts-search') ? document.getElementById('receipts-search').value : '';
+    const isSending = document.querySelectorAll('.btn-sending').length > 0;
+    const isEditing = document.querySelectorAll('.save-map-btn.visible').length > 0;
+    
+    if (searchVal || isSending || isEditing) return;
+
+    fetch(window.location.href)
+      .then(r => r.text())
+      .then(html => {
+        let doc = new DOMParser().parseFromString(html, 'text/html');
+        let newTbody = doc.getElementById('batches-tbody');
+        if (newTbody) {
+           document.getElementById('batches-tbody').innerHTML = newTbody.innerHTML;
+           filterTable();
+           updateKPICounts();
+        }
+      })
+      .catch(err => console.error('Auto-refresh failed:', err));
+  }, 10000); // 10 seconds
 </script>
 {% endblock %}
