@@ -52,23 +52,22 @@ def to_ist_filter(dt):
         return ''
 
 
-# ── Gemini AI Setup ──────────────────────────────────────────────────────────
-_gemini_model = None
+# ── Groq AI Setup ────────────────────────────────────────────────────────────
+_groq_client = None
 
-def _get_gemini():
-    global _gemini_model
-    if _gemini_model is not None:
-        return _gemini_model
-    api_key = os.environ.get('GEMINI_API_KEY', '')
+def _get_groq():
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+    api_key = os.environ.get('GROQ_API_KEY', '')
     if not api_key:
         return None
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        _gemini_model = genai.GenerativeModel('gemini-2.0-flash')
-        return _gemini_model
+        from groq import Groq
+        _groq_client = Groq(api_key=api_key)
+        return _groq_client
     except Exception as e:
-        print(f"[Gemini] Init error: {e}")
+        print(f"[Groq] Init error: {e}")
         return None
 
 
@@ -249,9 +248,9 @@ def _get_ai_insights(force=False):
             except Exception:
                 pass
 
-    model = _get_gemini()
-    if not model:
-        return ['⚠️ Gemini API key not configured. Add GEMINI_API_KEY to environment variables.'], -1
+    client = _get_groq()
+    if not client:
+        return ['⚠️ Groq API key not configured. Add GROQ_API_KEY to environment variables.'], -1
 
     try:
         context = _build_dashboard_context()
@@ -270,8 +269,13 @@ Operational Data:
 
 Return exactly 5 bullet points, one per line, no numbering, no extra text."""
 
-        response = model.generate_content(prompt)
-        raw = response.text.strip()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.3,
+            max_completion_tokens=500
+        )
+        raw = response.choices[0].message.content.strip()
         insights = [line.strip() for line in raw.split('\n') if line.strip()][:6]
 
         import json
@@ -279,7 +283,7 @@ Return exactly 5 bullet points, one per line, no numbering, no extra text."""
         set_setting(TIME_KEY, datetime.utcnow().isoformat())
         return insights, 0
     except Exception as e:
-        print(f"[Gemini] Insights generation error: {e}")
+        print(f"[Groq] Insights generation error: {e}")
         cached = get_setting(CACHE_KEY, '')
         if cached:
             import json
@@ -1100,9 +1104,9 @@ def admin_ai_chat():
     if not question:
         return jsonify({'answer': 'Please ask a question.'}), 400
 
-    model = _get_gemini()
-    if not model:
-        return jsonify({'answer': '⚠️ Gemini API key not configured.'}), 503
+    client = _get_groq()
+    if not client:
+        return jsonify({'answer': '⚠️ Groq API key not configured.'}), 503
 
     try:
         uid = _detect_uid_in_question(question)
@@ -1130,11 +1134,16 @@ Admin's question: {question}
 
 Answer:"""
 
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.5,
+            max_completion_tokens=500
+        )
+        answer = response.choices[0].message.content.strip()
         return jsonify({'answer': answer})
     except Exception as e:
-        print(f"[Gemini] Chat error: {e}")
+        print(f"[Groq] Chat error: {e}")
         return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
 
 
@@ -1142,9 +1151,9 @@ Answer:"""
 @admin_required
 def admin_ai_debug():
     import os
-    api_key = os.environ.get('GEMINI_API_KEY', '')
+    api_key = os.environ.get('GROQ_API_KEY', '')
     if not api_key:
-        return jsonify({'error': 'GEMINI_API_KEY environment variable is empty or not set.'})
+        return jsonify({'error': 'GROQ_API_KEY environment variable is empty or not set.'})
 
     debug_info = {
         'key_exists': True,
@@ -1155,13 +1164,13 @@ def admin_ai_debug():
     }
 
     try:
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
+        from groq import Groq
+        client = Groq(api_key=api_key)
         
         # Test 1: List models
         models = []
-        for m in genai.list_models():
-            models.append(m.name)
+        for m in client.models.list().data:
+            models.append(m.id)
         debug_info['available_models'] = models
         debug_info['list_models_success'] = True
     except Exception as e:
@@ -1170,10 +1179,13 @@ def admin_ai_debug():
 
     try:
         # Test 2: Test generate content
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content("Hello, this is a test. Reply with 'OK'.")
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": "Hello, this is a test. Reply with 'OK'."}],
+            temperature=0.0
+        )
         debug_info['generation_success'] = True
-        debug_info['generation_response'] = response.text.strip()
+        debug_info['generation_response'] = response.choices[0].message.content.strip()
     except Exception as e:
         import traceback
         debug_info['generation_success'] = False

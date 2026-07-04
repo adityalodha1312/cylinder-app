@@ -10,4 +10,4 @@ Flask-SQLAlchemy
 psycopg2-binary
 APScheduler
 pandas
-google-generativeai
+groq
