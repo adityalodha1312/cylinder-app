@@ -1138,6 +1138,43 @@ Answer:"""
         return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
 
 
+@app.route('/admin/api/ai_debug')
+@admin_required
+def admin_ai_debug():
+    import os
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        return jsonify({'error': 'GEMINI_API_KEY environment variable is empty or not set.'})
+
+    debug_info = {
+        'key_exists': True,
+        'key_length': len(api_key),
+        'key_prefix': api_key[:6] if len(api_key) >= 6 else api_key,
+        'key_suffix': api_key[-4:] if len(api_key) >= 4 else '',
+        'env_vars_keys': list(os.environ.keys()),
+    }
+
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        models = []
+        for m in genai.list_models():
+            models.append({
+                'name': m.name,
+                'supported_methods': m.supported_generation_methods,
+                'description': m.description
+            })
+        debug_info['available_models'] = models
+        debug_info['success'] = True
+    except Exception as e:
+        import traceback
+        debug_info['success'] = False
+        debug_info['error'] = str(e)
+        debug_info['traceback'] = traceback.format_exc()
+
+    return jsonify(debug_info)
+
+
 def accounts_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
