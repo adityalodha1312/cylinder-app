@@ -388,7 +388,219 @@
   {% endif %}
 </div>
 
+<!-- ── AI INSIGHTS PANEL ── -->
+<div style="margin-top: 28px;">
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px;">
+    <div>
+      <div style="font-size:16px; font-weight:600; color:var(--dark-text); display:flex; align-items:center; gap:8px;">
+        <span style="font-size:20px;">🤖</span> AI Insights
+      </div>
+      <div style="font-size:12.5px; color:var(--gray-text); margin-top:2px;">Powered by Gemini · auto-refreshes every hour</div>
+    </div>
+    <button id="ai-refresh-btn" onclick="loadInsights(true)" title="Regenerate insights"
+      style="background:none; border:1.5px solid #d8d9d4; border-radius:8px; padding:6px 12px; font-size:12.5px; color:var(--gray-text); cursor:pointer; display:flex; align-items:center; gap:5px; transition:all 0.15s;"
+      onmouseover="this.style.borderColor='#1D9E75';this.style.color='#1D9E75';"
+      onmouseout="this.style.borderColor='#d8d9d4';this.style.color='var(--gray-text)';">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+      </svg>
+      <span id="ai-age-label">Refresh</span>
+    </button>
+  </div>
+
+  <div style="background:#fff; border-radius:16px; border:1.5px solid #eeeee9; overflow:hidden; box-shadow:0 2px 12px rgba(0,0,0,0.04);">
+
+    <!-- Insights strip -->
+    <div id="ai-insights-area" style="padding:20px 24px; border-bottom:1.5px solid #eeeee9;">
+      <!-- Loading skeleton -->
+      <div id="ai-insights-loading" style="display:flex; flex-direction:column; gap:10px;">
+        {% for _ in range(4) %}
+        <div style="height:16px; background:linear-gradient(90deg,#f3f3f0 25%,#e8e8e4 50%,#f3f3f0 75%); background-size:200% 100%; border-radius:8px; animation:shimmer 1.4s infinite;"></div>
+        {% endfor %}
+      </div>
+      <div id="ai-insights-list" style="display:none; flex-direction:column; gap:10px;"></div>
+    </div>
+
+    <!-- Chat interface -->
+    <div style="padding:20px 24px;">
+      <div style="font-size:13px; font-weight:600; color:var(--gray-text); margin-bottom:12px; text-transform:uppercase; letter-spacing:0.5px;">Ask anything about your data</div>
+
+      <!-- Chat messages -->
+      <div id="ai-chat-messages" style="display:flex; flex-direction:column; gap:12px; max-height:320px; overflow-y:auto; margin-bottom:14px; padding-right:4px; scroll-behavior:smooth;"></div>
+
+      <!-- Input row -->
+      <div style="display:flex; gap:10px; align-items:flex-end;">
+        <div style="flex:1; position:relative;">
+          <input id="ai-chat-input" type="text" placeholder="e.g. Where is UID-045? or ABC Industries outstanding?" maxlength="300"
+            style="width:100%; padding:11px 16px; border:1.5px solid #d8d9d4; border-radius:10px; font-size:14px; font-family:inherit; outline:none; transition:border-color 0.15s; box-sizing:border-box;"
+            onfocus="this.style.borderColor='#1D9E75';" onblur="this.style.borderColor='#d8d9d4';"
+            onkeydown="if(event.key==='Enter' && !event.shiftKey){ event.preventDefault(); sendAiChat(); }">
+        </div>
+        <button id="ai-send-btn" onclick="sendAiChat()"
+          style="background:#1D9E75; color:white; border:none; border-radius:10px; padding:11px 20px; font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; transition:background 0.15s; white-space:nowrap; flex-shrink:0;"
+          onmouseover="this.style.background='#127c5b';" onmouseout="this.style.background='#1D9E75';">
+          Ask →
+        </button>
+      </div>
+      <div style="font-size:11.5px; color:#a0a09a; margin-top:8px;">
+        Ask about specific cylinders (mention UID), customers, drivers, or general operations.
+      </div>
+    </div>
+  </div>
+</div>
+
+<style>
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  #ai-chat-messages::-webkit-scrollbar { width: 4px; }
+  #ai-chat-messages::-webkit-scrollbar-track { background: transparent; }
+  #ai-chat-messages::-webkit-scrollbar-thumb { background: #d8d9d4; border-radius: 4px; }
+
+  .ai-msg-user {
+    align-self: flex-end;
+    background: #0F6E56;
+    color: white;
+    padding: 10px 14px;
+    border-radius: 14px 14px 4px 14px;
+    font-size: 13.5px;
+    max-width: 80%;
+    line-height: 1.5;
+    word-break: break-word;
+  }
+  .ai-msg-bot {
+    align-self: flex-start;
+    background: #f7f7f5;
+    border: 1.5px solid #eeeee9;
+    color: #2C2C2A;
+    padding: 10px 14px;
+    border-radius: 14px 14px 14px 4px;
+    font-size: 13.5px;
+    max-width: 85%;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  .ai-msg-thinking {
+    align-self: flex-start;
+    color: #a0a09a;
+    font-size: 13px;
+    padding: 6px 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .ai-dot-pulse {
+    display: inline-flex; gap: 3px;
+  }
+  .ai-dot-pulse span {
+    width: 5px; height: 5px;
+    background: #a0a09a;
+    border-radius: 50%;
+    animation: dot-bounce 1.2s infinite;
+  }
+  .ai-dot-pulse span:nth-child(2) { animation-delay: 0.2s; }
+  .ai-dot-pulse span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes dot-bounce {
+    0%, 80%, 100% { transform: translateY(0); }
+    40%           { transform: translateY(-5px); }
+  }
+</style>
+
 <script>
+  // ── AI Insights ──
+  async function loadInsights(force = false) {
+    const loading = document.getElementById('ai-insights-loading');
+    const list = document.getElementById('ai-insights-list');
+    const ageLabel = document.getElementById('ai-age-label');
+    const refreshBtn = document.getElementById('ai-refresh-btn');
+
+    loading.style.display = 'flex';
+    list.style.display = 'none';
+    refreshBtn.disabled = true;
+
+    try {
+      const url = '/admin/api/ai_insights' + (force ? '?force=1' : '');
+      const res = await fetch(url);
+      const data = await res.json();
+
+      list.innerHTML = '';
+      (data.insights || []).forEach(insight => {
+        const div = document.createElement('div');
+        div.style.cssText = 'font-size:14px; color:#2C2C2A; line-height:1.6; padding:8px 0; border-bottom:1px solid #f3f3f0;';
+        div.textContent = insight;
+        list.appendChild(div);
+      });
+      // Remove last border
+      if (list.lastChild) list.lastChild.style.borderBottom = 'none';
+
+      if (data.age) ageLabel.textContent = data.age;
+      loading.style.display = 'none';
+      list.style.display = 'flex';
+    } catch(e) {
+      loading.style.display = 'none';
+      list.innerHTML = '<div style="color:#b91c1c; font-size:13.5px;">⚠️ Could not load insights. Check your API key configuration.</div>';
+      list.style.display = 'flex';
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  // ── AI Chat ──
+  async function sendAiChat() {
+    const input = document.getElementById('ai-chat-input');
+    const messages = document.getElementById('ai-chat-messages');
+    const sendBtn = document.getElementById('ai-send-btn');
+    const question = input.value.trim();
+    if (!question) return;
+
+    // Add user bubble
+    const userDiv = document.createElement('div');
+    userDiv.className = 'ai-msg-user';
+    userDiv.textContent = question;
+    messages.appendChild(userDiv);
+    input.value = '';
+    sendBtn.disabled = true;
+
+    // Add thinking indicator
+    const thinkingDiv = document.createElement('div');
+    thinkingDiv.className = 'ai-msg-thinking';
+    thinkingDiv.innerHTML = '🤖 Thinking <div class="ai-dot-pulse"><span></span><span></span><span></span></div>';
+    messages.appendChild(thinkingDiv);
+    messages.scrollTop = messages.scrollHeight;
+
+    try {
+      const res = await fetch('/admin/api/ai_chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question })
+      });
+      const data = await res.json();
+
+      // Replace thinking with answer
+      thinkingDiv.remove();
+      const botDiv = document.createElement('div');
+      botDiv.className = 'ai-msg-bot';
+      botDiv.textContent = data.answer || 'No response.';
+      messages.appendChild(botDiv);
+    } catch(e) {
+      thinkingDiv.remove();
+      const errDiv = document.createElement('div');
+      errDiv.className = 'ai-msg-bot';
+      errDiv.textContent = '⚠️ Could not reach AI. Please try again.';
+      messages.appendChild(errDiv);
+    } finally {
+      sendBtn.disabled = false;
+      messages.scrollTop = messages.scrollHeight;
+      input.focus();
+    }
+  }
+
+  // Load insights on page load
+  loadInsights();
+
+  // ── Fill Rule Toggle ──
   async function toggleFillRule(btn) {
     btn.disabled = true;
     try {
@@ -397,8 +609,6 @@
       const isOn = data.fill_required;
       const pill = document.getElementById('fill-rule-pill');
       const label = document.getElementById('fill-rule-label');
-
-      // Update button class
       btn.classList.remove('on', 'off');
       btn.classList.add(isOn ? 'on' : 'off');
       pill.classList.remove('on', 'off');

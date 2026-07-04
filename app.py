@@ -52,6 +52,304 @@ def to_ist_filter(dt):
         return ''
 
 
+# ── Gemini AI Setup ──────────────────────────────────────────────────────────
+_gemini_model = None
+
+def _get_gemini():
+    global _gemini_model
+    if _gemini_model is not None:
+        return _gemini_model
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        return None
+    try:
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        _gemini_model = genai.GenerativeModel('gemini-1.5-flash')
+        return _gemini_model
+    except Exception as e:
+        print(f"[Gemini] Init error: {e}")
+        return None
+
+
+def _build_dashboard_context():
+    """Build a comprehensive text snapshot of current operations for Gemini."""
+    lines = []
+    today_str = date.today().strftime('%d-%m-%Y')
+    lines.append(f"Today's date: {today_str}")
+
+    # Outstanding data
+    try:
+        from models import CustomerMap
+        all_cm = CustomerMap.query.all()
+        customer_totals = {}
+        for row in all_cm:
+            c = row.customer or 'Unknown'
+            if c not in customer_totals:
+                customer_totals[c] = {'count': 0, 'last': row.scan_date or ''}
+            customer_totals[c]['count'] += 1
+            if row.scan_date and row.scan_date > customer_totals[c]['last']:
+                customer_totals[c]['last'] = row.scan_date
+
+        total_out = sum(v['count'] for v in customer_totals.values())
+        lines.append(f"Total cylinders outstanding: {total_out} across {len(customer_totals)} customers")
+
+        # Age buckets using Scan table
+        from models import Scan
+        today = date.today()
+        buckets = {'0_7': 0, '7_30': 0, '30_60': 0, '60_plus': 0}
+        top_customers = sorted(customer_totals.items(), key=lambda x: x[1]['count'], reverse=True)[:8]
+        for cname, cdata in top_customers:
+            pass  # used below
+
+        lines.append(f"High outstanding customers (>10 cylinders): {sum(1 for v in customer_totals.values() if v['count'] > 10)}")
+
+        top5 = sorted(customer_totals.items(), key=lambda x: x[1]['count'], reverse=True)[:5]
+        lines.append("Top 5 customers by outstanding:")
+        for cname, cdata in top5:
+            lines.append(f"  - {cname}: {cdata['count']} cylinders (last activity: {cdata['last']})")
+
+        # Scan stats
+        scan_rows = Scan.query.filter_by(scan_date=today_str).all()
+        deliveries = sum(1 for r in scan_rows if r.action == 'Delivery')
+        collections = sum(1 for r in scan_rows if r.action == 'Collection')
+        fillings = sum(1 for r in scan_rows if r.action == 'Filling')
+        lines.append(f"Today's scans: {len(scan_rows)} total — {deliveries} deliveries, {collections} collections, {fillings} fillings")
+
+        # This week vs last week
+        week_ago = (today - timedelta(days=7)).strftime('%d-%m-%Y')
+        two_weeks_ago = (today - timedelta(days=14)).strftime('%d-%m-%Y')
+        this_week_scans = Scan.query.filter(Scan.scan_date >= week_ago).count()
+        last_week_scans = Scan.query.filter(
+            Scan.scan_date >= two_weeks_ago,
+            Scan.scan_date < week_ago
+        ).count()
+        lines.append(f"This week scans: {this_week_scans} (last week: {last_week_scans})")
+
+        # Driver stats today
+        driver_counts = {}
+        for r in scan_rows:
+            d = r.driver or 'Unknown'
+            driver_counts[d] = driver_counts.get(d, 0) + 1
+        if driver_counts:
+            lines.append("Driver scan counts today: " + ", ".join(f"{d}: {c}" for d, c in sorted(driver_counts.items(), key=lambda x: -x[1])))
+
+    except Exception as e:
+        lines.append(f"(Could not load full data: {e})")
+
+    return "\n".join(lines)
+
+
+def _build_cylinder_context(uid):
+    """Fetch full data for a specific cylinder UID."""
+    lines = [f"Cylinder UID: {uid}"]
+    try:
+        from models import Cylinder, Scan, CylinderMaintenance
+        cyl = Cylinder.query.filter_by(uid=uid).first()
+        if cyl:
+            lines.append(f"Gas type: {cyl.gas_type or 'Unknown'}")
+            lines.append(f"Cylinder type: {cyl.cylinder_type or 'Unknown'}")
+            lines.append(f"Current owner/location: {cyl.owner or cyl.location or 'Unknown'}")
+            lines.append(f"Status: {cyl.status or 'Unknown'}")
+            lines.append(f"Last activity date: {cyl.last_activity_date or 'Unknown'}")
+        else:
+            lines.append("Cylinder not found in master record.")
+
+        maint = CylinderMaintenance.query.filter_by(cylinder_uid=uid).first()
+        if maint:
+            lines.append(f"Manufacture date: {maint.manufacture_date or 'N/A'}")
+            lines.append(f"Last hydro test: {maint.last_hydro_date or 'N/A'}")
+            lines.append(f"Next hydro due: {maint.next_hydro_due or 'N/A'}")
+            lines.append(f"Hydro test status: {maint.hydro_test_status or 'N/A'}")
+
+        scans = Scan.query.filter_by(cylinder_uid=uid).order_by(Scan.id.desc()).limit(15).all()
+        if scans:
+            lines.append(f"Last {len(scans)} scan records (newest first):")
+            for s in scans:
+                lines.append(f"  - {s.scan_date} {s.scan_time or ''}: {s.action} at {s.customer or 'Depot'} by {s.driver or 'N/A'}")
+        else:
+            lines.append("No scan records found for this cylinder.")
+    except Exception as e:
+        lines.append(f"Error fetching cylinder data: {e}")
+
+    return "\n".join(lines)
+
+
+def _build_customer_context(customer_name):
+    """Fetch outstanding + scan history for a specific customer."""
+    lines = [f"Customer: {customer_name}"]
+    try:
+        from models import CustomerMap, Scan
+        cm_rows = CustomerMap.query.filter_by(customer=customer_name).all()
+        lines.append(f"Currently outstanding cylinders: {len(cm_rows)}")
+        if cm_rows:
+            for row in cm_rows[:10]:
+                lines.append(f"  - UID: {row.cylinder_uid or 'N/A'}, since: {row.scan_date or 'N/A'}")
+
+        scans = Scan.query.filter_by(customer=customer_name).order_by(Scan.id.desc()).limit(20).all()
+        if scans:
+            lines.append(f"Last {len(scans)} scan records:")
+            for s in scans:
+                lines.append(f"  - {s.scan_date} {s.scan_time or ''}: {s.action}, UID: {s.cylinder_uid}, Driver: {s.driver or 'N/A'}")
+        else:
+            lines.append("No scan records found for this customer.")
+    except Exception as e:
+        lines.append(f"Error fetching customer data: {e}")
+
+    return "\n".join(lines)
+
+
+def _detect_uid_in_question(text):
+    """Return cylinder UID if one is found in the question text."""
+    try:
+        from models import Cylinder
+        all_uids = [c.uid for c in Cylinder.query.with_entities(Cylinder.uid).all()]
+        text_upper = text.upper()
+        for uid in all_uids:
+            if uid.upper() in text_upper:
+                return uid
+    except Exception:
+        pass
+    return None
+
+
+def _detect_customer_in_question(text):
+    """Return customer name if one is found (fuzzy) in the question text."""
+    try:
+        from models import CustomerMap
+        customers = list(set(
+            r.customer for r in CustomerMap.query.with_entities(CustomerMap.customer).distinct().all()
+            if r.customer
+        ))
+        text_lower = text.lower()
+        for cname in sorted(customers, key=len, reverse=True):
+            if cname.lower() in text_lower:
+                return cname
+    except Exception:
+        pass
+    return None
+
+
+def _get_ai_insights(force=False):
+    """Return cached AI insights or generate fresh ones from Gemini."""
+    CACHE_KEY = 'ai_insights_cache'
+    TIME_KEY = 'ai_insights_generated_at'
+    MAX_AGE_SECONDS = 3600  # 1 hour
+
+    if not force:
+        cached = get_setting(CACHE_KEY, '')
+        cached_time = get_setting(TIME_KEY, '')
+        if cached and cached_time:
+            try:
+                generated_at = datetime.fromisoformat(cached_time)
+                age = (datetime.utcnow() - generated_at).total_seconds()
+                if age < MAX_AGE_SECONDS:
+                    import json
+                    return json.loads(cached), int(age)
+            except Exception:
+                pass
+
+    model = _get_gemini()
+    if not model:
+        return ['⚠️ Gemini API key not configured. Add GEMINI_API_KEY to environment variables.'], -1
+
+    try:
+        context = _build_dashboard_context()
+        prompt = f"""You are an operations analyst for Noble Air Gases, a gas cylinder distribution company in India.
+Analyze the following operational data and write exactly 5 concise insights for the admin.
+
+Rules:
+- Each insight must be 1-2 sentences max
+- Be specific: use actual numbers and names from the data
+- Start each with exactly one emoji: ⚠️ (risk/alert), 📈 (trend), ✅ (good news), or 💡 (action needed)
+- Write in plain English, no jargon
+- If data is all zeros or empty, note that operations haven't started yet and suggest syncing data
+
+Operational Data:
+{context}
+
+Return exactly 5 bullet points, one per line, no numbering, no extra text."""
+
+        response = model.generate_content(prompt)
+        raw = response.text.strip()
+        insights = [line.strip() for line in raw.split('\n') if line.strip()][:6]
+
+        import json
+        set_setting(CACHE_KEY, json.dumps(insights))
+        set_setting(TIME_KEY, datetime.utcnow().isoformat())
+        return insights, 0
+    except Exception as e:
+        print(f"[Gemini] Insights generation error: {e}")
+        cached = get_setting(CACHE_KEY, '')
+        if cached:
+            import json
+            return json.loads(cached), -2  # -2 = using stale cache
+        return [f'⚠️ Could not generate insights: {str(e)[:100]}'], -1
+
+
+# ── AI Insights API routes ────────────────────────────────────────────────────
+@app.route('/admin/api/ai_insights')
+@admin_required
+def admin_ai_insights():
+    force = request.args.get('force') == '1'
+    insights, age = _get_ai_insights(force=force)
+    if age >= 0:
+        mins = age // 60
+        age_label = 'just now' if mins == 0 else f'{mins} min ago'
+    elif age == -2:
+        age_label = 'cached (refresh failed)'
+    else:
+        age_label = ''
+    return jsonify({'insights': insights, 'age': age_label})
+
+
+@app.route('/admin/api/ai_chat', methods=['POST'])
+@admin_required
+def admin_ai_chat():
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
+    if not question:
+        return jsonify({'answer': 'Please ask a question.'}), 400
+
+    model = _get_gemini()
+    if not model:
+        return jsonify({'answer': '⚠️ Gemini API key not configured.'}), 503
+
+    try:
+        # Smart context detection
+        uid = _detect_uid_in_question(question)
+        customer = _detect_customer_in_question(question)
+
+        if uid:
+            context = _build_cylinder_context(uid)
+            context_type = f"cylinder {uid}"
+        elif customer:
+            context = _build_customer_context(customer)
+            context_type = f"customer {customer}"
+        else:
+            context = _build_dashboard_context()
+            context_type = "general operations"
+
+        prompt = f"""You are an operations assistant for Noble Air Gases, a gas cylinder distribution company in India.
+Answer the admin's question using only the data provided below. Be concise (2-4 sentences max).
+If the data doesn't contain enough information to answer, say so clearly.
+Do not make up numbers or information not in the data.
+
+Context ({context_type}):
+{context}
+
+Admin's question: {question}
+
+Answer:"""
+
+        response = model.generate_content(prompt)
+        answer = response.text.strip()
+        return jsonify({'answer': answer})
+    except Exception as e:
+        print(f"[Gemini] Chat error: {e}")
+        return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
+
+
 # SQLAlchemy Database Configuration
 db_url = os.environ.get('DATABASE_URL')
 if not db_url:
