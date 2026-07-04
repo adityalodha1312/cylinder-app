@@ -7306,8 +7306,11 @@ def admin_clear_driver_queue(username):
 @app.route('/admin/drivers/job/<int:job_id>/cancel', methods=['POST'])
 @admin_required
 def admin_cancel_job(job_id):
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     job = DriverJob.query.get_or_404(job_id)
     if job.status != 'Pending':
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': 'Only pending jobs can be cancelled.'}), 400
         flash('Only pending jobs can be cancelled.', 'error')
         return redirect('/admin/drivers')
     driver = job.driver_username
@@ -7321,9 +7324,13 @@ def admin_cancel_job(job_id):
             DriverJob.queue_position > pos
         ).update({'queue_position': DriverJob.queue_position - 1})
         db.session.commit()
+        if is_ajax:
+            return jsonify({'ok': True})
         flash('Job cancelled.', 'success')
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': str(e)}), 500
         flash(f'Error: {str(e)}', 'error')
     return redirect('/admin/drivers')
 
@@ -7331,8 +7338,11 @@ def admin_cancel_job(job_id):
 @app.route('/admin/drivers/job/<int:job_id>/move_up', methods=['POST'])
 @admin_required
 def admin_job_move_up(job_id):
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     job = DriverJob.query.get_or_404(job_id)
     if job.status != 'Pending' or job.queue_position <= 1:
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': 'Cannot move job up.'}), 400
         return redirect('/admin/drivers')
     try:
         # Swap with the job above
@@ -7345,16 +7355,25 @@ def admin_job_move_up(job_id):
             above.queue_position = job.queue_position
             job.queue_position = job.queue_position - 1
             db.session.commit()
+            if is_ajax:
+                return jsonify({'ok': True})
+        elif is_ajax:
+            return jsonify({'ok': False, 'msg': 'No job above to swap.'}), 400
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': str(e)}), 500
     return redirect('/admin/drivers')
 
 
 @app.route('/admin/drivers/job/<int:job_id>/move_down', methods=['POST'])
 @admin_required
 def admin_job_move_down(job_id):
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     job = DriverJob.query.get_or_404(job_id)
     if job.status != 'Pending':
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': 'Cannot move job down.'}), 400
         return redirect('/admin/drivers')
     try:
         below = DriverJob.query.filter(
@@ -7366,9 +7385,50 @@ def admin_job_move_down(job_id):
             below.queue_position = job.queue_position
             job.queue_position = job.queue_position + 1
             db.session.commit()
+            if is_ajax:
+                return jsonify({'ok': True})
+        elif is_ajax:
+            return jsonify({'ok': False, 'msg': 'No job below to swap.'}), 400
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'ok': False, 'msg': str(e)}), 500
     return redirect('/admin/drivers')
+
+
+@app.route('/api/admin/drivers/<username>/jobs')
+@admin_required
+def admin_get_driver_jobs(username):
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({'ok': False, 'msg': 'Database offline'}), 500
+    try:
+        pending = DriverJob.query.filter_by(
+            driver_username=username, status='Pending'
+        ).all()
+        in_progress = DriverJob.query.filter_by(
+            driver_username=username, status='In Progress'
+        ).all()
+        
+        all_active = pending + in_progress
+        all_active.sort(key=lambda x: x.queue_position)
+        
+        ist_offset = timedelta(hours=5, minutes=30)
+        jobs_list = []
+        for j in all_active:
+            assigned_at_ist = (j.assigned_at + ist_offset) if j.assigned_at else None
+            jobs_list.append({
+                'id': j.id,
+                'job_ref': j.job_ref,
+                'customer': j.customer,
+                'action': j.action,
+                'status': j.status,
+                'queue_position': j.queue_position,
+                'assigned_at': assigned_at_ist.strftime('%H:%M') if assigned_at_ist else '',
+                'notes': j.notes or ''
+            })
+        return jsonify({'ok': True, 'jobs': jobs_list})
+    except Exception as e:
+        return jsonify({'ok': False, 'msg': str(e)}), 500
 
 
 @app.route('/api/driver/active_job')

@@ -913,6 +913,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("step-jobs").classList.add("active");
     
     fetchActiveJob();
+    setInterval(fetchActiveJob, 5000);
   } else {
     document.getElementById("mode-toggle-card").style.display = "flex";
     document.getElementById("active-job-card").style.display = "none";

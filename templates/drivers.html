@@ -229,10 +229,10 @@
             <div class="job-notes-text">{{ job.notes }}</div>
             {% endif %}
             <div class="job-reorder">
-              <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;">
+              <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
                 <button type="submit" class="btn-reorder" title="Move Up">↑</button>
               </form>
-              <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;">
+              <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
                 <button type="submit" class="btn-reorder" title="Move Down">↓</button>
               </form>
             </div>
@@ -281,6 +281,80 @@
     setTimeout(() => { el.style.display = 'none'; }, 3000);
   }
 
+  function renderJobs(username, jobs) {
+    const list = document.getElementById('job-list-' + username);
+    if (!list) return;
+    if (!jobs || jobs.length === 0) {
+      list.innerHTML = `<div id="empty-msg-${username}" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>`;
+      return;
+    }
+    list.innerHTML = "";
+    jobs.forEach(job => {
+      const row = document.createElement('div');
+      row.className = 'job-row';
+      row.id = 'job-row-' + job.id;
+      
+      const statusClass = job.status === 'In Progress' ? 'in-progress' : 'pending';
+      const actionBadgeClass = 'badge-' + job.action.toLowerCase();
+      const statusBadgeClass = 'badge-' + (job.status === 'In Progress' ? 'in-progress' : 'pending');
+      
+      row.innerHTML = `
+        <div class="job-pos ${statusClass}">${job.queue_position}</div>
+        <div class="job-customer">${job.customer}</div>
+        <div class="job-ref">${job.job_ref}</div>
+        <span class="job-action-badge ${actionBadgeClass}">${job.action}</span>
+        <span class="job-action-badge ${statusBadgeClass}">${job.status}</span>
+        <div class="job-time">${job.assigned_at}</div>
+        \${job.notes ? `<div class="job-notes-text">\${job.notes}</div>` : ''}
+        <div class="job-reorder">
+          <form action="/admin/drivers/job/\${job.id}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '\${username}')">
+            <button type="submit" class="btn-reorder" title="Move Up">↑</button>
+          </form>
+          <form action="/admin/drivers/job/\${job.id}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '\${username}')">
+            <button type="submit" class="btn-reorder" title="Move Down">↓</button>
+          </form>
+        </div>
+        <button class="btn-cancel" onclick="cancelJob(\${job.id}, '\${username}')" title="Cancel Job">✕</button>
+      `;
+      list.appendChild(row);
+    });
+  }
+
+  async function refreshDriverJobs(username) {
+    try {
+      const res = await fetch(`/api/admin/drivers/\${username}/jobs`);
+      const data = await res.json();
+      if (data.ok) {
+        renderJobs(username, data.jobs);
+        const countEl = document.getElementById('pending-count-' + username);
+        if (countEl) {
+          countEl.textContent = data.jobs.filter(j => j.status === 'Pending').length;
+        }
+      }
+    } catch(e) {
+      console.error("Error refreshing jobs:", e);
+    }
+  }
+
+  async function moveJob(event, form, username) {
+    event.preventDefault();
+    try {
+      const res = await fetch(form.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.ok) {
+        await refreshDriverJobs(username);
+        showFlash(username, '✓ Queue rearranged');
+      } else {
+        alert('Error rearranging: ' + (data.msg || 'Error'));
+      }
+    } catch(e) {
+      alert('Network error. Please try again.');
+    }
+  }
+
   async function submitJob(username) {
     const customer = document.getElementById('cust-' + username).value;
     const action   = document.getElementById('action-' + username).value;
@@ -309,32 +383,7 @@
 
       if (data.ok) {
         showFlash(username, '✓ ' + data.job_ref + ' added');
-        const emptyMsg = document.getElementById('empty-msg-' + username);
-        if (emptyMsg) emptyMsg.remove();
-        const list = document.getElementById('job-list-' + username);
-        const row = document.createElement('div');
-        row.className = 'job-row';
-        row.id = 'job-row-' + data.job_id;
-        row.innerHTML =
-          '<div class="job-pos pending">' + data.queue_position + '</div>' +
-          '<div class="job-customer">' + data.customer + '</div>' +
-          '<div class="job-ref">' + data.job_ref + '</div>' +
-          '<span class="job-action-badge badge-' + data.action.toLowerCase() + '">' + data.action + '</span>' +
-          '<span class="job-action-badge badge-pending">Pending</span>' +
-          '<div class="job-time">' + data.assigned_at + '</div>' +
-          (data.notes ? '<div class="job-notes-text">' + data.notes + '</div>' : '') +
-          '<div class="job-reorder">' +
-            '<form action="/admin/drivers/job/' + data.job_id + '/move_up" method="POST" style="display:inline;">' +
-              '<button type="submit" class="btn-reorder" title="Move Up">↑</button>' +
-            '</form>' +
-            '<form action="/admin/drivers/job/' + data.job_id + '/move_down" method="POST" style="display:inline;">' +
-              '<button type="submit" class="btn-reorder" title="Move Down">↓</button>' +
-            '</form>' +
-          '</div>' +
-          '<button class="btn-cancel" onclick="cancelJob(' + data.job_id + ', \'' + username + '\')" title="Cancel Job">✕</button>';
-        list.appendChild(row);
-        const countEl = document.getElementById('pending-count-' + username);
-        if (countEl) countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+        await refreshDriverJobs(username);
         document.getElementById('cust-' + username).value = '';
         if (noteEl) noteEl.value = '';
       } else {
@@ -352,12 +401,18 @@
     if (!confirm('Cancel this job?')) return;
     try {
       const formData = new FormData();
-      await fetch('/admin/drivers/job/' + jobId + '/cancel', { method: 'POST', body: formData });
-      const row = document.getElementById('job-row-' + jobId);
-      if (row) { row.style.opacity = '0.4'; setTimeout(() => row.remove(), 300); }
-      const countEl = document.getElementById('pending-count-' + username);
-      if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent || 1) - 1);
-      showFlash(username, '✓ Job cancelled');
+      const res = await fetch('/admin/drivers/job/' + jobId + '/cancel', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.ok) {
+        await refreshDriverJobs(username);
+        showFlash(username, '✓ Job cancelled');
+      } else {
+        alert('Error: ' + (data.msg || 'Could not cancel job'));
+      }
     } catch(e) {
       alert('Error cancelling job. Please refresh.');
     }
@@ -369,10 +424,7 @@
       const res = await fetch('/admin/drivers/' + username + '/clear_queue', { method: 'POST' });
       const data = await res.json();
       if (data.ok) {
-        const list = document.getElementById('job-list-' + username);
-        list.innerHTML = '<div id="empty-msg-' + username + '" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>';
-        const countEl = document.getElementById('pending-count-' + username);
-        if (countEl) countEl.textContent = '0';
+        await refreshDriverJobs(username);
         showFlash(username, '✓ Queue cleared');
       } else {
         alert('Error: ' + (data.msg || 'Could not clear queue'));
