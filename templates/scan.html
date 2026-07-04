@@ -763,55 +763,56 @@ let isRevalidating = false;
 window.currentJob = null;
 const userRole = "{{ user.role if user else 'driver' }}";
 
-async function fetchActiveJob() {
+async function fetchActiveJob(isBackground = false) {
+  if (window.currentJob) return; // Don't interrupt scanning/reviewing!
   const listContainer = document.getElementById("jobs-list-container");
   if (!listContainer) return;
-  listContainer.innerHTML = `<div style="text-align:center; padding:12px; color:var(--gray-text); font-size:13px;">Loading jobs...</div>`;
+  
+  if (!isBackground) {
+    listContainer.innerHTML = `<div style="text-align:center; padding:12px; color:var(--gray-text); font-size:13px;">Loading jobs...</div>`;
+  }
 
   try {
     let res = await fetch("/api/driver/active_job");
     let data = await res.json();
     
+    let html = "";
     if (data.pending_jobs && data.pending_jobs.length > 0) {
-      listContainer.innerHTML = "";
       data.pending_jobs.forEach((job, index) => {
         if (index === 0) {
           // Priority 1: active job that they can start scanning
-          let card = document.createElement("div");
-          card.style.cssText = "background:#fff; border-radius:12px; border:2px solid var(--green-700); padding:16px; box-shadow:0 2px 8px rgba(15,110,86,0.08); text-align: left;";
-          
           let badgeStyle = job.action === "Delivery" ? "background:#e1f5ee; color:#0f6e56;" : "background:#eff6ff; color:#1e40af;";
           
-          card.innerHTML = `
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-              <span style="font-size:12px; font-weight:700; color:var(--green-700);">Priority 1 (Active)</span>
-              <span style="padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; text-transform:uppercase; ${badgeStyle}">${job.action}</span>
+          html += `
+            <div style="background:#fff; border-radius:12px; border:2px solid var(--green-700); padding:16px; box-shadow:0 2px 8px rgba(15,110,86,0.08); text-align: left;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                <span style="font-size:12px; font-weight:700; color:var(--green-700);">Priority 1 (Active)</span>
+                <span style="padding:2px 8px; border-radius:12px; font-size:10px; font-weight:700; text-transform:uppercase; ${badgeStyle}">${job.action}</span>
+              </div>
+              <div style="font-size:16px; font-weight:700; color:var(--dark-text);">${job.job_ref}</div>
+              ${job.notes ? `<div style="font-size:12px; color:var(--gray-text); margin-top:4px;">Note: ${job.notes}</div>` : ''}
+              <button class="submit-btn" style="margin-top:14px; width:100%; display:block; text-align:center;" onclick='startJobScanning(${JSON.stringify(job)})'>Start Scanning</button>
             </div>
-            <div style="font-size:16px; font-weight:700; color:var(--dark-text);">${job.job_ref}</div>
-            ${job.notes ? `<div style="font-size:12px; color:var(--gray-text); margin-top:4px;">Note: ${job.notes}</div>` : ''}
-            <button class="submit-btn" style="margin-top:14px; width:100%; display:block; text-align:center;" onclick='startJobScanning(${JSON.stringify(job)})'>Start Scanning</button>
           `;
-          listContainer.appendChild(card);
         } else {
           // Other jobs: locked / disabled view
-          let card = document.createElement("div");
-          card.style.cssText = "background:#f4f4f2; border-radius:12px; border:1.5px solid var(--gray-bd); padding:14px 16px; opacity:0.65; display:flex; justify-content:space-between; align-items:center; text-align: left;";
-          card.innerHTML = `
-            <div>
-              <div style="font-size:11px; font-weight:600; color:var(--gray-text); margin-bottom:2px;">Priority ${index + 1}</div>
-              <div style="font-size:14px; font-weight:700; color:var(--dark-text);">${job.job_ref}</div>
-              <div style="font-size:11px; color:var(--gray-text); font-weight:500;">Action: ${job.action}</div>
+          html += `
+            <div style="background:#f4f4f2; border-radius:12px; border:1.5px solid var(--gray-bd); padding:14px 16px; opacity:0.65; display:flex; justify-content:space-between; align-items:center; text-align: left;">
+              <div>
+                <div style="font-size:11px; font-weight:600; color:var(--gray-text); margin-bottom:2px;">Priority ${index + 1}</div>
+                <div style="font-size:14px; font-weight:700; color:var(--dark-text);">${job.job_ref}</div>
+                <div style="font-size:11px; color:var(--gray-text); font-weight:500;">Action: ${job.action}</div>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-text)" stroke-width="2.5">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+              </svg>
             </div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--gray-text)" stroke-width="2.5">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
           `;
-          listContainer.appendChild(card);
         }
       });
     } else {
       // Empty state
-      listContainer.innerHTML = `
+      html = `
         <div style="background:#fff; border-radius:12px; border:1.5px solid var(--gray-bd); padding:24px 16px; text-align:center;">
           <div style="font-size:24px; margin-bottom:8px;">⏳</div>
           <div style="font-weight:700; color:var(--dark-text); font-size:14px;">No Jobs Assigned Yet</div>
@@ -819,9 +820,13 @@ async function fetchActiveJob() {
         </div>
       `;
     }
+    
+    listContainer.innerHTML = html;
   } catch (err) {
     console.error("Error fetching active job:", err);
-    listContainer.innerHTML = `<div style="text-align:center; padding:12px; color:#dc3545; font-size:13px;">Failed to load jobs.</div>`;
+    if (!isBackground) {
+      listContainer.innerHTML = `<div style="text-align:center; padding:12px; color:#dc3545; font-size:13px;">Failed to load jobs.</div>`;
+    }
   }
 }
 
@@ -913,7 +918,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("step-jobs").classList.add("active");
     
     fetchActiveJob();
-    setInterval(fetchActiveJob, 5000);
+    setInterval(() => fetchActiveJob(true), 5000);
   } else {
     document.getElementById("mode-toggle-card").style.display = "flex";
     document.getElementById("active-job-card").style.display = "none";
