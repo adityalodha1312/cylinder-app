@@ -16,34 +16,65 @@
   .top-performer:hover { background:#e8f8ef !important; }
   .top-badge { display:inline-flex; align-items:center; gap:4px; background:var(--green-50); color:var(--green-900); font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; margin-left:6px; vertical-align:middle; }
 
-  /* Job Queue styles */
-  .job-queue-section { margin-top: 32px; }
-  .job-queue-grid { display: flex; flex-direction: column; gap: 16px; }
-  .driver-queue-card { background:#fff; border-radius:14px; border:1.5px solid var(--gray-bd); overflow:hidden; }
+  /* ── Job Queue ── */
+  .job-queue-section { margin-top:32px; }
+  .job-queue-grid { display:flex; flex-direction:column; gap:18px; }
+  .driver-queue-card { background:#fff; border-radius:16px; border:1.5px solid var(--gray-bd); overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.05); }
+
+  /* Card Header */
   .driver-queue-header { display:flex; align-items:center; justify-content:space-between; padding:14px 18px; background:var(--green-50); border-bottom:1px solid var(--gray-bd); flex-wrap:wrap; gap:10px; }
+  .driver-header-left { display:flex; align-items:center; gap:10px; }
+  .driver-avatar { width:36px; height:36px; border-radius:50%; background:var(--green-700); color:white; font-size:14px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
   .driver-queue-name { font-weight:700; font-size:15px; color:var(--green-900); }
+  .driver-username-sub { font-size:11.5px; color:#888; margin-top:2px; }
+  .role-badge { display:inline-flex; align-items:center; padding:2px 9px; border-radius:20px; font-size:10.5px; font-weight:700; letter-spacing:0.3px; text-transform:uppercase; }
+  .role-badge.driver { background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; }
+  .role-badge.filler { background:#fef3c7; color:#b45309; border:1px solid #fde68a; }
+  .driver-header-right { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
   .queue-stats { display:flex; gap:12px; }
   .queue-stat { font-size:12px; color:var(--gray-text); font-weight:500; }
   .queue-stat span { font-weight:700; color:var(--dark-text); }
-  .assign-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding:12px 18px; background:#fafaf8; border-bottom:1px solid #eeeee9; }
-  .assign-form select, .assign-form input { padding:7px 10px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; font-family:inherit; outline:none; }
-  .assign-form select:focus, .assign-form input:focus { border-color:var(--green-700); }
-  .assign-form .btn-assign { background:var(--green-700); color:#fff; border:none; padding:8px 16px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; white-space:nowrap; }
-  .assign-form .btn-assign:hover { background:var(--green-900); }
+  .btn-clear-all { background:none; border:1.5px solid #fca5a5; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; color:#dc3545; cursor:pointer; font-family:inherit; transition:all 0.15s; }
+  .btn-clear-all:hover { background:#fee2e2; }
+
+  /* Assign Form */
+  .assign-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; padding:12px 18px; background:#fafaf8; border-bottom:1px solid #eeeee9; }
+  .assign-form select { padding:8px 10px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; font-family:inherit; outline:none; background:#fff; }
+  .assign-form select:focus { border-color:var(--green-700); }
+  .btn-assign { background:var(--green-700); color:#fff; border:none; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background 0.15s; }
+  .btn-assign:hover { background:var(--green-900); }
+  .btn-assign:disabled { opacity:0.6; cursor:not-allowed; }
+  .note-toggle { font-size:12px; color:var(--green-700); cursor:pointer; text-decoration:underline; padding:8px 2px; white-space:nowrap; align-self:center; background:none; border:none; font-family:inherit; }
+  .note-field { display:none; width:100%; margin-top:4px; }
+  .note-field input { width:100%; padding:7px 10px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; font-family:inherit; outline:none; }
+  .note-field input:focus { border-color:var(--green-700); }
+  .assign-flash { font-size:12.5px; font-weight:600; color:#0F6E56; background:#e1f5ee; border-radius:8px; padding:6px 12px; display:none; align-self:center; }
+  .assign-flash.error { color:#991b1b; background:#fee2e2; }
+
+  /* Job List */
   .job-list { padding:0; }
-  .job-row { display:flex; align-items:center; gap:10px; padding:10px 18px; border-bottom:1px solid #eeeee9; }
+  .job-row { display:flex; align-items:center; gap:10px; padding:11px 18px; border-bottom:1px solid #eeeee9; transition:background 0.1s; }
   .job-row:last-child { border-bottom:none; }
-  .job-pos { width:22px; height:22px; background:var(--green-700); color:#fff; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .job-ref { font-size:12px; font-weight:700; color:var(--green-700); min-width:120px; }
-  .job-action-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
-  .badge-delivery { background:#E1F5EE; color:#0F6E56; }
-  .badge-collection { background:#EFF6FF; color:#1E40AF; }
-  .job-notes { font-size:12px; color:#888; flex:1; }
+  .job-row:hover { background:#fafaf8; }
+  .job-pos { width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .job-pos.pending    { background:var(--green-700); color:#fff; }
+  .job-pos.in-progress { background:#f59e0b; color:#fff; }
+  .job-customer { font-size:13.5px; font-weight:600; color:var(--dark-text); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .job-ref { font-size:11px; color:#aaa; min-width:100px; }
+  .job-action-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
+  .badge-delivery    { background:#E1F5EE; color:#0F6E56; }
+  .badge-collection  { background:#EFF6FF; color:#1E40AF; }
+  .badge-pending     { background:#f3f4f6; color:#6b7280; }
+  .badge-in-progress { background:#fef3c7; color:#b45309; }
+  .job-time { font-size:11.5px; color:#aaa; white-space:nowrap; }
+  .job-notes-text { font-size:11.5px; color:#aaa; font-style:italic; }
   .job-reorder { display:flex; gap:4px; }
   .btn-reorder { background:none; border:1px solid var(--gray-bd); border-radius:6px; padding:3px 7px; cursor:pointer; font-size:12px; color:var(--gray-text); }
   .btn-reorder:hover { border-color:var(--green-700); color:var(--green-700); }
   .btn-cancel { background:none; border:1px solid #fca5a5; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12px; color:#dc3545; }
   .btn-cancel:hover { background:#fee2e2; }
+
+  /* Completed Today */
   .completed-section { padding:10px 18px 14px; }
   .completed-title { font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
   .completed-row { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; color:#666; border-bottom:1px dashed #eee; }
@@ -122,70 +153,92 @@
 <div class="job-queue-section">
   <div style="margin-bottom:16px;">
     <div class="page-title" style="font-size:18px;">Job Queue Management</div>
-    <div class="page-sub">Assign and manage delivery/collection jobs for each driver. Customer names are hidden from drivers.</div>
+    <div class="page-sub">Assign and manage delivery/collection jobs per driver. Customer names are hidden from drivers on their scanner app.</div>
   </div>
   <div class="job-queue-grid">
     {% for username, jdata in driver_jobs.items() %}
-    <div class="driver-queue-card">
+    <div class="driver-queue-card" id="card-{{ username }}">
+
       <!-- Header -->
       <div class="driver-queue-header">
-        <div>
-          <div class="driver-queue-name">{{ jdata.driver_name }}</div>
-          <div style="font-size:12px; color:#666;">@{{ username }}</div>
+        <div class="driver-header-left">
+          <div class="driver-avatar">{{ (jdata.driver_name or username)[0] | upper }}</div>
+          <div>
+            <div class="driver-queue-name">
+              {{ jdata.driver_name }} / <span style="font-weight:500; color:#666;">@{{ username }}</span>
+              <span class="role-badge {{ 'filler' if jdata.role == 'filler' else 'driver' }}" style="margin-left:6px;">
+                {{ 'Filler' if jdata.role == 'filler' else 'Delivery Driver' }}
+              </span>
+            </div>
+            <div class="driver-username-sub">Jobs for Today: {{ today_str }}</div>
+          </div>
         </div>
-        <div class="queue-stats">
-          <div class="queue-stat">Pending: <span>{{ jdata.pending | length }}</span></div>
-          <div class="queue-stat">Done Today: <span>{{ jdata.completed_today | length }}</span></div>
+        <div class="driver-header-right">
+          <div class="queue-stats">
+            <div class="queue-stat">Pending: <span id="pending-count-{{ username }}">{{ jdata.pending | length }}</span></div>
+            <div class="queue-stat">In Progress: <span>{{ jdata.in_progress | length }}</span></div>
+            <div class="queue-stat">Done Today: <span>{{ jdata.completed_today | length }}</span></div>
+          </div>
+          <button class="btn-clear-all" onclick="clearQueue('{{ username }}')" title="Cancel all pending jobs for this driver">
+            🗑 Clear All
+          </button>
         </div>
       </div>
 
-      <!-- Assign Form -->
-      <form action="/admin/drivers/assign_job" method="POST" class="assign-form">
-        <input type="hidden" name="driver_username" value="{{ username }}">
-        <select name="customer" required style="flex:2; min-width:160px;">
+      <!-- Assign Form (AJAX) -->
+      <div class="assign-form" id="form-{{ username }}">
+        <select name="customer" id="cust-{{ username }}" required style="flex:2; min-width:160px;">
           <option value="" disabled selected>Select Customer…</option>
           {% for cname in customers_list %}
           <option value="{{ cname }}">{{ cname }}</option>
           {% endfor %}
         </select>
-        <select name="action" required>
+        <select name="action" id="action-{{ username }}">
           <option value="Delivery">Delivery</option>
           <option value="Collection">Collection</option>
         </select>
-        <input type="text" name="notes" placeholder="Notes (optional)" style="flex:1; min-width:120px;">
-        <button type="submit" class="btn-assign">+ Add to Queue</button>
-      </form>
-
-      <!-- Pending Queue -->
-      {% if jdata.pending %}
-      <div class="job-list">
-        {% for job in jdata.pending %}
-        <div class="job-row">
-          <div class="job-pos">{{ job.queue_position }}</div>
-          <div class="job-ref">{{ job.job_ref }}</div>
-          <span class="job-action-badge badge-{{ job.action | lower }}">{{ job.action }}</span>
-          <div class="job-notes">{{ job.notes or '' }}</div>
-          <div class="job-reorder">
-            {% if not loop.first %}
-            <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;">
-              <button type="submit" class="btn-reorder" title="Move Up">↑</button>
-            </form>
-            {% endif %}
-            {% if not loop.last %}
-            <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;">
-              <button type="submit" class="btn-reorder" title="Move Down">↓</button>
-            </form>
-            {% endif %}
-          </div>
-          <form action="/admin/drivers/job/{{ job.id }}/cancel" method="POST" style="display:inline;" onsubmit="return confirm('Cancel this job?');">
-            <button type="submit" class="btn-cancel">✕</button>
-          </form>
+        <button type="button" class="note-toggle" onclick="toggleNote('{{ username }}')">＋ Add note</button>
+        <button type="button" class="btn-assign" onclick="submitJob('{{ username }}')">+ Add to Queue</button>
+        <span class="assign-flash" id="flash-{{ username }}"></span>
+        <div class="note-field" id="note-wrap-{{ username }}">
+          <input type="text" id="note-{{ username }}" placeholder="Add a note (optional)…">
         </div>
-        {% endfor %}
       </div>
-      {% else %}
-      <div style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>
-      {% endif %}
+
+      <!-- Pending & In-Progress Queue -->
+      <div class="job-list" id="job-list-{{ username }}">
+        {% set all_active = jdata.pending + jdata.in_progress %}
+        {% if all_active %}
+          {% for job in all_active | sort(attribute='queue_position') %}
+          <div class="job-row" id="job-row-{{ job.id }}">
+            <div class="job-pos {{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.queue_position }}</div>
+            <div class="job-customer">{{ job.customer }}</div>
+            <div class="job-ref">{{ job.job_ref }}</div>
+            <span class="job-action-badge badge-{{ job.action | lower }}">{{ job.action }}</span>
+            <span class="job-action-badge badge-{{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.status }}</span>
+            <div class="job-time">{{ job.assigned_at.strftime('%H:%M') if job.assigned_at else '' }}</div>
+            {% if job.notes %}
+            <div class="job-notes-text">{{ job.notes }}</div>
+            {% endif %}
+            <div class="job-reorder">
+              {% if not loop.first %}
+              <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;">
+                <button type="submit" class="btn-reorder" title="Move Up">↑</button>
+              </form>
+              {% endif %}
+              {% if not loop.last %}
+              <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;">
+                <button type="submit" class="btn-reorder" title="Move Down">↓</button>
+              </form>
+              {% endif %}
+            </div>
+            <button class="btn-cancel" onclick="cancelJob({{ job.id }}, '{{ username }}')" title="Cancel Job">✕</button>
+          </div>
+          {% endfor %}
+        {% else %}
+        <div id="empty-msg-{{ username }}" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>
+        {% endif %}
+      </div>
 
       <!-- Completed Today -->
       {% if jdata.completed_today %}
@@ -194,17 +247,128 @@
         {% for job in jdata.completed_today %}
         <div class="completed-row">
           <span class="badge-completed">✓ Done</span>
-          <span style="font-weight:600;">{{ job.job_ref }}</span>
+          <span style="font-weight:600;">{{ job.customer }}</span>
+          <span style="color:#aaa;">{{ job.job_ref }}</span>
           <span>{{ job.action }}</span>
           <span style="color:#aaa; margin-left:auto;">{{ job.completed_at.strftime('%H:%M') if job.completed_at else '' }}</span>
         </div>
         {% endfor %}
       </div>
       {% endif %}
+
     </div>
     {% endfor %}
   </div>
 </div>
 {% endif %}
+
+<script>
+  function toggleNote(username) {
+    const wrap = document.getElementById('note-wrap-' + username);
+    const isHidden = wrap.style.display === 'none' || wrap.style.display === '';
+    wrap.style.display = isHidden ? 'block' : 'none';
+  }
+
+  function showFlash(username, msg, isError = false) {
+    const el = document.getElementById('flash-' + username);
+    el.textContent = msg;
+    el.className = 'assign-flash' + (isError ? ' error' : '');
+    el.style.display = 'inline-flex';
+    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  }
+
+  async function submitJob(username) {
+    const customer = document.getElementById('cust-' + username).value;
+    const action   = document.getElementById('action-' + username).value;
+    const noteEl   = document.getElementById('note-' + username);
+    const notes    = noteEl ? noteEl.value : '';
+    const btn      = document.querySelector('#form-' + username + ' .btn-assign');
+
+    if (!customer) { showFlash(username, '⚠️ Select a customer first', true); return; }
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    const formData = new FormData();
+    formData.append('driver_username', username);
+    formData.append('customer', customer);
+    formData.append('action', action);
+    formData.append('notes', notes);
+
+    try {
+      const res = await fetch('/admin/drivers/assign_job', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        showFlash(username, '✓ ' + data.job_ref + ' added');
+        const emptyMsg = document.getElementById('empty-msg-' + username);
+        if (emptyMsg) emptyMsg.remove();
+        const list = document.getElementById('job-list-' + username);
+        const row = document.createElement('div');
+        row.className = 'job-row';
+        row.id = 'job-row-' + data.job_id;
+        row.innerHTML =
+          '<div class="job-pos pending">' + data.queue_position + '</div>' +
+          '<div class="job-customer">' + data.customer + '</div>' +
+          '<div class="job-ref">' + data.job_ref + '</div>' +
+          '<span class="job-action-badge badge-' + data.action.toLowerCase() + '">' + data.action + '</span>' +
+          '<span class="job-action-badge badge-pending">Pending</span>' +
+          '<div class="job-time">' + data.assigned_at + '</div>' +
+          (data.notes ? '<div class="job-notes-text">' + data.notes + '</div>' : '') +
+          '<button class="btn-cancel" onclick="cancelJob(' + data.job_id + ', \'' + username + '\')" title="Cancel Job">✕</button>';
+        list.appendChild(row);
+        const countEl = document.getElementById('pending-count-' + username);
+        if (countEl) countEl.textContent = parseInt(countEl.textContent || 0) + 1;
+        document.getElementById('cust-' + username).value = '';
+        if (noteEl) noteEl.value = '';
+      } else {
+        showFlash(username, '⚠️ ' + (data.msg || 'Error'), true);
+      }
+    } catch(e) {
+      showFlash(username, '⚠️ Network error', true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '+ Add to Queue';
+    }
+  }
+
+  async function cancelJob(jobId, username) {
+    if (!confirm('Cancel this job?')) return;
+    try {
+      const formData = new FormData();
+      await fetch('/admin/drivers/job/' + jobId + '/cancel', { method: 'POST', body: formData });
+      const row = document.getElementById('job-row-' + jobId);
+      if (row) { row.style.opacity = '0.4'; setTimeout(() => row.remove(), 300); }
+      const countEl = document.getElementById('pending-count-' + username);
+      if (countEl) countEl.textContent = Math.max(0, parseInt(countEl.textContent || 1) - 1);
+      showFlash(username, '✓ Job cancelled');
+    } catch(e) {
+      alert('Error cancelling job. Please refresh.');
+    }
+  }
+
+  async function clearQueue(username) {
+    if (!confirm('Clear all pending jobs for ' + username + '?')) return;
+    try {
+      const res = await fetch('/admin/drivers/' + username + '/clear_queue', { method: 'POST' });
+      const data = await res.json();
+      if (data.ok) {
+        const list = document.getElementById('job-list-' + username);
+        list.innerHTML = '<div id="empty-msg-' + username + '" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>';
+        const countEl = document.getElementById('pending-count-' + username);
+        if (countEl) countEl.textContent = '0';
+        showFlash(username, '✓ Queue cleared');
+      } else {
+        alert('Error: ' + (data.msg || 'Could not clear queue'));
+      }
+    } catch(e) {
+      alert('Network error. Please refresh.');
+    }
+  }
+</script>
 
 {% endblock %}

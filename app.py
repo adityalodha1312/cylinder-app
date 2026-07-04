@@ -2121,6 +2121,9 @@ def admin_drivers():
                 pending = DriverJob.query.filter_by(
                     driver_username=d.username, status='Pending'
                 ).order_by(DriverJob.queue_position).all()
+                in_progress = DriverJob.query.filter_by(
+                    driver_username=d.username, status='In Progress'
+                ).order_by(DriverJob.queue_position).all()
                 completed_today = DriverJob.query.filter(
                     DriverJob.driver_username == d.username,
                     DriverJob.status == 'Completed',
@@ -2128,8 +2131,11 @@ def admin_drivers():
                 ).all()
                 driver_jobs[d.username] = {
                     'pending': pending,
+                    'in_progress': in_progress,
                     'completed_today': completed_today,
-                    'driver_name': d.name or d.username
+                    'driver_name': d.name or d.username,
+                    'username': d.username,
+                    'role': d.role
                 }
         except Exception as e:
             print("[admin_drivers] error loading job queues:", e)
@@ -2140,11 +2146,14 @@ def admin_drivers():
     except Exception as e:
         print("[admin_drivers] error loading customers list:", e)
 
+    today_str = date.today().strftime('%d-%m-%Y')
+
     return render_template('drivers.html',
         user=session['user'],
         data=data,
         driver_jobs=driver_jobs,
-        customers_list=customers_list
+        customers_list=customers_list,
+        today_str=today_str
     )
 
 @app.route('/admin/movement')
@@ -7199,6 +7208,7 @@ def admin_accounts_batches():
 @app.route('/admin/drivers/assign_job', methods=['POST'])
 @admin_required
 def admin_assign_job():
+    is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
     driver_username = request.form.get('driver_username', '').strip()
     customer = request.form.get('customer', '').strip()
     action = request.form.get('action', '').strip()
@@ -7206,10 +7216,14 @@ def admin_assign_job():
     admin_name = session.get('user', {}).get('name', 'Admin')
 
     if not driver_username or not customer or not action:
+        if is_ajax:
+            return _jsonify({'ok': False, 'msg': 'Driver, customer and action are required.'}), 400
         flash('Driver, customer and action are required.', 'error')
         return redirect('/admin/drivers')
 
     if not os.environ.get('DATABASE_URL'):
+        if is_ajax:
+            return _jsonify({'ok': False, 'msg': 'Database required for job assignment.'}), 500
         flash('Database required for job assignment.', 'error')
         return redirect('/admin/drivers')
 
@@ -7239,13 +7253,40 @@ def admin_assign_job():
         )
         db.session.add(job)
         db.session.commit()
+        if is_ajax:
+            assigned_at_str = job.assigned_at.strftime('%H:%M') if job.assigned_at else ''
+            return _jsonify({
+                'ok': True,
+                'job_ref': job_ref,
+                'job_id': job.id,
+                'customer': customer,
+                'action': action,
+                'notes': notes,
+                'queue_position': job.queue_position,
+                'assigned_at': assigned_at_str
+            })
         flash(f'Job {job_ref} assigned to {driver_username}.', 'success')
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return _jsonify({'ok': False, 'msg': str(e)}), 500
         flash(f'Error assigning job: {str(e)}', 'error')
 
     return redirect('/admin/drivers')
 
+
+@app.route('/admin/drivers/<username>/clear_queue', methods=['POST'])
+@admin_required
+def admin_clear_driver_queue(username):
+    try:
+        DriverJob.query.filter_by(
+            driver_username=username, status='Pending'
+        ).update({'status': 'Cancelled'})
+        db.session.commit()
+        return _jsonify({'ok': True})
+    except Exception as e:
+        db.session.rollback()
+        return _jsonify({'ok': False, 'msg': str(e)}), 500
 
 @app.route('/admin/drivers/job/<int:job_id>/cancel', methods=['POST'])
 @admin_required
