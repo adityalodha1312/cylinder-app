@@ -305,16 +305,16 @@
         <span class="job-action-badge ${actionBadgeClass}">${job.action}</span>
         <span class="job-action-badge ${statusBadgeClass}">${job.status}</span>
         <div class="job-time">${job.assigned_at}</div>
-        \${job.notes ? `<div class="job-notes-text">\${job.notes}</div>` : ''}
+        ${job.notes ? `<div class="job-notes-text">${job.notes}</div>` : ''}
         <div class="job-reorder">
-          <form action="/admin/drivers/job/\${job.id}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '\${username}')">
+          <form action="/admin/drivers/job/${job.id}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '${username}')">
             <button type="submit" class="btn-reorder" title="Move Up">↑</button>
           </form>
-          <form action="/admin/drivers/job/\${job.id}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '\${username}')">
+          <form action="/admin/drivers/job/${job.id}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '${username}')">
             <button type="submit" class="btn-reorder" title="Move Down">↓</button>
           </form>
         </div>
-        <button class="btn-cancel" onclick="cancelJob(\${job.id}, '\${username}')" title="Cancel Job">✕</button>
+        <button class="btn-cancel" onclick="cancelJob(${job.id}, '${username}')" title="Cancel Job">✕</button>
       `;
       list.appendChild(row);
     });
@@ -322,7 +322,7 @@
 
   async function refreshDriverJobs(username) {
     try {
-      const res = await fetch(`/api/admin/drivers/\${username}/jobs`);
+      const res = await fetch(`/api/admin/drivers/${username}/jobs`);
       const data = await res.json();
       if (data.ok) {
         renderJobs(username, data.jobs);
