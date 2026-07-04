@@ -38,6 +38,19 @@ def strip_filter(s):
         return s.strip()
     return str(s).strip()
 
+@app.template_filter('to_ist')
+def to_ist_filter(dt):
+    if dt is None:
+        return ''
+    if isinstance(dt, str):
+        return dt
+    try:
+        ist_time = dt + timedelta(hours=5, minutes=30)
+        return ist_time.strftime('%H:%M')
+    except Exception as e:
+        print("Error formatting to IST:", e)
+        return ''
+
 
 # SQLAlchemy Database Configuration
 db_url = os.environ.get('DATABASE_URL')
@@ -7254,7 +7267,9 @@ def admin_assign_job():
         db.session.add(job)
         db.session.commit()
         if is_ajax:
-            assigned_at_str = job.assigned_at.strftime('%H:%M') if job.assigned_at else ''
+            ist_offset = timedelta(hours=5, minutes=30)
+            assigned_at_ist = (job.assigned_at + ist_offset) if job.assigned_at else None
+            assigned_at_str = assigned_at_ist.strftime('%H:%M') if assigned_at_ist else ''
             return jsonify({
                 'ok': True,
                 'job_ref': job_ref,

@@ -71,6 +71,14 @@
   .job-reorder { display:flex; gap:4px; }
   .btn-reorder { background:none; border:1px solid var(--gray-bd); border-radius:6px; padding:3px 7px; cursor:pointer; font-size:12px; color:var(--gray-text); }
   .btn-reorder:hover { border-color:var(--green-700); color:var(--green-700); }
+  /* Hide the first move up button in the queue */
+  .job-list .job-row:first-child .job-reorder form[action*="/move_up"] {
+    display: none;
+  }
+  /* Hide the last move down button in the queue */
+  .job-list .job-row:last-child .job-reorder form[action*="/move_down"] {
+    display: none;
+  }
   .btn-cancel { background:none; border:1px solid #fca5a5; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12px; color:#dc3545; }
   .btn-cancel:hover { background:#fee2e2; }
 
@@ -216,21 +224,17 @@
             <div class="job-ref">{{ job.job_ref }}</div>
             <span class="job-action-badge badge-{{ job.action | lower }}">{{ job.action }}</span>
             <span class="job-action-badge badge-{{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.status }}</span>
-            <div class="job-time">{{ job.assigned_at.strftime('%H:%M') if job.assigned_at else '' }}</div>
+            <div class="job-time">{{ job.assigned_at | to_ist }}</div>
             {% if job.notes %}
             <div class="job-notes-text">{{ job.notes }}</div>
             {% endif %}
             <div class="job-reorder">
-              {% if not loop.first %}
               <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;">
                 <button type="submit" class="btn-reorder" title="Move Up">↑</button>
               </form>
-              {% endif %}
-              {% if not loop.last %}
               <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;">
                 <button type="submit" class="btn-reorder" title="Move Down">↓</button>
               </form>
-              {% endif %}
             </div>
             <button class="btn-cancel" onclick="cancelJob({{ job.id }}, '{{ username }}')" title="Cancel Job">✕</button>
           </div>
@@ -250,7 +254,7 @@
           <span style="font-weight:600;">{{ job.customer }}</span>
           <span style="color:#aaa;">{{ job.job_ref }}</span>
           <span>{{ job.action }}</span>
-          <span style="color:#aaa; margin-left:auto;">{{ job.completed_at.strftime('%H:%M') if job.completed_at else '' }}</span>
+          <span style="color:#aaa; margin-left:auto;">{{ job.completed_at | to_ist }}</span>
         </div>
         {% endfor %}
       </div>
@@ -319,6 +323,14 @@
           '<span class="job-action-badge badge-pending">Pending</span>' +
           '<div class="job-time">' + data.assigned_at + '</div>' +
           (data.notes ? '<div class="job-notes-text">' + data.notes + '</div>' : '') +
+          '<div class="job-reorder">' +
+            '<form action="/admin/drivers/job/' + data.job_id + '/move_up" method="POST" style="display:inline;">' +
+              '<button type="submit" class="btn-reorder" title="Move Up">↑</button>' +
+            '</form>' +
+            '<form action="/admin/drivers/job/' + data.job_id + '/move_down" method="POST" style="display:inline;">' +
+              '<button type="submit" class="btn-reorder" title="Move Down">↓</button>' +
+            '</form>' +
+          '</div>' +
           '<button class="btn-cancel" onclick="cancelJob(' + data.job_id + ', \'' + username + '\')" title="Cancel Job">✕</button>';
         list.appendChild(row);
         const countEl = document.getElementById('pending-count-' + username);
