@@ -7217,13 +7217,13 @@ def admin_assign_job():
 
     if not driver_username or not customer or not action:
         if is_ajax:
-            return _jsonify({'ok': False, 'msg': 'Driver, customer and action are required.'}), 400
+            return jsonify({'ok': False, 'msg': 'Driver, customer and action are required.'}), 400
         flash('Driver, customer and action are required.', 'error')
         return redirect('/admin/drivers')
 
     if not os.environ.get('DATABASE_URL'):
         if is_ajax:
-            return _jsonify({'ok': False, 'msg': 'Database required for job assignment.'}), 500
+            return jsonify({'ok': False, 'msg': 'Database required for job assignment.'}), 500
         flash('Database required for job assignment.', 'error')
         return redirect('/admin/drivers')
 
@@ -7255,7 +7255,7 @@ def admin_assign_job():
         db.session.commit()
         if is_ajax:
             assigned_at_str = job.assigned_at.strftime('%H:%M') if job.assigned_at else ''
-            return _jsonify({
+            return jsonify({
                 'ok': True,
                 'job_ref': job_ref,
                 'job_id': job.id,
@@ -7269,7 +7269,7 @@ def admin_assign_job():
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return _jsonify({'ok': False, 'msg': str(e)}), 500
+            return jsonify({'ok': False, 'msg': str(e)}), 500
         flash(f'Error assigning job: {str(e)}', 'error')
 
     return redirect('/admin/drivers')
@@ -7283,10 +7283,10 @@ def admin_clear_driver_queue(username):
             driver_username=username, status='Pending'
         ).update({'status': 'Cancelled'})
         db.session.commit()
-        return _jsonify({'ok': True})
+        return jsonify({'ok': True})
     except Exception as e:
         db.session.rollback()
-        return _jsonify({'ok': False, 'msg': str(e)}), 500
+        return jsonify({'ok': False, 'msg': str(e)}), 500
 
 @app.route('/admin/drivers/job/<int:job_id>/cancel', methods=['POST'])
 @admin_required
