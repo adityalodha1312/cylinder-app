@@ -961,8 +961,28 @@ function goToStep(step) {
   const stepJobs = document.getElementById("step-jobs");
   if (stepJobs) stepJobs.classList.remove("active");
   
-  document.getElementById(`step-${step}`).classList.add("active");
-  currentStep = step;
+  if (step === 1 && userRole === "driver") {
+    if (stepJobs) stepJobs.classList.add("active");
+    currentStep = 1;
+    // Hide stats bar and progress tracker
+    document.querySelector(".top-stats-bar").style.display = "none";
+    document.querySelector(".progress-tracker").style.display = "none";
+    
+    // Reset theme to default green
+    const root = document.documentElement;
+    root.style.setProperty('--green-50', '#E1F5EE');
+    root.style.setProperty('--green-100', '#9FE1CB');
+    root.style.setProperty('--green-500', '#1D9E75');
+    root.style.setProperty('--green-700', '#0F6E56');
+    root.style.setProperty('--green-900', '#04342C');
+    document.querySelector('meta[name="theme-color"]').setAttribute('content', '#0F6E56');
+    
+    window.currentJob = null;
+    fetchActiveJob();
+  } else {
+    document.getElementById(`step-${step}`).classList.add("active");
+    currentStep = step;
+  }
 
   // Enable action select only on Step 1
   const actionSelect = document.getElementById("action-select");
