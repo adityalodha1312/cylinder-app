@@ -110,6 +110,60 @@
   .pop-split-dot.blue   { background: #3b82f6; }
   .pop-split-label { flex: 1; font-weight: 500; }
   .pop-split-count { font-weight: 700; }
+
+  /* ── Fill Required Toggle ── */
+  .rule-toggle-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 10px;
+    border: 1.5px solid;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .rule-toggle-btn.on {
+    background: #e1f5ee;
+    color: #0F6E56;
+    border-color: #1D9E75;
+  }
+  .rule-toggle-btn.on:hover {
+    background: #0F6E56;
+    color: white;
+  }
+  .rule-toggle-btn.off {
+    background: #fff4e6;
+    color: #c2410c;
+    border-color: #f97316;
+  }
+  .rule-toggle-btn.off:hover {
+    background: #f97316;
+    color: white;
+  }
+  .toggle-pill {
+    width: 36px; height: 20px;
+    border-radius: 10px;
+    position: relative;
+    transition: background 0.2s;
+    flex-shrink: 0;
+  }
+  .toggle-pill.on  { background: #1D9E75; }
+  .toggle-pill.off { background: #d1d5db; }
+  .toggle-pill::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    background: white;
+    transition: left 0.2s;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+  }
+  .toggle-pill.on::after  { left: 19px; }
+  .toggle-pill.off::after { left: 3px; }
 </style>
 {% endblock %}
 
@@ -120,8 +174,17 @@
     <div class="page-sub">Welcome back, {{ user.username if user else 'Admin' }} — here's your overview.</div>
   </div>
   {% if user.role in ['manager', 'owner'] %}
-  <div>
-    <form action="/admin/sync_from_sheets" method="POST" style="margin: 0;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Syncing...';">
+  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+    <!-- Fill Required Toggle -->
+    <button id="fill-rule-btn"
+      class="rule-toggle-btn {{ 'on' if fill_required else 'off' }}"
+      onclick="toggleFillRule(this)"
+      title="{{ 'Cylinders must be Filled before Delivery. Click to disable.' if fill_required else 'Delivery of Empty cylinders is currently allowed. Click to enforce Fill-first rule.' }}">
+      <div class="toggle-pill {{ 'on' if fill_required else 'off' }}" id="fill-rule-pill"></div>
+      Fill Before Delivery: <span id="fill-rule-label">{{ 'ON' if fill_required else 'OFF' }}</span>
+    </button>
+    <!-- Sync Button -->
+    <form action="/admin/sync_from_sheets" method="POST" style="margin: 0;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Syncing...'">
       <button type="submit" style="background-color: var(--green-600, #1D9E75); color: white; padding: 10px 16px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#127c5b'" onmouseout="this.style.backgroundColor='#1D9E75'">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="23 4 23 10 17 10"></polyline>
@@ -324,4 +387,31 @@
   </div>
   {% endif %}
 </div>
+
+<script>
+  async function toggleFillRule(btn) {
+    btn.disabled = true;
+    try {
+      const res = await fetch('/admin/toggle_fill_required', { method: 'POST' });
+      const data = await res.json();
+      const isOn = data.fill_required;
+      const pill = document.getElementById('fill-rule-pill');
+      const label = document.getElementById('fill-rule-label');
+
+      // Update button class
+      btn.classList.remove('on', 'off');
+      btn.classList.add(isOn ? 'on' : 'off');
+      pill.classList.remove('on', 'off');
+      pill.classList.add(isOn ? 'on' : 'off');
+      label.innerText = isOn ? 'ON' : 'OFF';
+      btn.title = isOn
+        ? 'Cylinders must be Filled before Delivery. Click to disable.'
+        : 'Delivery of Empty cylinders is currently allowed. Click to enforce Fill-first rule.';
+    } catch(e) {
+      alert('Failed to update setting. Please try again.');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
 {% endblock %}

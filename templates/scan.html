@@ -757,6 +757,7 @@
 
 <script>
 const validCustomers = {{ customers | tojson }};
+const FILL_REQUIRED = {{ 'true' if fill_required else 'false' }};
 let invalidRows = new Set();
 let isRevalidating = false;
 window.currentJob = null;
@@ -1229,10 +1230,23 @@ async function validateRow(inputEl) {
           }
         }
       } else if (currentStatus === "Empty") {
-        badgeEl.classList.add("conflict");
-        badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
-        inputEl.dataset.action = "";
-        invalidRows.add(rowDiv);
+        if (FILL_REQUIRED) {
+          // Rule ON: block delivery of empty cylinders
+          badgeEl.classList.add("conflict");
+          badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
+          inputEl.dataset.action = "";
+          invalidRows.add(rowDiv);
+        } else {
+          // Rule OFF: allow delivery of empty cylinders without warning
+          if (data.registered === false) {
+            badgeEl.classList.add("warning");
+            badgeEl.innerText = "⚠️ Unregistered - Empty (Delivering as-is)";
+          } else {
+            badgeEl.classList.add("filled");
+            badgeEl.innerText = "✓ Empty (Delivering as-is)";
+          }
+          inputEl.dataset.action = "Delivery";
+        }
       }
     } 
     else if (globalAction === "Collection") {

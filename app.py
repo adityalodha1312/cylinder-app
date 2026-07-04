@@ -1602,6 +1602,8 @@ def admin_dashboard():
     }
 
 
+    fill_required = get_setting('fill_required_before_delivery', 'true').lower() == 'true'
+
     return render_template('dashboard.html',
         user                  = session['user'],
         total_out             = total_out,
@@ -1613,7 +1615,16 @@ def admin_dashboard():
         hint_recent_customers = hint_recent_customers,
         hint_high_customers   = hint_high_customers,
         hint_today_split      = hint_today_split,
+        fill_required         = fill_required,
     )
+
+@app.route('/admin/toggle_fill_required', methods=['POST'])
+@admin_required
+def toggle_fill_required():
+    current = get_setting('fill_required_before_delivery', 'true').lower() == 'true'
+    new_val = 'false' if current else 'true'
+    set_setting('fill_required_before_delivery', new_val)
+    return {'status': 'ok', 'fill_required': new_val == 'true'}
 
 @app.route('/admin/activity')
 @admin_required
@@ -5828,7 +5839,8 @@ def home():
 def scan_app():
     user = session.get('user')
     customers = get_customer_names()
-    return render_template('scan.html', user=user, customers=customers)
+    fill_required = get_setting('fill_required_before_delivery', 'true').lower() == 'true'
+    return render_template('scan.html', user=user, customers=customers, fill_required=fill_required)
 
 @app.route('/submit', methods=['POST'])
 def submit():
