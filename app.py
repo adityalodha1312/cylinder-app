@@ -287,69 +287,6 @@ Return exactly 5 bullet points, one per line, no numbering, no extra text."""
         return [f'⚠️ Could not generate insights: {str(e)[:100]}'], -1
 
 
-# ── AI Insights API routes ────────────────────────────────────────────────────
-@app.route('/admin/api/ai_insights')
-@admin_required
-def admin_ai_insights():
-    force = request.args.get('force') == '1'
-    insights, age = _get_ai_insights(force=force)
-    if age >= 0:
-        mins = age // 60
-        age_label = 'just now' if mins == 0 else f'{mins} min ago'
-    elif age == -2:
-        age_label = 'cached (refresh failed)'
-    else:
-        age_label = ''
-    return jsonify({'insights': insights, 'age': age_label})
-
-
-@app.route('/admin/api/ai_chat', methods=['POST'])
-@admin_required
-def admin_ai_chat():
-    data = request.get_json(silent=True) or {}
-    question = (data.get('question') or '').strip()
-    if not question:
-        return jsonify({'answer': 'Please ask a question.'}), 400
-
-    model = _get_gemini()
-    if not model:
-        return jsonify({'answer': '⚠️ Gemini API key not configured.'}), 503
-
-    try:
-        # Smart context detection
-        uid = _detect_uid_in_question(question)
-        customer = _detect_customer_in_question(question)
-
-        if uid:
-            context = _build_cylinder_context(uid)
-            context_type = f"cylinder {uid}"
-        elif customer:
-            context = _build_customer_context(customer)
-            context_type = f"customer {customer}"
-        else:
-            context = _build_dashboard_context()
-            context_type = "general operations"
-
-        prompt = f"""You are an operations assistant for Noble Air Gases, a gas cylinder distribution company in India.
-Answer the admin's question using only the data provided below. Be concise (2-4 sentences max).
-If the data doesn't contain enough information to answer, say so clearly.
-Do not make up numbers or information not in the data.
-
-Context ({context_type}):
-{context}
-
-Admin's question: {question}
-
-Answer:"""
-
-        response = model.generate_content(prompt)
-        answer = response.text.strip()
-        return jsonify({'answer': answer})
-    except Exception as e:
-        print(f"[Gemini] Chat error: {e}")
-        return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
-
-
 # SQLAlchemy Database Configuration
 db_url = os.environ.get('DATABASE_URL')
 if not db_url:
@@ -1137,6 +1074,69 @@ def admin_required(f):
             return redirect('/login')
         return f(*args, **kwargs)
     return decorated
+
+
+# ── AI Insights API routes (placed after admin_required is defined) ───────────
+@app.route('/admin/api/ai_insights')
+@admin_required
+def admin_ai_insights():
+    force = request.args.get('force') == '1'
+    insights, age = _get_ai_insights(force=force)
+    if age >= 0:
+        mins = age // 60
+        age_label = 'just now' if mins == 0 else f'{mins} min ago'
+    elif age == -2:
+        age_label = 'cached (refresh failed)'
+    else:
+        age_label = ''
+    return jsonify({'insights': insights, 'age': age_label})
+
+
+@app.route('/admin/api/ai_chat', methods=['POST'])
+@admin_required
+def admin_ai_chat():
+    data = request.get_json(silent=True) or {}
+    question = (data.get('question') or '').strip()
+    if not question:
+        return jsonify({'answer': 'Please ask a question.'}), 400
+
+    model = _get_gemini()
+    if not model:
+        return jsonify({'answer': '⚠️ Gemini API key not configured.'}), 503
+
+    try:
+        uid = _detect_uid_in_question(question)
+        customer = _detect_customer_in_question(question)
+
+        if uid:
+            context = _build_cylinder_context(uid)
+            context_type = f"cylinder {uid}"
+        elif customer:
+            context = _build_customer_context(customer)
+            context_type = f"customer {customer}"
+        else:
+            context = _build_dashboard_context()
+            context_type = "general operations"
+
+        prompt = f"""You are an operations assistant for Noble Air Gases, a gas cylinder distribution company in India.
+Answer the admin's question using only the data provided below. Be concise (2-4 sentences max).
+If the data doesn't contain enough information to answer, say so clearly.
+Do not make up numbers or information not in the data.
+
+Context ({context_type}):
+{context}
+
+Admin's question: {question}
+
+Answer:"""
+
+        response = model.generate_content(prompt)
+        answer = response.text.strip()
+        return jsonify({'answer': answer})
+    except Exception as e:
+        print(f"[Gemini] Chat error: {e}")
+        return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
+
 
 def accounts_required(f):
     @wraps(f)
