@@ -1157,21 +1157,30 @@ def admin_ai_debug():
     try:
         import google.generativeai as genai
         genai.configure(api_key=api_key)
+        
+        # Test 1: List models
         models = []
         for m in genai.list_models():
-            models.append({
-                'name': m.name,
-                'supported_methods': m.supported_generation_methods,
-                'description': m.description
-            })
+            models.append(m.name)
         debug_info['available_models'] = models
-        debug_info['success'] = True
+        debug_info['list_models_success'] = True
+    except Exception as e:
+        debug_info['list_models_success'] = False
+        debug_info['list_models_error'] = str(e)
+
+    try:
+        # Test 2: Test generate content
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content("Hello, this is a test. Reply with 'OK'.")
+        debug_info['generation_success'] = True
+        debug_info['generation_response'] = response.text.strip()
     except Exception as e:
         import traceback
-        debug_info['success'] = False
-        debug_info['error'] = str(e)
-        debug_info['traceback'] = traceback.format_exc()
+        debug_info['generation_success'] = False
+        debug_info['generation_error'] = str(e)
+        debug_info['generation_traceback'] = traceback.format_exc()
 
+    debug_info['success'] = debug_info.get('list_models_success', False) and debug_info.get('generation_success', False)
     return jsonify(debug_info)
 
 
