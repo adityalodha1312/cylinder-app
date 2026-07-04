@@ -1147,55 +1147,6 @@ Answer:"""
         return jsonify({'answer': f'⚠️ Error generating response: {str(e)[:120]}'}), 500
 
 
-@app.route('/admin/api/ai_debug')
-@admin_required
-def admin_ai_debug():
-    import os
-    api_key = os.environ.get('GROQ_API_KEY', '')
-    if not api_key:
-        return jsonify({'error': 'GROQ_API_KEY environment variable is empty or not set.'})
-
-    debug_info = {
-        'key_exists': True,
-        'key_length': len(api_key),
-        'key_prefix': api_key[:6] if len(api_key) >= 6 else api_key,
-        'key_suffix': api_key[-4:] if len(api_key) >= 4 else '',
-        'env_vars_keys': list(os.environ.keys()),
-    }
-
-    try:
-        from groq import Groq
-        client = Groq(api_key=api_key)
-        
-        # Test 1: List models
-        models = []
-        for m in client.models.list().data:
-            models.append(m.id)
-        debug_info['available_models'] = models
-        debug_info['list_models_success'] = True
-    except Exception as e:
-        debug_info['list_models_success'] = False
-        debug_info['list_models_error'] = str(e)
-
-    try:
-        # Test 2: Test generate content
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": "Hello, this is a test. Reply with 'OK'."}],
-            temperature=0.0
-        )
-        debug_info['generation_success'] = True
-        debug_info['generation_response'] = response.choices[0].message.content.strip()
-    except Exception as e:
-        import traceback
-        debug_info['generation_success'] = False
-        debug_info['generation_error'] = str(e)
-        debug_info['generation_traceback'] = traceback.format_exc()
-
-    debug_info['success'] = debug_info.get('list_models_success', False) and debug_info.get('generation_success', False)
-    return jsonify(debug_info)
-
-
 def accounts_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
