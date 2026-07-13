@@ -929,15 +929,30 @@ def merge_cylinder_data():
     cylinders   = get_all_cylinders()
     maintenance = get_all_maintenance()
     
-    # Load last customer mappings
+    # Load last customer mappings — use an optimised query that only fetches
+    # the most-recent scan per cylinder instead of loading all scan rows.
     last_customers = {}
     try:
         if os.environ.get('DATABASE_URL'):
-            scans = Scan.query.order_by(Scan.created_at.desc()).all()
-            for s in scans:
-                uid_upper = s.cylinder_uid.strip().upper()
-                if uid_upper not in last_customers and s.customer:
-                    last_customers[uid_upper] = s.customer
+            from sqlalchemy import func
+            # Subquery: max id per cylinder_uid (proxy for most-recent)
+            sub = (
+                db.session.query(
+                    Scan.cylinder_uid,
+                    func.max(Scan.id).label('max_id')
+                )
+                .filter(Scan.customer != None, Scan.customer != '')
+                .group_by(Scan.cylinder_uid)
+                .subquery()
+            )
+            rows = (
+                db.session.query(Scan.cylinder_uid, Scan.customer)
+                .join(sub, (Scan.cylinder_uid == sub.c.cylinder_uid) & (Scan.id == sub.c.max_id))
+                .all()
+            )
+            for uid, customer in rows:
+                if uid:
+                    last_customers[uid.strip().upper()] = customer
         else:
             scans = get_scan_rows()
             for s in reversed(scans):
@@ -947,17 +962,33 @@ def merge_cylinder_data():
     except Exception as e:
         print("Error building last_customers map:", e)
 
-    # Load latest DuraGasHistory mappings
+    # Load latest DuraGasHistory mappings — same approach, only most-recent row per UID
     latest_history = {}
     try:
         if os.environ.get('DATABASE_URL'):
-            histories = DuraGasHistory.query.order_by(DuraGasHistory.created_at.desc()).all()
-            for h in histories:
-                uid_upper = h.cylinder_uid.strip().upper()
-                if uid_upper not in latest_history:
-                    latest_history[uid_upper] = {
-                        'previous_gas': h.previous_gas or '',
-                        'purge_required': 'Yes' if h.purge_required else 'No'
+            from sqlalchemy import func
+            sub2 = (
+                db.session.query(
+                    DuraGasHistory.cylinder_uid,
+                    func.max(DuraGasHistory.id).label('max_id')
+                )
+                .group_by(DuraGasHistory.cylinder_uid)
+                .subquery()
+            )
+            hist_rows = (
+                db.session.query(
+                    DuraGasHistory.cylinder_uid,
+                    DuraGasHistory.previous_gas,
+                    DuraGasHistory.purge_required
+                )
+                .join(sub2, (DuraGasHistory.cylinder_uid == sub2.c.cylinder_uid) & (DuraGasHistory.id == sub2.c.max_id))
+                .all()
+            )
+            for uid, prev_gas, purge_req in hist_rows:
+                if uid:
+                    latest_history[uid.strip().upper()] = {
+                        'previous_gas': prev_gas or '',
+                        'purge_required': 'Yes' if purge_req else 'No'
                     }
     except Exception as e:
         print("Error building latest_history map:", e)
@@ -3760,6 +3791,7 @@ def admin_cylinders_bulk_delete():
 @admin_required
 def admin_cylinders_upload():
     import pandas as pd
+    import traceback
     from datetime import date
     from flask import flash
     global cyl_ws, cyl_maint_ws, doc
@@ -3782,122 +3814,82 @@ def admin_cylinders_upload():
             flash("Invalid file format. Please upload a CSV or Excel file.", "danger")
             return redirect('/admin/cylinders')
             
-        # Standardize column names to handle whitespace/case
         df.columns = df.columns.str.strip()
         
-        # Check required columns
-        if 'Cylinder ID' not in df.columns:
+        uid_aliases = ['Cylinder ID', 'UID', 'CylinderID', 'ID']
+        uid_col = next((c for c in df.columns if c in uid_aliases), None)
+        
+        if not uid_col:
             flash("The file must contain a 'Cylinder ID' column.", "danger")
             return redirect('/admin/cylinders')
             
         added = 0
         skipped = 0
         
-        # Query existing uids to skip duplicates efficiently
-        existing_uids = set(c.uid for c in Cylinder.query.all())
+        existing_uids = set(c[0] for c in Cylinder.query.with_entities(Cylinder.uid).all())
         
         cyl_rows_to_append = []
         cyl_maint_rows_to_append = []
         today_str = date.today().strftime('%d-%m-%Y')
         
+        def get_col(row, *col_names, default=''):
+            for c in col_names:
+                if c in df.columns:
+                    val = row.get(c)
+                    if pd.notna(val) and str(val).strip() != '':
+                        return str(val).strip()
+            return default
+
         for _, row in df.iterrows():
-            uid = str(row.get('Cylinder ID', '')).strip()
+            uid = str(row.get(uid_col, '')).strip()
             
-            if pd.isna(uid) or uid == '' or uid == 'nan':
+            if not uid or uid.lower() == 'nan':
                 continue
                 
             if uid in existing_uids:
                 skipped += 1
                 continue
                 
-            # Gas Type Mapping
-            raw_gas = str(row.get('Gas Type', '')).strip() if 'Gas Type' in df.columns and not pd.isna(row.get('Gas Type')) else ''
+            raw_gas = get_col(row, 'Gas Type', default='')
             gas_map = {
                 'ARGON': 'ARG', 'OXYGEN': 'OXY', 'NITROGEN': 'N2', 
                 'CARBON DIOXIDE': 'CO2', 'HELIUM': 'Helium', 'ACETYLENE': 'DA'
             }
             gas_type = gas_map.get(raw_gas.upper(), raw_gas)
             
-            # Helper to safely extract columns
-            def get_col(*col_names, default=''):
-                for c in col_names:
-                    if c in df.columns:
-                        val = row.get(c)
-                        if not pd.isna(val):
-                            return str(val).strip()
-                return default
+            water_cap = get_col(row, 'Water Capacity', default='')
+            raw_cyl_type = get_col(row, 'Cylinder Type', default='')
 
-            water_cap = get_col('Water Capacity', default='')
-            raw_cyl_type = get_col('Cylinder Type', default='')
-
-            cyl_type = raw_cyl_type
-            if not cyl_type:
-                if '46.7' in water_cap:
-                    cyl_type = 'Standard'
-                else:
-                    cyl_type = 'Standard' # Default to Standard if empty
-
+            cyl_type = raw_cyl_type if raw_cyl_type else ('Standard' if '46.7' in water_cap else 'Standard')
             if 'DURA' in uid.upper() and cyl_type.upper() != 'DURA':
                 cyl_type = 'Dura'
                 
-            owner = get_col('Owner', default='Depot')
-            fill_pressure = get_col('Fill Pressure', 'Fill Pressure (bar)', default='')
-            gas_capacity = get_col('Gas Capacity', default='')
-            unit = get_col('Unit', default='')
-            is_mixture = get_col('Is Mixture?', 'Is Mixture', default='No')
-            manufacture_date = get_col('Manufacture Date', default='')
-            last_hydro = get_col('Last Hydro Test Date', 'Last Hydro Date', default='')
-            next_hydro = get_col('Next Hydro Test Due', 'Next Hydro Due', default='')
-            hydro_status = get_col('Hydro Test Status', default='')
-            is_uhp = get_col('Is UHP?', 'Is UHP (Ultra High Purity)?', 'Is UHP', default='No')
-            cert_no = get_col('Test Certificate No.', 'Test Certificate No', 'Cert No', default='')
+            owner = get_col(row, 'Owner', default='Depot')
+            fill_pressure = get_col(row, 'Fill Pressure', 'Fill Pressure (bar)', default='')
+            gas_capacity = get_col(row, 'Gas Capacity', default='')
+            unit = get_col(row, 'Unit', default='')
+            is_mixture = get_col(row, 'Is Mixture?', 'Is Mixture', default='No')
+            manufacture_date = get_col(row, 'Manufacture Date', default='')
+            last_hydro = get_col(row, 'Last Hydro Test Date', 'Last Hydro Date', default='')
+            next_hydro = get_col(row, 'Next Hydro Test Due', 'Next Hydro Due', default='')
+            hydro_status = get_col(row, 'Hydro Test Status', default='')
+            is_uhp = get_col(row, 'Is UHP?', 'Is UHP (Ultra High Purity)?', 'Is UHP', default='No')
+            cert_no = get_col(row, 'Test Certificate No.', 'Test Certificate No', 'Cert No', default='')
             
-            status_val = get_col('Status', default='Active')
-            location_val = get_col('Location', default='Depot')
+            status_val = get_col(row, 'Status', default='Active')
+            location_val = get_col(row, 'Location', default='Depot')
             
-            # 1. Add to Supabase Cylinder table
-            new_cylinder = Cylinder(
-                uid=uid,
-                gas_type=gas_type,
-                cylinder_type=cyl_type,
-                owner=owner,
-                status=status_val,
-                location=location_val,
-                last_activity_date=today_str
-            )
-            db.session.add(new_cylinder)
+            db.session.add(Cylinder(uid=uid, gas_type=gas_type, cylinder_type=cyl_type, owner=owner, status=status_val, location=location_val, last_activity_date=today_str))
+            db.session.add(CylinderMaintenance(cylinder_uid=uid, water_capacity=water_cap or raw_cyl_type, fill_pressure=fill_pressure, gas_capacity=gas_capacity, unit=unit, is_mixture=is_mixture, manufacture_date=manufacture_date, last_hydro_date=last_hydro, next_hydro_due=next_hydro, hydro_test_status=hydro_status, cert_no=cert_no, is_uhp=is_uhp))
             
-            # 2. Add to Supabase CylinderMaintenance table
-            m_db = CylinderMaintenance(
-                cylinder_uid=uid,
-                water_capacity=water_cap if water_cap else raw_cyl_type, # Keep 46.7L in water capacity
-                fill_pressure=fill_pressure,
-                gas_capacity=gas_capacity,
-                unit=unit,
-                is_mixture=is_mixture,
-                manufacture_date=manufacture_date,
-                last_hydro_date=last_hydro,
-                next_hydro_due=next_hydro,
-                hydro_test_status=hydro_status,
-                cert_no=cert_no,
-                is_uhp=is_uhp
-            )
-            db.session.add(m_db)
-            
-            # 3. Prepare Sheets Rows
-            cyl_rows_to_append.append([
-                uid, gas_type, cyl_type, owner, status_val, location_val, today_str
-            ])
-            cyl_maint_rows_to_append.append([
-                uid, water_cap if water_cap else raw_cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp
-            ])
+            cyl_rows_to_append.append([uid, gas_type, cyl_type, owner, status_val, location_val, today_str])
+            cyl_maint_rows_to_append.append([uid, water_cap or raw_cyl_type, fill_pressure, gas_capacity, unit, is_mixture, '', manufacture_date, last_hydro, next_hydro, hydro_status, cert_no, is_uhp])
             
             existing_uids.add(uid)
             added += 1
             
         db.session.commit()
         
-        # 4. Mirror to Google Sheets using background sync
         if added > 0:
             def background_upload_sheets():
                 try:
@@ -3909,12 +3901,11 @@ def admin_cylinders_upload():
                         try: cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
                         except Exception: pass
                         
-                    if cyl_ws:
-                        cyl_ws.append_rows(cyl_rows_to_append)
-                    if cyl_maint_ws:
-                        cyl_maint_ws.append_rows(cyl_maint_rows_to_append)
+                    if cyl_ws: cyl_ws.append_rows(cyl_rows_to_append)
+                    if cyl_maint_ws: cyl_maint_ws.append_rows(cyl_maint_rows_to_append)
                 except Exception as se:
-                    print("[sheets] Error mirroring bulk upload to Sheets:", se)
+                    print("[sheets] Error mirroring bulk upload to Sheets:")
+                    traceback.print_exc()
 
             async_sheets_write(background_upload_sheets)
             flash(f"Successfully added {added} new cylinders to Database and syncing to Sheets! Skipped {skipped} duplicates.", "success")
@@ -3923,6 +3914,8 @@ def admin_cylinders_upload():
             
     except Exception as e:
         db.session.rollback()
+        print(f"[bulk_upload] FATAL ERROR: {e}")
+        traceback.print_exc()
         flash(f"Error processing file: {str(e)}", "danger")
         
     return redirect('/admin/cylinders')

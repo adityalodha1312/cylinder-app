@@ -655,12 +655,45 @@
       </tbody>
     </table>
   </div>
-  <div style="margin-top: 12px; font-size: 13px; color: var(--gray-text);">
-    Showing <span id="visible-count">{{ cylinders|length }}</span> of {{ total }} cylinders
+  <!-- Pagination controls for standard table -->
+  <div id="cyl-pagination" style="display:flex; align-items:center; justify-content:space-between; margin-top:14px; flex-wrap:wrap; gap:8px;">
+    <div style="font-size:13px; color:var(--gray-text);">Showing <span id="visible-count">0</span> of <span id="total-count">{{ total }}</span> cylinders</div>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button id="cyl-prev" onclick="changePage(-1)" style="padding:5px 14px; border:1.5px solid var(--gray-bd); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-weight:600; color:var(--dark-text); transition: all 0.15s;" disabled>← Prev</button>
+      <span id="cyl-page-label" style="font-size:13px; color:var(--dark-text); font-weight:600;">Page 1</span>
+      <button id="cyl-next" onclick="changePage(1)" style="padding:5px 14px; border:1.5px solid var(--gray-bd); border-radius:7px; background:#fff; cursor:pointer; font-size:13px; font-weight:600; color:var(--dark-text); transition: all 0.15s;">Next →</button>
+    </div>
   </div>
 </div>
 
 <script>
+  /* ── Pagination state ── */
+  const PAGE_SIZE = 100;
+  let currentPage = 1;
+  let filteredRows = [];
+
+  function renderPage() {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const end   = start + PAGE_SIZE;
+    filteredRows.forEach((row, i) => {
+      row.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+    document.getElementById('cyl-page-label').textContent = `Page ${currentPage} of ${totalPages}`;
+    document.getElementById('visible-count').textContent = Math.min(end, filteredRows.length) - start;
+    document.getElementById('total-count').textContent = filteredRows.length;
+    document.getElementById('cyl-prev').disabled = currentPage <= 1;
+    document.getElementById('cyl-next').disabled = currentPage >= totalPages;
+    document.getElementById('cyl-pagination').style.display = filteredRows.length > 0 ? 'flex' : 'none';
+  }
+
+  function changePage(dir) {
+    const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
+    currentPage = Math.min(Math.max(1, currentPage + dir), totalPages);
+    renderPage();
+    document.getElementById('registry-table-container').scrollIntoView({behavior: 'smooth', block: 'start'});
+  }
+
   /* ── Apply a KPI card filter ── */
   function applyKpiFilter(which) {
     // Reset all filter inputs first
@@ -756,7 +789,7 @@
     const hydroFilter= document.getElementById('filter-hydro').value;
 
     const rows = document.querySelectorAll('#cyl-tbody tr[data-uid]');
-    let visible = 0;
+    filteredRows = [];
 
     rows.forEach(row => {
       const uid    = row.dataset.uid || '';
@@ -771,15 +804,18 @@
       const matchHydro  = !hydroFilter|| hydro === hydroFilter;
 
       if (matchSearch && matchGas && matchStatus && matchHydro) {
-        row.style.display = '';
-        visible++;
+        filteredRows.push(row);
       } else {
         row.style.display = 'none';
       }
     });
 
-    const countEl = document.getElementById('visible-count');
-    if (countEl) countEl.textContent = visible;
+    // Show empty state row if nothing matches
+    const emptyRow = document.getElementById('empty-row');
+    if (emptyRow) emptyRow.style.display = filteredRows.length === 0 ? '' : 'none';
+
+    currentPage = 1;
+    renderPage();
   }
 
   /* ── Refill Modal Logic ── */
@@ -1051,8 +1087,11 @@
     }
   }
   
-  // Initialize bulk delete button state
-  document.addEventListener("DOMContentLoaded", updateDeleteCount);
+  // Initialize: set up pagination and bulk delete state on load
+  document.addEventListener("DOMContentLoaded", () => {
+    updateDeleteCount();
+    filterRegistry();
+  });
 </script>
 
 {% endblock %}
