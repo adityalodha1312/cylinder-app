@@ -131,12 +131,12 @@
         <td>{{ row.total_delivered }}</td>
         <td>{{ row.total_collected }}</td>
         <td>
-          {% if row.outstanding > 10 %}
+          {% if row.outstanding >= 10 %}
             <span class="badge badge-red">{{ row.outstanding }}</span>
           {% elif row.outstanding >= 1 %}
             <span class="badge badge-yellow">{{ row.outstanding }}</span>
           {% else %}
-            <span class="badge badge-green">{{ row.outstanding }}</span>
+            <span class="badge" style="background:#f3f4f6; color:#4b5563;">{{ row.outstanding }}</span>
           {% endif %}
         </td>
         <td onclick="event.stopPropagation()">

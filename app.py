@@ -2277,7 +2277,9 @@ def admin_daily_summary():
 @app.route('/admin/outstanding')
 @admin_required
 def admin_outstanding():
-    data = build_outstanding()
+    all_data = build_outstanding()
+    # Filter only customers with > 0 outstanding cylinders
+    data = [c for c in all_data if c['outstanding'] > 0]
     return render_template('outstanding.html',
         user = session['user'],
         data = data,
