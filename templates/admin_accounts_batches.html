@@ -8,8 +8,13 @@
   .badge-billed  { background:#D1FAE5; color:#065F46; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; }
   .filter-bar { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
   .filter-bar input, .filter-bar select {
-    padding:9px 12px; border:1.5px solid var(--gray-bd); border-radius:8px;
-    font-size:13px; font-family:inherit; outline:none;
+    padding: 10px 14px; 
+    border: 1.5px solid var(--gray-bd); 
+    border-radius: 10px;
+    font-size: 13.5px; 
+    font-family: inherit; 
+    outline: none;
+    color: var(--dark-text);
   }
   .filter-bar input { flex:1; min-width:200px; }
 </style>
@@ -25,22 +30,34 @@
 {% set pending_count = batches | selectattr('status', 'equalto', 'Pending') | list | length %}
 {% set billed_count  = batches | selectattr('status', 'equalto', 'Billed')  | list | length %}
 <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
-  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
-    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Total</div>
-    <div style="font-size:28px; font-weight:700; color:var(--green-700);">{{ batches | length }}</div>
+  <div class="card card-pad kpi-card" style="flex:1; min-width:130px; border-color:var(--green-500); background:#f4fbf8;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+      <div>
+        <div class="kpi-value" style="color:var(--green-700);">{{ batches | length }}</div>
+        <div class="kpi-label">TOTAL</div>
+      </div>
+    </div>
   </div>
-  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
-    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Pending</div>
-    <div style="font-size:28px; font-weight:700; color:#92400E;">{{ pending_count }}</div>
+  <div class="card card-pad kpi-card" style="flex:1; min-width:130px; border-color:#d97706; background:#fffdf4;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+      <div>
+        <div class="kpi-value" style="color:#92400e;">{{ pending_count }}</div>
+        <div class="kpi-label">PENDING</div>
+      </div>
+    </div>
   </div>
-  <div class="table-container" style="flex:1; min-width:130px; padding:16px 20px;">
-    <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase;">Billed</div>
-    <div style="font-size:28px; font-weight:700; color:#065F46;">{{ billed_count }}</div>
+  <div class="card card-pad kpi-card" style="flex:1; min-width:130px; border-color:#10b981; background:#f0fdf4;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between;">
+      <div>
+        <div class="kpi-value" style="color:#065f46;">{{ billed_count }}</div>
+        <div class="kpi-label">BILLED</div>
+      </div>
+    </div>
   </div>
 </div>
 
 <!-- Filter -->
-<div class="filter-bar">
+<div class="filter-bar" style="border-bottom: 1px solid #eeeee9; padding-bottom: 16px; margin-bottom: 16px;">
   <input type="text" id="search-input" placeholder="🔍  Search customer or batch ref...">
   <select id="status-filter">
     <option value="">All Statuses</option>

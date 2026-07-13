@@ -398,11 +398,75 @@
       .top-bar { display: flex; }
       .bottom-nav { display: block; }
       .page-content { padding: 20px 16px; }
+      .global-avatar-wrapper { top: 8px !important; right: 64px !important; }
+      .avatar-btn { width: 40px !important; height: 40px !important; }
+      .av-item { padding: 14px 16px !important; }
     }
 
     /* ══════════════════════════════
        SHARED UI COMPONENTS
     ══════════════════════════════ */
+    /* Avatar Dropdown */
+    .global-avatar-wrapper {
+      position: absolute;
+      top: 16px;
+      right: 28px;
+      z-index: 1100;
+    }
+    .avatar-btn {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      background: #1a7a5e;
+      color: #fff;
+      font-size: 15px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; border: none; padding: 0; outline: none;
+      box-shadow: 0 2px 8px rgba(26,122,94,0.3);
+      transition: transform 0.15s;
+    }
+    .avatar-btn:active { transform: scale(0.95); }
+    .avatar-dropdown {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      background: #fff;
+      border: 1.5px solid var(--gray-bd);
+      border-radius: 12px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+      width: 220px;
+      display: none;
+      flex-direction: column;
+      overflow: hidden;
+      transform-origin: top right;
+      animation: avatarPop 0.15s ease;
+    }
+    @keyframes avatarPop {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .avatar-dropdown.show { display: flex; }
+    .av-header {
+      padding: 14px 16px;
+      border-bottom: 1px solid #eeeee9;
+      background: #fafaf8;
+    }
+    .av-name { font-size: 14px; font-weight: 600; color: var(--dark-text); }
+    .av-role { font-size: 12px; color: var(--gray-text); margin-top: 2px; font-weight: 500; }
+    .av-item {
+      padding: 12px 16px;
+      font-size: 13.5px;
+      font-weight: 500;
+      color: var(--dark-text);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.1s;
+    }
+    .av-item:hover { background: var(--green-50); color: #0F6E56; }
+    .av-item.logout { color: #b91c1c; }
+    .av-item.logout:hover { background: #fef2f2; }
+
     .card {
       background: #fff;
       border-radius: 14px;
@@ -707,25 +771,23 @@
     </details>
   </nav>
 
-  <div class="sidebar-user">
-    <div class="user-info">
-      <div class="user-avatar">{{ user.username[0].upper() if user and user.username else 'A' }}</div>
-      <div>
-        <div class="user-name">{{ user.username if user else 'Admin' }}</div>
-        <div class="user-role">{{ user.role if user and user.role else 'Administrator' }}</div>
-      </div>
-    </div>
-    <a href="/logout" class="logout-link">
-      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>
-      </svg>
-      Sign Out
-    </a>
-  </div>
 </aside>
 
 <!-- ── MAIN WRAPPER ── -->
 <div class="main-wrap">
+
+  <!-- Global Avatar Dropdown -->
+  <div class="global-avatar-wrapper">
+    <button class="avatar-btn" id="avatarBtn" onclick="toggleAvatarMenu(event)" aria-label="User Menu">{{ user.username[0].upper() if user and user.username else 'A' }}</button>
+    <div class="avatar-dropdown" id="avatarDropdown">
+      <div class="av-header">
+        <div class="av-name">{{ user.username if user else 'Admin' }}</div>
+        <div class="av-role">{{ user.role if user and user.role else 'Administrator' }}</div>
+      </div>
+      <a href="/admin/users" class="av-item">👥 Manage Users</a>
+      <a href="/logout" class="av-item logout">🚪 Sign Out</a>
+    </div>
+  </div>
 
   <!-- Mobile top bar -->
   <div class="top-bar">
@@ -1031,6 +1093,23 @@
         .catch(err => console.error('ServiceWorker registration failed:', err));
     });
   }
+
+  // Avatar Dropdown Toggle
+  function toggleAvatarMenu(e) {
+    if (e) e.stopPropagation();
+    document.getElementById('avatarDropdown').classList.toggle('show');
+  }
+
+  // Close avatar dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    const avatarBtn = document.getElementById('avatarBtn');
+    const avatarMenu = document.getElementById('avatarDropdown');
+    if (avatarBtn && avatarMenu) {
+      if (!avatarBtn.contains(e.target) && !avatarMenu.contains(e.target)) {
+        avatarMenu.classList.remove('show');
+      }
+    }
+  });
 </script>
 
 </body>
