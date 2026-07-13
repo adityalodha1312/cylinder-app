@@ -7191,18 +7191,18 @@ def export_pdf():
     from flask import send_file
     return send_file(buffer, as_attachment=True, download_name=filename, mimetype="application/pdf")
 def start_scheduler():
-    from sync import sync_sheets_to_db
+    from sync import sync_db_to_sheets
     scheduler = BackgroundScheduler(daemon=True)
     def run_sync():
         with app.app_context():
             try:
-                sync_sheets_to_db(doc)
+                sync_db_to_sheets(doc)
             except Exception as e:
-                print("Scheduler sync error:", e)
-    # Run sync job every 5 minutes
+                print("Scheduler DB→Sheets sync error:", e)
+    # Mirror DB → Sheets every 5 minutes
     scheduler.add_job(run_sync, 'interval', minutes=5)
     scheduler.start()
-    print("Background sync scheduler started successfully.")
+    print("Background DB→Sheets scheduler started successfully.")
 
 # ── Admin Scanning (Internal Logs) ──────────────────────────────────────────────
 @app.route('/admin/scanner')
