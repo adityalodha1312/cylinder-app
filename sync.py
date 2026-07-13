@@ -581,3 +581,107 @@ def sync_db_to_sheets(doc):
 
     print("[sync_db→sheets] DB→Sheets mirror finished.")
     return True
+
+
+def sync_db_to_sheets(doc):
+    """
+    Mirrors the PostgreSQL DB → Google Sheets.
+    Runs automatically every 5 minutes via the background scheduler.
+    Sheets become a live read-only backup of the DB.
+    """
+    if not doc:
+        print("[sync_db→sheets] doc is None, skipping.")
+        return False
+
+    print(f"[sync_db→sheets] Starting DB→Sheets mirror at {datetime.now()}...")
+
+    CYLINDER_SHEET_NAME   = "Cylinders"
+    CYLINDER_MAINT_NAME   = "Cylinder Maintenance"
+    USERS_SHEET_NAME      = "Users"
+    SCANS_SHEET_NAME      = "Sheet1"
+    CUSTOMERS_SHEET_NAME  = "Customers"
+
+    # 1. Cylinders
+    try:
+        from models import Cylinder, CylinderMaintenance, User, Scan, Customer
+        cylinders = Cylinder.query.all()
+        maints    = {m.cylinder_uid: m for m in CylinderMaintenance.query.all()}
+
+        cyl_rows   = []
+        maint_rows = []
+        for c in cylinders:
+            cyl_rows.append([
+                c.uid, c.gas_type or '', c.cylinder_type or '',
+                c.owner or '', c.status or '', c.location or '',
+                c.last_activity_date or ''
+            ])
+            m = maints.get(c.uid)
+            if m:
+                maint_rows.append([
+                    c.uid, m.water_capacity or '', m.fill_pressure or '',
+                    m.gas_capacity or '', m.unit or '', m.is_mixture or 'No',
+                    m.mix_ratio or '', m.manufacture_date or '',
+                    m.last_hydro_date or '', m.next_hydro_due or '',
+                    m.hydro_test_status or '', m.cert_no or '', m.is_uhp or 'No'
+                ])
+
+        cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+        cyl_ws.batch_clear(["A2:Z100000"])
+        if cyl_rows:
+            cyl_ws.update(cyl_rows, "A2")
+        print(f"[sync_db→sheets] Cylinders: wrote {len(cyl_rows)} rows.")
+
+        maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+        maint_ws.batch_clear(["A2:Z100000"])
+        if maint_rows:
+            maint_ws.update(maint_rows, "A2")
+        print(f"[sync_db→sheets] Cylinder Maintenance: wrote {len(maint_rows)} rows.")
+    except Exception as e:
+        print("[sync_db→sheets] Error syncing Cylinders/Maintenance:", e)
+
+    # 2. Users
+    try:
+        users     = User.query.all()
+        user_rows = [[u.username, u.password, u.role, u.name or u.username] for u in users]
+        users_ws  = doc.worksheet(USERS_SHEET_NAME)
+        users_ws.batch_clear(["A2:Z100000"])
+        if user_rows:
+            users_ws.update(user_rows, "A2")
+        print(f"[sync_db→sheets] Users: wrote {len(user_rows)} rows.")
+    except Exception as e:
+        print("[sync_db→sheets] Error syncing Users:", e)
+
+    # 3. Scans (Sheet1)
+    try:
+        scans     = Scan.query.order_by(Scan.id.asc()).all()
+        scan_rows = [
+            [s.scan_date or '', s.scan_time or '', s.driver or '',
+             s.action or '', s.cylinder_uid or '', s.customer or '']
+            for s in scans
+        ]
+        scan_ws = doc.worksheet(SCANS_SHEET_NAME)
+        scan_ws.batch_clear(["A2:Z100000"])
+        if scan_rows:
+            scan_ws.update(scan_rows, "A2")
+        print(f"[sync_db→sheets] Scans: wrote {len(scan_rows)} rows.")
+    except Exception as e:
+        print("[sync_db→sheets] Error syncing Scans:", e)
+
+    # 4. Customers
+    try:
+        customers  = Customer.query.all()
+        cust_rows  = [
+            [c.customer_id or '', c.name or '', c.email or '',
+             c.phone or '', c.address or '']
+            for c in customers
+        ]
+        cust_ws = doc.worksheet(CUSTOMERS_SHEET_NAME)
+        cust_ws.batch_clear(["A2:Z100000"])
+        if cust_rows:
+            cust_ws.update(cust_rows, "A2")
+        print(f"[sync_db→sheets] Customers: wrote {len(cust_rows)} rows.")
+    except Exception as e:
+        print("[sync_db→sheets] Error syncing Customers:", e)
+
+    print("[sync_db→sheets] DB→Sheets mirror finished.")
+    return True
