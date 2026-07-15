@@ -680,16 +680,7 @@
 
 <script>
   /* ── Server-Side Filter Debounce ── */
-  let searchTimeout = null;
-  const searchInput = document.getElementById('reg-search');
-  if (searchInput) {
-    searchInput.addEventListener('input', function() {
-      clearTimeout(searchTimeout);
-      searchTimeout = setTimeout(function() {
-        document.getElementById('filter-form').submit();
-      }, 400);
-    });
-  }
+  // Debounce removed to prevent auto-reloading while typing. User must press Enter to search.
 
   /* ── Refill Modal Logic ── */
   let activeRefillUid = '';
