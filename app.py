@@ -3613,18 +3613,90 @@ def calculate_daily_dispatch_report(target_date_str):
 @admin_required
 def admin_cylinders():
     cylinders = merge_cylinder_data()
-    products = get_products_config()
+    
+    # Global counts for KPI cards (before filtering)
+    total = len(cylinders)
+    active = sum(1 for c in cylinders if c.get('status') in ('Active', 'Empty', 'Filled', 'Delivered'))
+    overdue = sum(1 for c in cylinders if c.get('hydro_badge') == 'Overdue')
+    due_soon = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon')
+
     gas_types = sorted(list(set(c['gas_type'] for c in cylinders if c.get('gas_type'))))
     statuses  = ['Empty', 'Filled', 'Delivered']
+
+    # Read server-side filters
+    search_q = request.args.get('search', '').strip().lower()
+    filter_gas = request.args.get('gas_type', '').strip().lower()
+    filter_status = request.args.get('status', '').strip().lower()
+    filter_hydro = request.args.get('hydro', '').strip().lower()
+    current_tab = request.args.get('tab', 'all').strip().lower()
+
+    # Apply filters in Python
+    filtered = []
+    for c in cylinders:
+        match = True
+        
+        # Tab filter (Dura only)
+        if current_tab == 'dura' and c.get('cylinder_type') != 'Dura':
+            match = False
+
+        # Search match (UID, Current Customer, Last Known Customer)
+        if match and search_q:
+            uid_match = search_q in str(c.get('uid', '')).lower()
+            cust_match = search_q in str(c.get('customer', '')).lower()
+            last_cust_match = search_q in str(c.get('last_known_customer', '')).lower()
+            if not (uid_match or cust_match or last_cust_match):
+                match = False
+                
+        # Gas Type match
+        if match and filter_gas and filter_gas != str(c.get('gas_type', '')).lower():
+            match = False
+            
+        # Status match
+        if match and filter_status and filter_status != str(c.get('status', '')).lower():
+            match = False
+            
+        # Hydro match
+        if match and filter_hydro:
+            if filter_hydro == 'overdue' and c.get('hydro_badge') != 'Overdue':
+                match = False
+            elif filter_hydro == 'due soon' and c.get('hydro_badge') != 'Due Soon':
+                match = False
+                
+        if match:
+            filtered.append(c)
+
+    # Server-Side Pagination
+    page = request.args.get('page', 1, type=int)
+    per_page = 100
+    total_filtered = len(filtered)
+    total_pages = max(1, math.ceil(total_filtered / per_page))
+    
+    # Bound the page
+    if page < 1: page = 1
+    if page > total_pages: page = total_pages
+
+    start_idx = (page - 1) * per_page
+    end_idx = start_idx + per_page
+    paginated_cylinders = filtered[start_idx:end_idx]
+
     return render_template('cylinders.html',
         user       = session['user'],
-        cylinders  = cylinders,
+        cylinders  = paginated_cylinders,
         gas_types  = gas_types,
         statuses   = statuses,
-        total      = len(cylinders),
-        active     = sum(1 for c in cylinders if c.get('status') in ('Active', 'Empty', 'Filled', 'Delivered')),
-        overdue    = sum(1 for c in cylinders if c.get('hydro_badge') == 'Overdue'),
-        due_soon   = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon'),
+        total      = total,
+        active     = active,
+        overdue    = overdue,
+        due_soon   = due_soon,
+        # Pagination Context
+        current_page = page,
+        total_pages  = total_pages,
+        total_filtered = total_filtered,
+        search_q = search_q,
+        filter_gas = filter_gas,
+        filter_status = filter_status,
+        filter_hydro = filter_hydro,
+        current_tab = current_tab
     )
 
 @app.route('/admin/cylinders/sync_sheets', methods=['POST'])

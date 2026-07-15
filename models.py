@@ -45,12 +45,12 @@ class Cylinder(db.Model):
     __tablename__ = 'cylinders'
     id = db.Column(db.Integer, primary_key=True)
     uid = db.Column(db.String(100), unique=True, nullable=False)
-    gas_type = db.Column(db.String(50))
+    gas_type = db.Column(db.String(50), index=True)
     cylinder_type = db.Column(db.String(50))
     owner = db.Column(db.String(100), default='Depot')
-    status = db.Column(db.String(20), default='Active')
-    location = db.Column(db.String(255), default='Depot')
-    last_activity_date = db.Column(db.String(50)) # Keep as string to match sheet format 'dd-mm-yyyy'
+    status = db.Column(db.String(20), default='Active', index=True)
+    location = db.Column(db.String(255), default='Depot', index=True)
+    last_activity_date = db.Column(db.String(50), index=True) # Keep as string to match sheet format 'dd-mm-yyyy'
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -101,12 +101,12 @@ class CylinderMaintenance(db.Model):
 class Scan(db.Model):
     __tablename__ = 'scans'
     id = db.Column(db.Integer, primary_key=True)
-    scan_date = db.Column(db.String(50), nullable=False)
+    scan_date = db.Column(db.String(50), nullable=False, index=True)
     scan_time = db.Column(db.String(50))
-    driver = db.Column(db.String(100))
-    action = db.Column(db.String(50), nullable=False)
-    cylinder_uid = db.Column(db.String(100), nullable=False)
-    customer = db.Column(db.String(255))
+    driver = db.Column(db.String(100), index=True)
+    action = db.Column(db.String(50), nullable=False, index=True)
+    cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
+    customer = db.Column(db.String(255), index=True)
     gas_type = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -124,15 +124,15 @@ class Scan(db.Model):
 class CustomerMap(db.Model):
     __tablename__ = 'customer_map'
     id = db.Column(db.Integer, primary_key=True)
-    scan_date = db.Column(db.String(50))
+    scan_date = db.Column(db.String(50), index=True)
     scan_time = db.Column(db.String(50))
     driver = db.Column(db.String(100))
     action = db.Column(db.String(50))
     count = db.Column(db.Integer, default=0)
     uids = db.Column(db.Text)
-    customer = db.Column(db.String(255))
+    customer = db.Column(db.String(255), index=True)
     send_receipt = db.Column(db.Boolean, default=False)
-    receipt_status = db.Column(db.String(100))
+    receipt_status = db.Column(db.String(100), index=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -225,11 +225,11 @@ class SystemSetting(db.Model):
 class AdminScanLog(db.Model):
     __tablename__ = 'admin_scan_logs'
     id = db.Column(db.Integer, primary_key=True)
-    scan_date = db.Column(db.String(50), nullable=False)
+    scan_date = db.Column(db.String(50), nullable=False, index=True)
     scan_time = db.Column(db.String(50))
-    cylinder_uid = db.Column(db.String(100), nullable=False)
+    cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
     gas_type = db.Column(db.String(50))
-    customer = db.Column(db.String(255))
+    customer = db.Column(db.String(255), index=True)
     action = db.Column(db.String(50), nullable=False)
     admin_name = db.Column(db.String(100))
     last_known_customer = db.Column(db.String(255))
@@ -256,11 +256,11 @@ class AccountsBatch(db.Model):
     __tablename__ = 'accounts_batches'
     id          = db.Column(db.Integer, primary_key=True)
     batch_ref   = db.Column(db.String(30), unique=True)
-    batch_date  = db.Column(db.String(50), nullable=False)
+    batch_date  = db.Column(db.String(50), nullable=False, index=True)
     batch_time  = db.Column(db.String(50))
-    customer    = db.Column(db.String(255))
+    customer    = db.Column(db.String(255), index=True)
     admin_name  = db.Column(db.String(100))
-    status      = db.Column(db.String(20), default='Pending')
+    status      = db.Column(db.String(20), default='Pending', index=True)
     billed_at   = db.Column(db.DateTime)
     billed_by   = db.Column(db.String(100))
     notes       = db.Column(db.Text)
@@ -294,8 +294,8 @@ class AccountsBatch(db.Model):
 class AccountsBatchItem(db.Model):
     __tablename__ = 'accounts_batch_items'
     id           = db.Column(db.Integer, primary_key=True)
-    batch_id     = db.Column(db.Integer, db.ForeignKey('accounts_batches.id'), nullable=False)
-    cylinder_uid = db.Column(db.String(100))
+    batch_id     = db.Column(db.Integer, db.ForeignKey('accounts_batches.id'), nullable=False, index=True)
+    cylinder_uid = db.Column(db.String(100), index=True)
     gas_type     = db.Column(db.String(50))
 
     def to_dict(self):
@@ -310,11 +310,11 @@ class DriverJob(db.Model):
     __tablename__ = 'driver_jobs'
     id             = db.Column(db.Integer, primary_key=True)
     job_ref        = db.Column(db.String(30), unique=True)
-    driver_username= db.Column(db.String(100), nullable=False)
+    driver_username= db.Column(db.String(100), nullable=False, index=True)
     customer       = db.Column(db.String(255), nullable=False)  # never exposed to driver
     action         = db.Column(db.String(20), nullable=False)   # Delivery / Collection
-    status         = db.Column(db.String(20), default='Pending') # Pending / Completed / Cancelled
-    queue_position = db.Column(db.Integer, default=0)
+    status         = db.Column(db.String(20), default='Pending', index=True) # Pending / Completed / Cancelled
+    queue_position = db.Column(db.Integer, default=0, index=True)
     assigned_by    = db.Column(db.String(100))
     assigned_at    = db.Column(db.DateTime, default=datetime.utcnow)
     completed_at   = db.Column(db.DateTime)
