@@ -1,0 +1,469 @@
+﻿{% extends "admin_base.html" %}
+
+{% block title %}Spare Parts Inventory{% endblock %}
+
+{% block head %}
+<style>
+  .spares-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 24px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .kpi-grid-sp {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card-sp {
+    background: #fff;
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 12px;
+    padding: 18px 20px;
+  }
+  .kpi-card-sp .kpi-value { font-size: 28px; font-weight: 700; color: var(--dark-text); }
+  .kpi-card-sp .kpi-label { font-size: 12px; color: var(--gray-text); font-weight: 500; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 4px; }
+  .kpi-card-sp.red-card { border-color: #fca5a5; background: #fff5f5; }
+  .kpi-card-sp.red-card .kpi-value { color: #dc2626; }
+
+  .card { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 12px; }
+  .card-pad { padding: 16px 20px; }
+  .filter-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .search-bar { display: flex; align-items: center; gap: 8px; background: #f7f8f6; border: 1.5px solid var(--gray-bd); border-radius: 8px; padding: 7px 12px; flex: 1; min-width: 180px; }
+  .search-bar input { border: none; background: transparent; outline: none; font-family: inherit; font-size: 14px; color: var(--dark-text); width: 100%; }
+  .filter-select { border: 1.5px solid var(--gray-bd); border-radius: 8px; padding: 7px 12px; font-family: inherit; font-size: 13.5px; color: var(--dark-text); background: #fff; outline: none; cursor: pointer; }
+
+  .reg-table { width: 100%; border-collapse: collapse; }
+  .reg-table thead th { padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1.5px solid var(--gray-bd); white-space: nowrap; }
+  .reg-table tbody tr { border-bottom: 1px solid #f0f0ee; transition: background 0.12s; }
+  .reg-table tbody tr:last-child { border-bottom: none; }
+  .reg-table tbody tr:hover { background: #f7f8f6; }
+  .reg-table td { padding: 11px 14px; font-size: 13.5px; vertical-align: middle; }
+
+  .stock-badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .stock-ok   { background: #dcfce7; color: #16a34a; }
+  .stock-low  { background: #fff3cd; color: #b45309; }
+  .stock-zero { background: #fee2e2; color: #dc2626; }
+  .cat-badge { display: inline-block; padding: 2px 9px; border-radius: 20px; font-size: 11px; font-weight: 600; background: var(--green-50); color: var(--green-700); border: 1px solid #b2dfdb; }
+
+  .action-btns { display: flex; gap: 6px; flex-wrap: wrap; }
+  .btn-sm { padding: 5px 11px; border-radius: 7px; font-size: 12px; font-weight: 600; cursor: pointer; border: 1.5px solid; transition: all 0.15s; white-space: nowrap; font-family: inherit; }
+  .btn-restock { background: #fff; color: var(--green-700); border-color: var(--green-700); }
+  .btn-restock:hover { background: var(--green-700); color: #fff; }
+  .btn-use { background: #fff; color: #d97706; border-color: #d97706; }
+  .btn-use:hover { background: #d97706; color: #fff; }
+  .btn-hist { background: #fff; color: var(--gray-text); border-color: var(--gray-bd); }
+  .btn-hist:hover { background: #f7f8f6; }
+  .btn-del { background: #fff; color: #dc2626; border-color: #fca5a5; }
+  .btn-del:hover { background: #fee2e2; }
+
+  .btn-primary { display: inline-flex; align-items: center; gap: 7px; padding: 9px 18px; background: var(--green-700); color: #fff; border: none; border-radius: 8px; font-family: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; transition: background 0.15s; }
+  .btn-primary:hover { background: var(--green-900); }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 9000; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+  .modal-overlay.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 14px; padding: 28px; width: 420px; max-width: 95vw; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.18); animation: popIn 0.2s ease; }
+  @keyframes popIn { from { transform: scale(0.92); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .modal-title { font-size: 17px; font-weight: 700; color: var(--dark-text); margin-bottom: 20px; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 600; color: var(--gray-text); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 5px; }
+  .form-group input, .form-group select { width: 100%; border: 1.5px solid var(--gray-bd); border-radius: 8px; padding: 9px 12px; font-family: inherit; font-size: 14px; color: var(--dark-text); outline: none; transition: border-color 0.15s; }
+  .form-group input:focus, .form-group select:focus { border-color: var(--green-500); }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+  .btn-cancel { padding: 9px 16px; background: #f1f5f9; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600; color: var(--gray-text); }
+  .btn-submit { padding: 9px 18px; background: var(--green-700); color: #fff; border: none; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13.5px; font-weight: 600; }
+  .btn-submit:hover { background: var(--green-900); }
+  .btn-submit.amber { background: #d97706; }
+  .btn-submit.amber:hover { background: #b45309; }
+  .modal-error { background: #fff5f5; border: 1px solid #fca5a5; color: #dc2626; border-radius: 7px; padding: 9px 12px; font-size: 13px; margin-bottom: 14px; display: none; }
+  .hist-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .hist-table th { padding: 8px 12px; font-size: 11px; font-weight: 700; color: var(--gray-text); text-transform: uppercase; border-bottom: 1.5px solid var(--gray-bd); text-align: left; }
+  .hist-table td { padding: 9px 12px; font-size: 13px; border-bottom: 1px solid #f0f0ee; vertical-align: middle; }
+  .hist-table tr:last-child td { border-bottom: none; }
+  .txn-badge { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+  .txn-purchase { background: #dcfce7; color: #16a34a; }
+  .txn-usage    { background: #fee2e2; color: #dc2626; }
+  .txn-adjust   { background: #e0f2fe; color: #0369a1; }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-text); }
+  .empty-state p { font-size: 15px; font-weight: 500; }
+  .empty-state span { font-size: 13px; }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="spares-header">
+  <div>
+    <h1 class="page-title">Spare Parts Inventory</h1>
+    <p class="page-sub">Track valves, caps, regulators, and other accessories</p>
+  </div>
+  <button class="btn-primary" onclick="openAddModal()">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Add Item
+  </button>
+</div>
+
+<div class="kpi-grid-sp">
+  <div class="kpi-card-sp">
+    <div class="kpi-value">{{ total_items }}</div>
+    <div class="kpi-label">Total Items</div>
+  </div>
+  <div class="kpi-card-sp {% if low_stock_count > 0 %}red-card{% endif %}">
+    <div class="kpi-value">{{ low_stock_count }}</div>
+    <div class="kpi-label">Low / Out of Stock</div>
+  </div>
+  <div class="kpi-card-sp">
+    <div class="kpi-value">{{ categories|length }}</div>
+    <div class="kpi-label">Categories</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-pad" style="border-bottom:1.5px solid var(--gray-bd);">
+    <div class="filter-row">
+      <div class="search-bar">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="spares-search" placeholder="Search by name or code..." oninput="filterSpares()">
+      </div>
+      <select id="cat-filter" class="filter-select" onchange="filterSpares()">
+        <option value="">All Categories</option>
+        {% for c in categories %}<option value="{{ c|lower }}">{{ c }}</option>{% endfor %}
+      </select>
+      <select id="stock-filter" class="filter-select" onchange="filterSpares()">
+        <option value="">All Stock Levels</option>
+        <option value="low">Low / Out of Stock</option>
+        <option value="ok">In Stock</option>
+      </select>
+    </div>
+  </div>
+
+  <div style="overflow-x:auto;">
+    <table class="reg-table">
+      <thead>
+        <tr>
+          <th>Item Code</th>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Stock</th>
+          <th>Min Level</th>
+          <th>Unit</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="spares-tbody">
+        {% for item in items %}
+        <tr data-id="{{ item.id }}"
+            data-name="{{ item.name|lower }}"
+            data-code="{{ item.item_code|lower }}"
+            data-cat="{{ (item.category or 'Other')|lower }}"
+            data-stock="{{ 'low' if item.low_stock else 'ok' }}">
+          <td style="font-family:monospace; font-weight:700; color:var(--green-700);">{{ item.item_code }}</td>
+          <td style="font-weight:500;">{{ item.name }}</td>
+          <td><span class="cat-badge">{{ item.category or 'Other' }}</span></td>
+          <td style="font-weight:700; font-size:15px; {% if item.current_stock == 0 %}color:#dc2626;{% elif item.low_stock %}color:#d97706;{% else %}color:#16a34a;{% endif %}">{{ item.current_stock }}</td>
+          <td style="color:var(--gray-text);">{{ item.min_stock }}</td>
+          <td style="color:var(--gray-text); font-size:12px;">{{ item.unit }}</td>
+          <td>
+            {% if item.current_stock == 0 %}
+              <span class="stock-badge stock-zero">● Out of Stock</span>
+            {% elif item.low_stock %}
+              <span class="stock-badge stock-low">⚠ Low</span>
+            {% else %}
+              <span class="stock-badge stock-ok">✓ OK</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="action-btns">
+              <button class="btn-sm btn-restock" onclick="openRestockModal({{ item.id }}, '{{ item.name|replace("'","\'") }}', '{{ item.unit }}')">+ Restock</button>
+              <button class="btn-sm btn-use"     onclick="openUseModal({{ item.id }}, '{{ item.name|replace("'","\'") }}', {{ item.current_stock }}, '{{ item.unit }}')">- Use</button>
+              <button class="btn-sm btn-hist"    onclick="openHistoryModal({{ item.id }}, '{{ item.name|replace("'","\'") }}')">History</button>
+              <button class="btn-sm btn-del"     onclick="deleteItem({{ item.id }}, '{{ item.name|replace("'","\'") }}')">&#x2715;</button>
+            </div>
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="8">
+            <div class="empty-state">
+              <p>No spare parts added yet</p>
+              <span>Click "Add Item" to get started</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% if items %}
+  <div style="padding:12px 20px; font-size:13px; color:var(--gray-text); border-top:1px solid #f0f0ee;">
+    Showing <span id="visible-count">{{ items|length }}</span> of {{ items|length }} items
+  </div>
+  {% endif %}
+</div>
+
+<!-- ADD MODAL -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal-box">
+    <div class="modal-title">Add Spare Part</div>
+    <div class="modal-error" id="add-error"></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Item Code *</label>
+        <input type="text" id="add-code" placeholder="e.g. VAL-001">
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <select id="add-cat">
+          <option value="Valve">Valve</option>
+          <option value="Cap">Cap</option>
+          <option value="Regulator">Regulator</option>
+          <option value="O-Ring">O-Ring</option>
+          <option value="Hose">Hose</option>
+          <option value="Other" selected>Other</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Item Name *</label>
+      <input type="text" id="add-name" placeholder="e.g. Oxygen Cylinder Valve">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Initial Stock</label>
+        <input type="number" id="add-stock" value="0" min="0">
+      </div>
+      <div class="form-group">
+        <label>Min Stock (Alert)</label>
+        <input type="number" id="add-min" value="0" min="0">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>Unit</label>
+      <select id="add-unit">
+        <option value="pcs" selected>pcs</option>
+        <option value="set">set</option>
+        <option value="roll">roll</option>
+        <option value="box">box</option>
+        <option value="m">m (meter)</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('addModal')">Cancel</button>
+      <button class="btn-submit" onclick="submitAdd()">Add Item</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESTOCK MODAL -->
+<div class="modal-overlay" id="restockModal">
+  <div class="modal-box">
+    <div class="modal-title">Restock &mdash; <span id="restock-name"></span></div>
+    <div class="modal-error" id="restock-error"></div>
+    <input type="hidden" id="restock-item-id">
+    <div class="form-group">
+      <label>Quantity Received *</label>
+      <input type="number" id="restock-qty" min="1" placeholder="e.g. 50">
+    </div>
+    <div class="form-group">
+      <label>Supplier / Reference</label>
+      <input type="text" id="restock-ref" placeholder="Supplier name or invoice no.">
+    </div>
+    <div class="form-group">
+      <label>Cost per Unit</label>
+      <input type="number" id="restock-cost" min="0" step="0.01" placeholder="0.00">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="restock-notes" placeholder="Optional">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('restockModal')">Cancel</button>
+      <button class="btn-submit" onclick="submitRestock()">Confirm Restock</button>
+    </div>
+  </div>
+</div>
+
+<!-- USE MODAL -->
+<div class="modal-overlay" id="useModal">
+  <div class="modal-box">
+    <div class="modal-title">Record Usage &mdash; <span id="use-name"></span></div>
+    <div class="modal-error" id="use-error"></div>
+    <input type="hidden" id="use-item-id">
+    <div class="form-group">
+      <label>Current Stock</label>
+      <div id="use-current-stock" style="font-size:20px; font-weight:700; color:var(--dark-text); padding:4px 0;">-</div>
+    </div>
+    <div class="form-group">
+      <label>Quantity Used *</label>
+      <input type="number" id="use-qty" min="1" placeholder="e.g. 2">
+    </div>
+    <div class="form-group">
+      <label>Reference / Job</label>
+      <input type="text" id="use-ref" placeholder="Job ref or cylinder UID">
+    </div>
+    <div class="form-group">
+      <label>Notes</label>
+      <input type="text" id="use-notes" placeholder="Optional">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeModal('useModal')">Cancel</button>
+      <button class="btn-submit amber" onclick="submitUse()">Confirm Usage</button>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY MODAL -->
+<div class="modal-overlay" id="histModal" style="align-items:flex-start; padding-top:60px;">
+  <div class="modal-box" style="width:560px; max-width:95vw; max-height:80vh; overflow-y:auto;">
+    <div class="modal-title" id="hist-title">Transaction History</div>
+    <div id="hist-content"><div style="text-align:center;padding:30px;color:var(--gray-text);">Loading...</div></div>
+    <div class="modal-actions" style="margin-top:16px;">
+      <button class="btn-cancel" onclick="closeModal('histModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+function filterSpares() {
+  const q   = document.getElementById('spares-search').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value.toLowerCase();
+  const stk = document.getElementById('stock-filter').value;
+  let visible = 0;
+  document.querySelectorAll('#spares-tbody tr[data-id]').forEach(row => {
+    const m = (!q || row.dataset.name.includes(q) || row.dataset.code.includes(q))
+           && (!cat || row.dataset.cat === cat)
+           && (!stk || row.dataset.stock === stk);
+    row.style.display = m ? '' : 'none';
+    if (m) visible++;
+  });
+  const vc = document.getElementById('visible-count');
+  if (vc) vc.textContent = visible;
+}
+
+function openModal(id)  { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(el => {
+  el.addEventListener('click', e => { if (e.target === el) closeModal(el.id); });
+});
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg; el.style.display = 'block';
+}
+function clearError(id) {
+  const el = document.getElementById(id);
+  el.textContent = ''; el.style.display = 'none';
+}
+
+function openAddModal() {
+  clearError('add-error');
+  ['add-code','add-name'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('add-stock').value = '0';
+  document.getElementById('add-min').value = '0';
+  openModal('addModal');
+  setTimeout(() => document.getElementById('add-code').focus(), 100);
+}
+
+async function submitAdd() {
+  clearError('add-error');
+  const payload = {
+    item_code: document.getElementById('add-code').value.trim(),
+    name:      document.getElementById('add-name').value.trim(),
+    category:  document.getElementById('add-cat').value,
+    unit:      document.getElementById('add-unit').value,
+    current_stock: parseInt(document.getElementById('add-stock').value) || 0,
+    min_stock:     parseInt(document.getElementById('add-min').value)   || 0,
+  };
+  if (!payload.item_code || !payload.name) return showError('add-error', 'Item code and name are required.');
+  const res = await fetch('/admin/spares/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const data = await res.json();
+  if (data.success) { closeModal('addModal'); location.reload(); }
+  else showError('add-error', data.error || 'Something went wrong.');
+}
+
+function openRestockModal(id, name, unit) {
+  clearError('restock-error');
+  document.getElementById('restock-item-id').value = id;
+  document.getElementById('restock-name').textContent = name;
+  ['restock-qty','restock-ref','restock-cost','restock-notes'].forEach(i => document.getElementById(i).value = '');
+  openModal('restockModal');
+  setTimeout(() => document.getElementById('restock-qty').focus(), 100);
+}
+
+async function submitRestock() {
+  clearError('restock-error');
+  const id = document.getElementById('restock-item-id').value;
+  const payload = {
+    quantity:      parseInt(document.getElementById('restock-qty').value) || 0,
+    reference:     document.getElementById('restock-ref').value.trim(),
+    cost_per_unit: parseFloat(document.getElementById('restock-cost').value) || 0,
+    notes:         document.getElementById('restock-notes').value.trim(),
+  };
+  if (payload.quantity <= 0) return showError('restock-error', 'Enter a valid quantity.');
+  const res = await fetch(`/admin/spares/${id}/restock`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const data = await res.json();
+  if (data.success) { closeModal('restockModal'); location.reload(); }
+  else showError('restock-error', data.error || 'Something went wrong.');
+}
+
+function openUseModal(id, name, stock, unit) {
+  clearError('use-error');
+  document.getElementById('use-item-id').value = id;
+  document.getElementById('use-name').textContent = name;
+  document.getElementById('use-current-stock').textContent = stock + ' ' + unit;
+  ['use-qty','use-ref','use-notes'].forEach(i => document.getElementById(i).value = '');
+  openModal('useModal');
+  setTimeout(() => document.getElementById('use-qty').focus(), 100);
+}
+
+async function submitUse() {
+  clearError('use-error');
+  const id = document.getElementById('use-item-id').value;
+  const payload = {
+    quantity:  parseInt(document.getElementById('use-qty').value) || 0,
+    reference: document.getElementById('use-ref').value.trim(),
+    notes:     document.getElementById('use-notes').value.trim(),
+  };
+  if (payload.quantity <= 0) return showError('use-error', 'Enter a valid quantity.');
+  const res = await fetch(`/admin/spares/${id}/use`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
+  const data = await res.json();
+  if (data.success) { closeModal('useModal'); location.reload(); }
+  else showError('use-error', data.error || 'Something went wrong.');
+}
+
+async function openHistoryModal(id, name) {
+  document.getElementById('hist-title').textContent = 'History - ' + name;
+  document.getElementById('hist-content').innerHTML = '<div style="text-align:center;padding:30px;color:var(--gray-text);">Loading...</div>';
+  openModal('histModal');
+  const res  = await fetch(`/admin/spares/${id}/history`);
+  const data = await res.json();
+  const txns = data.transactions;
+  if (!txns.length) {
+    document.getElementById('hist-content').innerHTML = '<p style="text-align:center;padding:20px;color:var(--gray-text);">No transactions yet.</p>';
+    return;
+  }
+  let html = '<table class="hist-table"><thead><tr><th>Date</th><th>Type</th><th>Qty</th><th>Reference</th><th>By</th></tr></thead><tbody>';
+  txns.forEach(t => {
+    const cls  = t.txn_type==='Purchase'?'txn-purchase':t.txn_type==='Usage'?'txn-usage':'txn-adjust';
+    const sign = t.quantity > 0 ? '+'+t.quantity : t.quantity;
+    const col  = t.quantity > 0 ? '#16a34a' : '#dc2626';
+    html += `<tr><td style="white-space:nowrap;">${t.created_at}</td><td><span class="txn-badge ${cls}">${t.txn_type}</span></td><td style="font-weight:700;color:${col};">${sign}</td><td style="color:var(--gray-text);">${t.reference||'&mdash;'}</td><td style="color:var(--gray-text);">${t.recorded_by||'&mdash;'}</td></tr>`;
+  });
+  html += '</tbody></table>';
+  document.getElementById('hist-content').innerHTML = html;
+}
+
+async function deleteItem(id, name) {
+  if (!confirm('Delete "' + name + '"?\n\nThis will also delete all its transaction history.')) return;
+  const res  = await fetch(`/admin/spares/${id}/delete`, {method:'POST'});
+  const data = await res.json();
+  if (data.success) location.reload();
+  else alert('Delete failed: ' + (data.error || 'Unknown error'));
+}
+</script>
+{% endblock %}

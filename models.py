@@ -356,3 +356,57 @@ class CommercialOffer(db.Model):
             'generated_by': self.generated_by or '',
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else ''
         }
+
+
+# ── Spare Parts Inventory ──────────────────────────────────────────
+
+class SpareItem(db.Model):
+    __tablename__ = 'spare_items'
+    id            = db.Column(db.Integer, primary_key=True)
+    item_code     = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    name          = db.Column(db.String(200), nullable=False)
+    category      = db.Column(db.String(100), index=True)   # Valve / Cap / Regulator / Other
+    unit          = db.Column(db.String(20), default='pcs') # pcs / set / roll
+    current_stock = db.Column(db.Integer, default=0)
+    min_stock     = db.Column(db.Integer, default=0)        # alert threshold
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow)
+    transactions  = db.relationship('SpareTransaction', backref='item', lazy=True, cascade='all, delete-orphan')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'item_code': self.item_code,
+            'name': self.name,
+            'category': self.category or '',
+            'unit': self.unit or 'pcs',
+            'current_stock': self.current_stock or 0,
+            'min_stock': self.min_stock or 0,
+            'low_stock': self.current_stock <= self.min_stock,
+        }
+
+
+class SpareTransaction(db.Model):
+    __tablename__ = 'spare_transactions'
+    id            = db.Column(db.Integer, primary_key=True)
+    item_id       = db.Column(db.Integer, db.ForeignKey('spare_items.id'), nullable=False, index=True)
+    txn_type      = db.Column(db.String(20), nullable=False, index=True)  # Purchase / Usage / Adjustment
+    quantity      = db.Column(db.Integer, nullable=False)                  # positive = in, negative = out
+    reference     = db.Column(db.String(255))                             # supplier or job ref
+    cost_per_unit = db.Column(db.Float, default=0.0)
+    notes         = db.Column(db.String(500))
+    recorded_by   = db.Column(db.String(100))
+    created_at    = db.Column(db.DateTime, default=datetime.utcnow, index=True)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'item_id': self.item_id,
+            'txn_type': self.txn_type,
+            'quantity': self.quantity,
+            'reference': self.reference or '',
+            'cost_per_unit': self.cost_per_unit or 0.0,
+            'notes': self.notes or '',
+            'recorded_by': self.recorded_by or '',
+            'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
+        }
+

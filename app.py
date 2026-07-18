@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer, SpareItem, SpareTransaction
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -7855,6 +7855,132 @@ def api_driver_active_job():
         print('[active_job] error:', e)
         return jsonify({'job': None})
 
+
+# ================================================================
+#  SPARE PARTS INVENTORY ROUTES
+# ================================================================
+
+@app.route('/admin/spares')
+@admin_required
+def admin_spares():
+    items = SpareItem.query.order_by(SpareItem.category, SpareItem.name).all()
+    categories = sorted(set(i.category for i in items if i.category))
+    low_stock_count = sum(1 for i in items if i.current_stock <= i.min_stock and i.min_stock > 0)
+    total_items = len(items)
+    return render_template('spares.html',
+        user            = session['user'],
+        items           = [i.to_dict() | {'id': i.id} for i in items],
+        categories      = categories,
+        total_items     = total_items,
+        low_stock_count = low_stock_count,
+    )
+
+
+@app.route('/admin/spares/add', methods=['POST'])
+@admin_required
+def admin_spares_add():
+    data = request.get_json() or request.form
+    item_code = str(data.get('item_code', '')).strip()
+    name      = str(data.get('name', '')).strip()
+    if not item_code or not name:
+        return jsonify({'success': False, 'error': 'Item code and name are required.'}), 400
+    if SpareItem.query.filter_by(item_code=item_code).first():
+        return jsonify({'success': False, 'error': f'Item code "{item_code}" already exists.'}), 400
+    try:
+        item = SpareItem(
+            item_code     = item_code,
+            name          = name,
+            category      = str(data.get('category', 'Other')).strip(),
+            unit          = str(data.get('unit', 'pcs')).strip(),
+            current_stock = int(data.get('current_stock', 0)),
+            min_stock     = int(data.get('min_stock', 0)),
+        )
+        db.session.add(item)
+        db.session.commit()
+        return jsonify({'success': True, 'item': item.to_dict() | {'id': item.id}})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/admin/spares/<int:item_id>/restock', methods=['POST'])
+@admin_required
+def admin_spares_restock(item_id):
+    item = SpareItem.query.get_or_404(item_id)
+    data = request.get_json() or request.form
+    try:
+        qty  = int(data.get('quantity', 0))
+        if qty <= 0:
+            return jsonify({'success': False, 'error': 'Quantity must be positive.'}), 400
+        txn = SpareTransaction(
+            item_id       = item.id,
+            txn_type      = 'Purchase',
+            quantity      = qty,
+            reference     = str(data.get('reference', '')).strip(),
+            cost_per_unit = float(data.get('cost_per_unit', 0) or 0),
+            notes         = str(data.get('notes', '')).strip(),
+            recorded_by   = session.get('user', ''),
+        )
+        item.current_stock += qty
+        db.session.add(txn)
+        db.session.commit()
+        return jsonify({'success': True, 'new_stock': item.current_stock})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/admin/spares/<int:item_id>/use', methods=['POST'])
+@admin_required
+def admin_spares_use(item_id):
+    item = SpareItem.query.get_or_404(item_id)
+    data = request.get_json() or request.form
+    try:
+        qty = int(data.get('quantity', 0))
+        if qty <= 0:
+            return jsonify({'success': False, 'error': 'Quantity must be positive.'}), 400
+        if item.current_stock < qty:
+            return jsonify({'success': False, 'error': f'Insufficient stock. Only {item.current_stock} {item.unit} available.'}), 400
+        txn = SpareTransaction(
+            item_id     = item.id,
+            txn_type    = 'Usage',
+            quantity    = -qty,
+            reference   = str(data.get('reference', '')).strip(),
+            notes       = str(data.get('notes', '')).strip(),
+            recorded_by = session.get('user', ''),
+        )
+        item.current_stock -= qty
+        db.session.add(txn)
+        db.session.commit()
+        return jsonify({'success': True, 'new_stock': item.current_stock})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/admin/spares/<int:item_id>/history')
+@admin_required
+def admin_spares_history(item_id):
+    item = SpareItem.query.get_or_404(item_id)
+    txns = SpareTransaction.query.filter_by(item_id=item_id)\
+              .order_by(SpareTransaction.created_at.desc()).all()
+    return jsonify({
+        'item': item.to_dict() | {'id': item.id},
+        'transactions': [t.to_dict() for t in txns]
+    })
+
+
+@app.route('/admin/spares/<int:item_id>/delete', methods=['POST'])
+@admin_required
+def admin_spares_delete(item_id):
+    item = SpareItem.query.get_or_404(item_id)
+    try:
+        db.session.delete(item)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':
