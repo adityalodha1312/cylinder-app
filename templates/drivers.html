@@ -37,55 +37,78 @@
   .btn-clear-all { background:none; border:1.5px solid #fca5a5; border-radius:8px; padding:5px 12px; font-size:12px; font-weight:600; color:#dc3545; cursor:pointer; font-family:inherit; transition:all 0.15s; }
   .btn-clear-all:hover { background:#fee2e2; }
 
-  /* Assign Form */
-  .assign-form { display:flex; gap:8px; flex-wrap:wrap; align-items:flex-start; padding:12px 18px; background:#fafaf8; border-bottom:1px solid #eeeee9; }
-  .assign-form select { padding:8px 10px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; font-family:inherit; outline:none; background:#fff; }
-  .assign-form select:focus { border-color:var(--green-700); }
-  .btn-assign { background:var(--green-700); color:#fff; border:none; padding:9px 18px; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; white-space:nowrap; transition:background 0.15s; }
+  /* ── Assign Form (mobile-first) ── */
+  .assign-form { display:flex; flex-direction:column; gap:10px; padding:14px 16px; background:#fafaf8; border-bottom:1px solid #eeeee9; }
+
+  /* Searchable customer input */
+  .cust-search-wrap { position:relative; width:100%; }
+  .cust-search-input { width:100%; padding:11px 14px; border:1.5px solid var(--gray-bd); border-radius:10px; font-size:14px; font-family:inherit; outline:none; background:#fff; box-sizing:border-box; }
+  .cust-search-input:focus { border-color:var(--green-700); box-shadow:0 0 0 3px rgba(15,110,86,0.08); }
+  .cust-dropdown { position:absolute; top:calc(100% + 4px); left:0; right:0; background:#fff; border:1.5px solid var(--green-700); border-radius:10px; box-shadow:0 8px 24px rgba(0,0,0,0.12); z-index:500; max-height:220px; overflow-y:auto; display:none; }
+  .cust-dropdown.open { display:block; }
+  .cust-option { padding:11px 14px; font-size:14px; cursor:pointer; border-bottom:1px solid #f0f0ec; color:var(--dark-text); font-weight:500; transition:background 0.1s; }
+  .cust-option:last-child { border-bottom:none; }
+  .cust-option:hover, .cust-option.highlighted { background:var(--green-50); color:var(--green-900); }
+  .cust-option mark { background:none; color:var(--green-700); font-weight:700; }
+  .cust-no-results { padding:12px 14px; font-size:13px; color:#aaa; text-align:center; }
+
+  /* Action toggle pills */
+  .action-toggle { display:flex; gap:8px; }
+  .action-pill { flex:1; padding:11px 8px; border-radius:10px; border:1.5px solid var(--gray-bd); font-size:14px; font-weight:600; cursor:pointer; font-family:inherit; text-align:center; background:#fff; color:var(--gray-text); transition:all 0.15s; }
+  .action-pill.selected-delivery { background:#E1F5EE; border-color:var(--green-700); color:var(--green-900); }
+  .action-pill.selected-collection { background:#EFF6FF; border-color:#1E40AF; color:#1E40AF; }
+
+  /* Note field — always visible on mobile */
+  .note-field-inline { width:100%; }
+  .note-field-inline input { width:100%; padding:9px 12px; border:1.5px solid var(--gray-bd); border-radius:10px; font-size:13px; font-family:inherit; outline:none; box-sizing:border-box; }
+  .note-field-inline input:focus { border-color:var(--green-700); }
+
+  /* Add to Queue button — full width, large */
+  .btn-assign { width:100%; background:var(--green-700); color:#fff; border:none; padding:14px; border-radius:10px; font-size:15px; font-weight:700; cursor:pointer; font-family:inherit; transition:background 0.15s, transform 0.1s; }
   .btn-assign:hover { background:var(--green-900); }
-  .btn-assign:disabled { opacity:0.6; cursor:not-allowed; }
-  .note-toggle { font-size:12px; color:var(--green-700); cursor:pointer; text-decoration:underline; padding:8px 2px; white-space:nowrap; align-self:center; background:none; border:none; font-family:inherit; }
-  .note-field { display:none; width:100%; margin-top:4px; }
-  .note-field input { width:100%; padding:7px 10px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; font-family:inherit; outline:none; }
-  .note-field input:focus { border-color:var(--green-700); }
-  .assign-flash { font-size:12.5px; font-weight:600; color:#0F6E56; background:#e1f5ee; border-radius:8px; padding:6px 12px; display:none; align-self:center; }
-  .assign-flash.error { color:#991b1b; background:#fee2e2; }
+  .btn-assign:active { transform:scale(0.98); }
+  .btn-assign:disabled { opacity:0.6; cursor:not-allowed; transform:none; }
 
   /* Job List */
   .job-list { padding:0; }
-  .job-row { display:flex; align-items:center; gap:10px; padding:11px 18px; border-bottom:1px solid #eeeee9; transition:background 0.1s; }
+  .job-row { display:flex; flex-direction:column; gap:6px; padding:13px 16px; border-bottom:1px solid #eeeee9; transition:background 0.1s; }
   .job-row:last-child { border-bottom:none; }
   .job-row:hover { background:#fafaf8; }
-  .job-pos { width:22px; height:22px; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
-  .job-pos.pending    { background:var(--green-700); color:#fff; }
+  .job-row-top { display:flex; align-items:center; gap:10px; }
+  .job-row-bottom { display:flex; align-items:center; gap:8px; padding-left:32px; flex-wrap:wrap; }
+  .job-pos { width:24px; height:24px; border-radius:50%; font-size:11px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .job-pos.pending     { background:var(--green-700); color:#fff; }
   .job-pos.in-progress { background:#f59e0b; color:#fff; }
-  .job-customer { font-size:13.5px; font-weight:600; color:var(--dark-text); flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .job-ref { font-size:11px; color:#aaa; min-width:100px; }
+  .job-customer { font-size:14px; font-weight:700; color:var(--dark-text); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .job-ref { font-size:11px; color:#aaa; }
   .job-action-badge { padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap; }
   .badge-delivery    { background:#E1F5EE; color:#0F6E56; }
   .badge-collection  { background:#EFF6FF; color:#1E40AF; }
   .badge-pending     { background:#f3f4f6; color:#6b7280; }
   .badge-in-progress { background:#fef3c7; color:#b45309; }
-  .job-time { font-size:11.5px; color:#aaa; white-space:nowrap; }
+  .job-time { font-size:11.5px; color:#aaa; white-space:nowrap; margin-left:auto; }
   .job-notes-text { font-size:11.5px; color:#aaa; font-style:italic; }
-  .job-reorder { display:flex; gap:4px; }
-  .btn-reorder { background:none; border:1px solid var(--gray-bd); border-radius:6px; padding:3px 7px; cursor:pointer; font-size:12px; color:var(--gray-text); }
-  .btn-reorder:hover { border-color:var(--green-700); color:var(--green-700); }
-  /* Hide the first move up button in the queue */
-  .job-list .job-row:first-child .job-reorder form[action*="/move_up"] {
-    display: none;
-  }
-  /* Hide the last move down button in the queue */
-  .job-list .job-row:last-child .job-reorder form[action*="/move_down"] {
-    display: none;
-  }
-  .btn-cancel { background:none; border:1px solid #fca5a5; border-radius:6px; padding:3px 8px; cursor:pointer; font-size:12px; color:#dc3545; }
+  /* Reorder + cancel — large touch targets */
+  .job-actions { display:flex; gap:6px; margin-left:auto; }
+  .job-list .job-row:first-child .btn-move-up { display:none; }
+  .job-list .job-row:last-child  .btn-move-down { display:none; }
+  .btn-reorder { background:none; border:1.5px solid var(--gray-bd); border-radius:8px; min-width:40px; min-height:40px; cursor:pointer; font-size:14px; color:var(--gray-text); display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
+  .btn-reorder:hover { border-color:var(--green-700); color:var(--green-700); background:var(--green-50); }
+  .btn-cancel { background:none; border:1.5px solid #fca5a5; border-radius:8px; min-width:40px; min-height:40px; cursor:pointer; font-size:15px; color:#dc3545; display:flex; align-items:center; justify-content:center; transition:all 0.15s; }
   .btn-cancel:hover { background:#fee2e2; }
 
+  /* Collapse stats table on mobile */
+  .stats-toggle-btn { display:none; width:100%; background:#f7f8f6; border:1.5px solid var(--gray-bd); border-radius:10px; padding:10px 14px; font-size:13px; font-weight:600; color:var(--gray-text); cursor:pointer; font-family:inherit; text-align:left; margin-bottom:16px; }
+  @media (max-width: 640px) {
+    .stats-toggle-btn { display:flex; align-items:center; justify-content:space-between; }
+    .stats-table-wrap { display:none; }
+    .stats-table-wrap.open { display:block; }
+  }
+
   /* Completed Today */
-  .completed-section { padding:10px 18px 14px; }
+  .completed-section { padding:10px 16px 14px; }
   .completed-title { font-size:11px; font-weight:700; color:#888; text-transform:uppercase; letter-spacing:.5px; margin-bottom:8px; }
-  .completed-row { display:flex; align-items:center; gap:8px; padding:5px 0; font-size:12px; color:#666; border-bottom:1px dashed #eee; }
+  .completed-row { display:flex; align-items:center; gap:8px; padding:6px 0; font-size:12px; color:#666; border-bottom:1px dashed #eee; flex-wrap:wrap; }
   .completed-row:last-child { border-bottom:none; }
   .badge-completed { background:#D1FAE5; color:#065F46; padding:2px 8px; border-radius:20px; font-size:10px; font-weight:700; }
 </style>
@@ -113,9 +136,14 @@
   </div>
 </div>
 
-<!-- PERFORMANCE TABLE -->
+<!-- PERFORMANCE TABLE (collapsible on mobile) -->
 {% set max_week = (data | map(attribute='this_week') | max) if data else 1 %}
 {% set top_driver = (data | sort(attribute='total_deliveries', reverse=True) | first) if data else None %}
+<button class="stats-toggle-btn" onclick="this.nextElementSibling.classList.toggle('open'); this.querySelector('.toggle-arrow').textContent = this.nextElementSibling.classList.contains('open') ? '▲' : '▼'">
+  <span>📊 Driver Performance Stats</span>
+  <span class="toggle-arrow">▼</span>
+</button>
+<div class="stats-table-wrap">
 <div class="table-wrap">
   {% if data %}
   <table>
@@ -155,6 +183,7 @@
   </div>
   {% endif %}
 </div>
+</div>
 
 <!-- JOB QUEUE SECTION -->
 {% if driver_jobs %}
@@ -193,24 +222,40 @@
         </div>
       </div>
 
-      <!-- Assign Form (AJAX) -->
+      <!-- Assign Form — fast mobile-first -->
       <div class="assign-form" id="form-{{ username }}">
-        <select name="customer" id="cust-{{ username }}" required style="flex:2; min-width:160px;">
-          <option value="" disabled selected>Select Customer…</option>
-          {% for cname in customers_list %}
-          <option value="{{ cname }}">{{ cname }}</option>
-          {% endfor %}
-        </select>
-        <select name="action" id="action-{{ username }}">
-          <option value="Delivery">Delivery</option>
-          <option value="Collection">Collection</option>
-        </select>
-        <button type="button" class="note-toggle" onclick="toggleNote('{{ username }}')">＋ Add note</button>
-        <button type="button" class="btn-assign" onclick="submitJob('{{ username }}')">+ Add to Queue</button>
-        <span class="assign-flash" id="flash-{{ username }}"></span>
-        <div class="note-field" id="note-wrap-{{ username }}">
-          <input type="text" id="note-{{ username }}" placeholder="Add a note (optional)…">
+
+        <!-- 1. Searchable Customer -->
+        <div class="cust-search-wrap" id="cust-wrap-{{ username }}">
+          <input type="text" class="cust-search-input" id="cust-input-{{ username }}"
+            placeholder="🔍 Search customer…" autocomplete="off"
+            oninput="filterCustomers('{{ username }}', this.value)"
+            onfocus="openDropdown('{{ username }}')"
+            onkeydown="handleKey(event, '{{ username }}')">
+          <input type="hidden" id="cust-{{ username }}" value="">
+          <div class="cust-dropdown" id="cust-dd-{{ username }}">
+            {% for cname in customers_list %}
+            <div class="cust-option" data-val="{{ cname }}" onclick="selectCustomer('{{ username }}', '{{ cname }}')">{{ cname }}</div>
+            {% endfor %}
+          </div>
         </div>
+
+        <!-- 2. Action Toggle Pills -->
+        <div class="action-toggle">
+          <button type="button" class="action-pill selected-delivery" id="pill-delivery-{{ username }}"
+            onclick="selectAction('{{ username }}', 'Delivery')">📦 Delivery</button>
+          <button type="button" class="action-pill" id="pill-collection-{{ username }}"
+            onclick="selectAction('{{ username }}', 'Collection')">🔄 Collection</button>
+        </div>
+        <input type="hidden" id="action-{{ username }}" value="Delivery">
+
+        <!-- 3. Note (always visible — fast to fill) -->
+        <div class="note-field-inline">
+          <input type="text" id="note-{{ username }}" placeholder="📝 Note (optional)">
+        </div>
+
+        <!-- 4. Big Add Button -->
+        <button type="button" class="btn-assign" id="btn-assign-{{ username }}" onclick="submitJob('{{ username }}')">＋ Add to Queue</button>
       </div>
 
       <!-- Pending & In-Progress Queue -->
@@ -219,24 +264,28 @@
         {% if all_active %}
           {% for job in all_active | sort(attribute='queue_position') %}
           <div class="job-row" id="job-row-{{ job.id }}">
-            <div class="job-pos {{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.queue_position }}</div>
-            <div class="job-customer">{{ job.customer }}</div>
-            <div class="job-ref">{{ job.job_ref }}</div>
-            <span class="job-action-badge badge-{{ job.action | lower }}">{{ job.action }}</span>
-            <span class="job-action-badge badge-{{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.status }}</span>
-            <div class="job-time">{{ job.assigned_at | to_ist }}</div>
-            {% if job.notes %}
-            <div class="job-notes-text">{{ job.notes }}</div>
-            {% endif %}
-            <div class="job-reorder">
-              <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
-                <button type="submit" class="btn-reorder" title="Move Up">↑</button>
-              </form>
-              <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
-                <button type="submit" class="btn-reorder" title="Move Down">↓</button>
-              </form>
+            <!-- Top line: position + customer + actions -->
+            <div class="job-row-top">
+              <div class="job-pos {{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.queue_position }}</div>
+              <div class="job-customer">{{ job.customer }}</div>
+              <div class="job-actions">
+                <form action="/admin/drivers/job/{{ job.id }}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
+                  <button type="submit" class="btn-reorder btn-move-up" title="Move Up">↑</button>
+                </form>
+                <form action="/admin/drivers/job/{{ job.id }}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '{{ username }}')">
+                  <button type="submit" class="btn-reorder btn-move-down" title="Move Down">↓</button>
+                </form>
+                <button class="btn-cancel" onclick="cancelJob({{ job.id }}, '{{ username }}')" title="Cancel Job">✕</button>
+              </div>
             </div>
-            <button class="btn-cancel" onclick="cancelJob({{ job.id }}, '{{ username }}')" title="Cancel Job">✕</button>
+            <!-- Bottom line: badges + ref + time + notes -->
+            <div class="job-row-bottom">
+              <span class="job-action-badge badge-{{ job.action | lower }}">{{ job.action }}</span>
+              <span class="job-action-badge badge-{{ 'in-progress' if job.status == 'In Progress' else 'pending' }}">{{ job.status }}</span>
+              <span class="job-ref">{{ job.job_ref }}</span>
+              {% if job.notes %}<span class="job-notes-text">· {{ job.notes }}</span>{% endif %}
+              <span class="job-time">{{ job.assigned_at | to_ist }}</span>
+            </div>
           </div>
           {% endfor %}
         {% else %}
@@ -267,82 +316,180 @@
 {% endif %}
 
 <script>
-  function toggleNote(username) {
-    const wrap = document.getElementById('note-wrap-' + username);
-    const isHidden = wrap.style.display === 'none' || wrap.style.display === '';
-    wrap.style.display = isHidden ? 'block' : 'none';
+  // ── Searchable Customer Dropdown ──
+  function openDropdown(username) {
+    var dd = document.getElementById('cust-dd-' + username);
+    filterCustomers(username, document.getElementById('cust-input-' + username).value);
+    dd.classList.add('open');
   }
 
+  function filterCustomers(username, query) {
+    var dd = document.getElementById('cust-dd-' + username);
+    var options = dd.querySelectorAll('.cust-option');
+    var q = query.trim().toLowerCase();
+    var visibleCount = 0;
+    options.forEach(function(opt) {
+      var name = opt.dataset.val;
+      if (!q || name.toLowerCase().includes(q)) {
+        // Highlight matching text
+        if (q) {
+          var idx = name.toLowerCase().indexOf(q);
+          opt.innerHTML = name.slice(0, idx) + '<mark>' + name.slice(idx, idx + q.length) + '</mark>' + name.slice(idx + q.length);
+        } else {
+          opt.textContent = name;
+        }
+        opt.style.display = '';
+        visibleCount++;
+      } else {
+        opt.style.display = 'none';
+      }
+    });
+    // Show/hide no results
+    var noRes = dd.querySelector('.cust-no-results');
+    if (visibleCount === 0) {
+      if (!noRes) {
+        var el = document.createElement('div');
+        el.className = 'cust-no-results';
+        el.textContent = 'No customers found';
+        dd.appendChild(el);
+      }
+    } else if (noRes) {
+      noRes.remove();
+    }
+    dd.classList.add('open');
+  }
+
+  function selectCustomer(username, name) {
+    document.getElementById('cust-input-' + username).value = name;
+    document.getElementById('cust-' + username).value = name;
+    document.getElementById('cust-dd-' + username).classList.remove('open');
+    // Auto-focus Add button for fastest workflow
+    document.getElementById('btn-assign-' + username).focus();
+  }
+
+  // Keyboard nav: ArrowDown/Up to navigate, Enter to select
+  function handleKey(event, username) {
+    var dd = document.getElementById('cust-dd-' + username);
+    var items = Array.from(dd.querySelectorAll('.cust-option:not([style*="none"])'));
+    var current = dd.querySelector('.cust-option.highlighted');
+    var idx = current ? items.indexOf(current) : -1;
+    if (event.key === 'ArrowDown') {
+      event.preventDefault();
+      if (current) current.classList.remove('highlighted');
+      idx = (idx + 1) % items.length;
+      items[idx].classList.add('highlighted');
+      items[idx].scrollIntoView({ block: 'nearest' });
+    } else if (event.key === 'ArrowUp') {
+      event.preventDefault();
+      if (current) current.classList.remove('highlighted');
+      idx = (idx - 1 + items.length) % items.length;
+      items[idx].classList.add('highlighted');
+      items[idx].scrollIntoView({ block: 'nearest' });
+    } else if (event.key === 'Enter') {
+      event.preventDefault();
+      if (current) selectCustomer(username, current.dataset.val);
+      else if (items.length === 1) selectCustomer(username, items[0].dataset.val);
+    } else if (event.key === 'Escape') {
+      dd.classList.remove('open');
+    }
+  }
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', function(e) {
+    document.querySelectorAll('.cust-dropdown.open').forEach(function(dd) {
+      var wrap = dd.closest('.cust-search-wrap');
+      if (wrap && !wrap.contains(e.target)) dd.classList.remove('open');
+    });
+  });
+
+  // ── Action Pill Toggle ──
+  function selectAction(username, action) {
+    document.getElementById('action-' + username).value = action;
+    var dPill = document.getElementById('pill-delivery-' + username);
+    var cPill = document.getElementById('pill-collection-' + username);
+    dPill.className = 'action-pill' + (action === 'Delivery' ? ' selected-delivery' : '');
+    cPill.className = 'action-pill' + (action === 'Collection' ? ' selected-collection' : '');
+  }
+
+  // ── Flash shim (uses global showToast) ──
   function showFlash(username, msg, isError) {
     showToast(msg, isError ? 'error' : 'success');
   }
 
-  function renderJobs(username, jobs) {
-    const list = document.getElementById('job-list-' + username);
-    if (!list) return;
-    if (!jobs || jobs.length === 0) {
-      list.innerHTML = `<div id="empty-msg-${username}" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>`;
+  // ── Submit Job ──
+  async function submitJob(username) {
+    var customer = document.getElementById('cust-' + username).value;
+    var action   = document.getElementById('action-' + username).value;
+    var noteEl   = document.getElementById('note-' + username);
+    var notes    = noteEl ? noteEl.value : '';
+    var btn      = document.getElementById('btn-assign-' + username);
+
+    if (!customer) {
+      showToast('Select a customer first', 'warning');
+      document.getElementById('cust-input-' + username).focus();
       return;
     }
-    list.innerHTML = "";
-    jobs.forEach(job => {
-      const row = document.createElement('div');
-      row.className = 'job-row';
-      row.id = 'job-row-' + job.id;
-      
-      const statusClass = job.status === 'In Progress' ? 'in-progress' : 'pending';
-      const actionBadgeClass = 'badge-' + job.action.toLowerCase();
-      const statusBadgeClass = 'badge-' + (job.status === 'In Progress' ? 'in-progress' : 'pending');
-      
-      row.innerHTML = `
-        <div class="job-pos ${statusClass}">${job.queue_position}</div>
-        <div class="job-customer">${job.customer}</div>
-        <div class="job-ref">${job.job_ref}</div>
-        <span class="job-action-badge ${actionBadgeClass}">${job.action}</span>
-        <span class="job-action-badge ${statusBadgeClass}">${job.status}</span>
-        <div class="job-time">${job.assigned_at}</div>
-        ${job.notes ? `<div class="job-notes-text">${job.notes}</div>` : ''}
-        <div class="job-reorder">
-          <form action="/admin/drivers/job/${job.id}/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '${username}')">
-            <button type="submit" class="btn-reorder" title="Move Up">↑</button>
-          </form>
-          <form action="/admin/drivers/job/${job.id}/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event, this, '${username}')">
-            <button type="submit" class="btn-reorder" title="Move Down">↓</button>
-          </form>
-        </div>
-        <button class="btn-cancel" onclick="cancelJob(${job.id}, '${username}')" title="Cancel Job">✕</button>
-      `;
-      list.appendChild(row);
-    });
+
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    var formData = new FormData();
+    formData.append('driver_username', username);
+    formData.append('customer', customer);
+    formData.append('action', action);
+    formData.append('notes', notes);
+
+    try {
+      var res = await fetch('/admin/drivers/assign_job', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      });
+      var data = await res.json();
+      if (data.ok) {
+        showToast('✓ ' + data.job_ref + ' added to queue', 'success');
+        await refreshDriverJobs(username);
+        // Clear form for next fast entry
+        document.getElementById('cust-input-' + username).value = '';
+        document.getElementById('cust-' + username).value = '';
+        if (noteEl) noteEl.value = '';
+        document.getElementById('cust-input-' + username).focus();
+      } else {
+        showToast(data.msg || 'Error adding job', 'error');
+      }
+    } catch(e) {
+      showToast('Network error. Please try again.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '＋ Add to Queue';
+    }
   }
 
   async function refreshDriverJobs(username) {
     try {
-      const res = await fetch(`/api/admin/drivers/${username}/jobs`);
-      const data = await res.json();
+      var res = await fetch('/api/admin/drivers/' + username + '/jobs');
+      var data = await res.json();
       if (data.ok) {
         renderJobs(username, data.jobs);
-        const countEl = document.getElementById('pending-count-' + username);
-        if (countEl) {
-          countEl.textContent = data.jobs.filter(j => j.status === 'Pending').length;
-        }
+        var countEl = document.getElementById('pending-count-' + username);
+        if (countEl) countEl.textContent = data.jobs.filter(function(j) { return j.status === 'Pending'; }).length;
       }
     } catch(e) {
-      console.error("Error refreshing jobs:", e);
+      console.error('Error refreshing jobs:', e);
     }
   }
 
   async function moveJob(event, form, username) {
     event.preventDefault();
     try {
-      const res = await fetch(form.action, {
+      var res = await fetch(form.action, {
         method: 'POST',
         headers: { 'X-Requested-With': 'XMLHttpRequest' }
       });
-      const data = await res.json();
+      var data = await res.json();
       if (data.ok) {
         await refreshDriverJobs(username);
-        showFlash(username, '✓ Queue rearranged');
+        showToast('Queue rearranged', 'success');
       } else {
         showToast('Error rearranging queue: ' + (data.msg || 'Error'), 'error');
       }
@@ -351,58 +498,64 @@
     }
   }
 
-  async function submitJob(username) {
-    const customer = document.getElementById('cust-' + username).value;
-    const action   = document.getElementById('action-' + username).value;
-    const noteEl   = document.getElementById('note-' + username);
-    const notes    = noteEl ? noteEl.value : '';
-    const btn      = document.querySelector('#form-' + username + ' .btn-assign');
-
-    if (!customer) { showFlash(username, '⚠️ Select a customer first', true); return; }
-
-    btn.disabled = true;
-    btn.textContent = 'Adding…';
-
-    const formData = new FormData();
-    formData.append('driver_username', username);
-    formData.append('customer', customer);
-    formData.append('action', action);
-    formData.append('notes', notes);
-
-    try {
-      const res = await fetch('/admin/drivers/assign_job', {
-        method: 'POST',
-        headers: { 'X-Requested-With': 'XMLHttpRequest' },
-        body: formData
-      });
-      const data = await res.json();
-
-      if (data.ok) {
-        showFlash(username, '✓ ' + data.job_ref + ' added');
-        await refreshDriverJobs(username);
-        document.getElementById('cust-' + username).value = '';
-        if (noteEl) noteEl.value = '';
-      } else {
-        showFlash(username, '⚠️ ' + (data.msg || 'Error'), true);
-      }
-    } catch(e) {
-      showFlash(username, '⚠️ Network error', true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = '+ Add to Queue';
+  function renderJobs(username, jobs) {
+    var list = document.getElementById('job-list-' + username);
+    if (!list) return;
+    if (!jobs || jobs.length === 0) {
+      list.innerHTML = '<div id="empty-msg-' + username + '" style="padding:14px 18px; font-size:13px; color:#aaa;">No pending jobs. Add one above.</div>';
+      return;
+    }
+    list.innerHTML = '';
+    jobs.forEach(function(job) {
+      var row = document.createElement('div');
+      row.className = 'job-row';
+      row.id = 'job-row-' + job.id;
+      var actionCls = job.action ? job.action.toLowerCase() : 'pending';
+      var statusCls = job.status === 'In Progress' ? 'in-progress' : 'pending';
+      var posCls    = job.status === 'In Progress' ? 'in-progress' : 'pending';
+      row.innerHTML =
+        '<div class="job-row-top">' +
+          '<div class="job-pos ' + posCls + '">' + job.queue_position + '</div>' +
+          '<div class="job-customer">' + job.customer + '</div>' +
+          '<div class="job-actions">' +
+            '<form action="/admin/drivers/job/' + job.id + '/move_up" method="POST" style="display:inline;" onsubmit="moveJob(event,this,\'' + username + '\')">' +
+              '<button type="submit" class="btn-reorder btn-move-up" title="Move Up">↑</button>' +
+            '</form>' +
+            '<form action="/admin/drivers/job/' + job.id + '/move_down" method="POST" style="display:inline;" onsubmit="moveJob(event,this,\'' + username + '\')">' +
+              '<button type="submit" class="btn-reorder btn-move-down" title="Move Down">↓</button>' +
+            '</form>' +
+            '<button class="btn-cancel" onclick="cancelJob(' + job.id + ',\'' + username + '\')" title="Cancel Job">✕</button>' +
+          '</div>' +
+        '</div>' +
+        '<div class="job-row-bottom">' +
+          '<span class="job-action-badge badge-' + actionCls + '">' + job.action + '</span>' +
+          '<span class="job-action-badge badge-' + statusCls + '">' + job.status + '</span>' +
+          '<span class="job-ref">' + job.job_ref + '</span>' +
+          (job.notes ? '<span class="job-notes-text">· ' + job.notes + '</span>' : '') +
+          '<span class="job-time">' + (job.assigned_at_ist || '') + '</span>' +
+        '</div>';
+      list.appendChild(row);
+    });
+    // Hide first ↑ and last ↓
+    var rows = list.querySelectorAll('.job-row');
+    if (rows.length > 0) {
+      var firstUp = rows[0].querySelector('.btn-move-up');
+      if (firstUp) firstUp.style.display = 'none';
+      var lastDown = rows[rows.length-1].querySelector('.btn-move-down');
+      if (lastDown) lastDown.style.display = 'none';
     }
   }
 
   async function cancelJob(jobId, username) {
     if (!confirm('Cancel this job?')) return;
     try {
-      const formData = new FormData();
-      const res = await fetch('/admin/drivers/job/' + jobId + '/cancel', {
+      var formData = new FormData();
+      var res = await fetch('/admin/drivers/job/' + jobId + '/cancel', {
         method: 'POST',
         headers: { 'X-Requested-With': 'XMLHttpRequest' },
         body: formData
       });
-      const data = await res.json();
+      var data = await res.json();
       if (data.ok) {
         await refreshDriverJobs(username);
         showToast('Job cancelled', 'info');
@@ -417,8 +570,8 @@
   async function clearQueue(username) {
     if (!confirm('Clear all pending jobs for ' + username + '?')) return;
     try {
-      const res = await fetch('/admin/drivers/' + username + '/clear_queue', { method: 'POST' });
-      const data = await res.json();
+      var res = await fetch('/admin/drivers/' + username + '/clear_queue', { method: 'POST' });
+      var data = await res.json();
       if (data.ok) {
         await refreshDriverJobs(username);
         showToast('Queue cleared', 'info');
@@ -430,5 +583,6 @@
     }
   }
 </script>
+
 
 {% endblock %}
