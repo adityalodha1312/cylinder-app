@@ -273,12 +273,8 @@
     wrap.style.display = isHidden ? 'block' : 'none';
   }
 
-  function showFlash(username, msg, isError = false) {
-    const el = document.getElementById('flash-' + username);
-    el.textContent = msg;
-    el.className = 'assign-flash' + (isError ? ' error' : '');
-    el.style.display = 'inline-flex';
-    setTimeout(() => { el.style.display = 'none'; }, 3000);
+  function showFlash(username, msg, isError) {
+    showToast(msg, isError ? 'error' : 'success');
   }
 
   function renderJobs(username, jobs) {
@@ -348,10 +344,10 @@
         await refreshDriverJobs(username);
         showFlash(username, '✓ Queue rearranged');
       } else {
-        alert('Error rearranging: ' + (data.msg || 'Error'));
+        showToast('Error rearranging queue: ' + (data.msg || 'Error'), 'error');
       }
     } catch(e) {
-      alert('Network error. Please try again.');
+      showToast('Network error. Please try again.', 'error');
     }
   }
 
@@ -409,12 +405,12 @@
       const data = await res.json();
       if (data.ok) {
         await refreshDriverJobs(username);
-        showFlash(username, '✓ Job cancelled');
+        showToast('Job cancelled', 'info');
       } else {
-        alert('Error: ' + (data.msg || 'Could not cancel job'));
+        showToast('Error: ' + (data.msg || 'Could not cancel job'), 'error');
       }
     } catch(e) {
-      alert('Error cancelling job. Please refresh.');
+      showToast('Error cancelling job. Please refresh.', 'error');
     }
   }
 
@@ -425,12 +421,12 @@
       const data = await res.json();
       if (data.ok) {
         await refreshDriverJobs(username);
-        showFlash(username, '✓ Queue cleared');
+        showToast('Queue cleared', 'info');
       } else {
-        alert('Error: ' + (data.msg || 'Could not clear queue'));
+        showToast('Error: ' + (data.msg || 'Could not clear queue'), 'error');
       }
     } catch(e) {
-      alert('Network error. Please refresh.');
+      showToast('Network error. Please refresh.', 'error');
     }
   }
 </script>

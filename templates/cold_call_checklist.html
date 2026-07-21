@@ -270,13 +270,10 @@
 <div class="toast" id="status-toast">Checklist updated successfully</div>
 
 <script>
-  function showToast(message) {
-    const toast = document.getElementById('status-toast');
-    toast.textContent = message;
-    toast.classList.add('show');
-    setTimeout(() => {
-      toast.classList.remove('show');
-    }, 2000);
+  function showToast(message, type) {
+    if (window.showToast && window.showToast !== arguments.callee) {
+      window.showToast(message, type || 'info');
+    }
   }
 
   function filterChecklist() {

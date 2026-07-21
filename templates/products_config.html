@@ -397,16 +397,7 @@
     .then(response => response.json().then(data => ({ status: response.status, body: data })))
     .then(res => {
       if (res.status === 200 && res.body.ok) {
-        alertContainer.innerHTML = `
-          <div class="success-banner" style="display: flex; align-items: center; gap: 10px; background: #E1F5EE; border: 1.5px solid var(--green-500); border-radius: 10px; padding: 14px 18px; margin-bottom: 20px; font-size: 14px; color: var(--green-900);">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="color: var(--green-700);">
-              <polyline points="20 6 9 17 4 12"></polyline>
-            </svg>
-            <div>${res.body.msg}</div>
-          </div>
-        `;
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        
+        showToast(res.body.msg || 'Products saved successfully!', 'success');
         // Reload page to update source status (if default fallback)
         setTimeout(() => {
           window.location.reload();
@@ -416,15 +407,7 @@
       }
     })
     .catch(err => {
-      alertContainer.innerHTML = `
-        <div class="error-banner">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
-            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-          </svg>
-          <div>${err.message}</div>
-        </div>
-      `;
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      showToast(err.message || 'Failed to save products.', 'error');
     })
     .finally(() => {
       submitBtn.disabled = false;

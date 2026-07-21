@@ -11,3 +11,6 @@ psycopg2-binary
 APScheduler
 pandas
 groq
+pytest
+pytest-playwright
+pytest-flask

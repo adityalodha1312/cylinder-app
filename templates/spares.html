@@ -1,4 +1,4 @@
-﻿{% extends "admin_base.html" %}
+{% extends "admin_base.html" %}
 
 {% block title %}Spare Parts Inventory{% endblock %}
 
@@ -382,7 +382,7 @@ async function submitAdd() {
   if (!payload.item_code || !payload.name) return showError('add-error', 'Item code and name are required.');
   const res = await fetch('/admin/spares/add', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
   const data = await res.json();
-  if (data.success) { closeModal('addModal'); location.reload(); }
+  if (data.success) { showToast('Item added successfully!', 'success'); closeModal('addModal'); location.reload(); }
   else showError('add-error', data.error || 'Something went wrong.');
 }
 
@@ -407,7 +407,7 @@ async function submitRestock() {
   if (payload.quantity <= 0) return showError('restock-error', 'Enter a valid quantity.');
   const res = await fetch(`/admin/spares/${id}/restock`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
   const data = await res.json();
-  if (data.success) { closeModal('restockModal'); location.reload(); }
+  if (data.success) { showToast('Stock restocked successfully!', 'success'); closeModal('restockModal'); location.reload(); }
   else showError('restock-error', data.error || 'Something went wrong.');
 }
 
@@ -432,7 +432,7 @@ async function submitUse() {
   if (payload.quantity <= 0) return showError('use-error', 'Enter a valid quantity.');
   const res = await fetch(`/admin/spares/${id}/use`, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload)});
   const data = await res.json();
-  if (data.success) { closeModal('useModal'); location.reload(); }
+  if (data.success) { showToast('Stock usage recorded!', 'success'); closeModal('useModal'); location.reload(); }
   else showError('use-error', data.error || 'Something went wrong.');
 }
 
@@ -462,8 +462,8 @@ async function deleteItem(id, name) {
   if (!confirm('Delete "' + name + '"?\n\nThis will also delete all its transaction history.')) return;
   const res  = await fetch(`/admin/spares/${id}/delete`, {method:'POST'});
   const data = await res.json();
-  if (data.success) location.reload();
-  else alert('Delete failed: ' + (data.error || 'Unknown error'));
+  if (data.success) { showToast('Item deleted.', 'info'); location.reload(); }
+  else showToast('Delete failed: ' + (data.error || 'Unknown error'), 'error');
 }
 </script>
 {% endblock %}

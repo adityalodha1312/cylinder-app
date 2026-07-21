@@ -57,12 +57,63 @@
       background: var(--gray-bg);
       color: var(--dark-text);
       min-height: 100vh;
-      animation: softLoad 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      animation: softLoad 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+    body.page-leaving {
+      opacity: 0;
+      transform: translateY(6px);
+      transition: opacity 0.18s ease, transform 0.18s ease;
     }
 
     @keyframes softLoad {
       0% { opacity: 0; transform: translateY(8px); }
       100% { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ── Top Progress Bar ── */
+    #page-progress {
+      position: fixed;
+      top: 0; left: 0;
+      height: 3px;
+      width: 0%;
+      background: linear-gradient(90deg, #1D9E75, #34d399);
+      z-index: 99999;
+      transition: width 0.25s ease;
+      border-radius: 0 2px 2px 0;
+      box-shadow: 0 0 8px rgba(29,158,117,0.5);
+      pointer-events: none;
+    }
+    #page-progress.done {
+      width: 100% !important;
+      opacity: 0;
+      transition: width 0.15s ease, opacity 0.3s ease 0.15s;
+    }
+
+    /* ── Sidebar Loading State ── */
+    .sidebar-navigating .nav-primary:not(.active):not(.nav-loading),
+    .sidebar-navigating .nav-secondary:not(.active):not(.nav-loading) {
+      opacity: 0.4;
+      transition: opacity 0.15s ease;
+    }
+    .nav-loading {
+      opacity: 1 !important;
+      position: relative;
+    }
+    .nav-loading::after {
+      content: '';
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.9);
+      animation: navPulse 0.8s ease-in-out infinite alternate;
+    }
+    @keyframes navPulse {
+      0%  { opacity: 0.4; transform: translateY(-50%) scale(0.8); }
+      100% { opacity: 1;   transform: translateY(-50%) scale(1.2); }
     }
 
     /* ══════════════════════════════
@@ -805,48 +856,93 @@
 
   <!-- Page content -->
   <main class="page-content">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        <div id="toast-container" style="position: fixed; top: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 320px; width: 100%;">
-          {% for category, msg in messages %}
-            <div class="toast-item" style="padding: 12px 18px; border-radius: 10px; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; gap: 12px; pointer-events: auto; box-shadow: 0 10px 25px rgba(0,0,0,0.08); border: 1.5px solid; transform: translateY(-10px); opacity: 0; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-              {% if category == 'success' %}
-                background-color: #ecfdf5; color: #065f46; border-color: #a7f3d0;
-              {% elif category in ('danger', 'error') %}
-                background-color: #fef2f2; color: #991b1b; border-color: #fecaca;
-              {% elif category == 'warning' %}
-                background-color: #fffbeb; color: #92400e; border-color: #fde68a;
-              {% else %}
-                background-color: #eff6ff; color: #1e3a8a; border-color: #bfdbfe;
-              {% endif %}">
-              <span>
-                {% if category == 'success' %}✓ {% elif category in ('danger', 'error') %}✗ {% endif %}{{ msg }}
-              </span>
-              <button onclick="this.parentElement.style.opacity='0'; setTimeout(() => this.parentElement.remove(), 300)" style="background: none; border: none; font-size: 16px; cursor: pointer; color: inherit; line-height: 1; padding: 0;">&times;</button>
-            </div>
-          {% endfor %}
-        </div>
-        <script>
-          window.addEventListener('DOMContentLoaded', () => {
-            const toasts = document.querySelectorAll('#toast-container .toast-item');
-            toasts.forEach((toast, idx) => {
-              // Slide in and fade in
-              setTimeout(() => {
-                toast.style.transform = 'translateY(0)';
-                toast.style.opacity = '1';
-              }, idx * 150);
-              
-              // Vanish automatically after 1.5 seconds (1500ms)
-              setTimeout(() => {
-                toast.style.opacity = '0';
-                toast.style.transform = 'translateY(-10px)';
-                setTimeout(() => toast.remove(), 300);
-              }, 1500 + idx * 150);
-            });
+
+    <!-- ═══════════════════════════════════════════════════════════
+         GLOBAL TOAST NOTIFICATION SYSTEM
+         Usage from any page JS: showToast('Message', 'success')
+         Types: 'success' | 'error' | 'warning' | 'info'
+    ═══════════════════════════════════════════════════════════ -->
+    <div id="toast-container" style="position: fixed; top: 24px; right: 24px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; pointer-events: none; max-width: 340px; width: 100%;"></div>
+
+    <script>
+      window.showToast = function(msg, type) {
+        type = type || 'success';
+        var container = document.getElementById('toast-container');
+        if (!container) return;
+
+        // Style map
+        var styles = {
+          success: { bg: '#ecfdf5', color: '#065f46', border: '#a7f3d0', icon: '✓' },
+          error:   { bg: '#fef2f2', color: '#991b1b', border: '#fecaca', icon: '✗' },
+          danger:  { bg: '#fef2f2', color: '#991b1b', border: '#fecaca', icon: '✗' },
+          warning: { bg: '#fffbeb', color: '#92400e', border: '#fde68a', icon: '⚠' },
+          info:    { bg: '#eff6ff', color: '#1e3a8a', border: '#bfdbfe', icon: 'ℹ' },
+        };
+        var s = styles[type] || styles.info;
+
+        var toast = document.createElement('div');
+        toast.style.cssText = [
+          'padding: 12px 16px',
+          'border-radius: 10px',
+          'font-size: 13.5px',
+          'font-weight: 600',
+          'display: flex',
+          'align-items: center',
+          'justify-content: space-between',
+          'gap: 12px',
+          'pointer-events: auto',
+          'box-shadow: 0 10px 25px rgba(0,0,0,0.10)',
+          'border: 1.5px solid ' + s.border,
+          'background-color: ' + s.bg,
+          'color: ' + s.color,
+          'transform: translateX(20px)',
+          'opacity: 0',
+          'transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+          'font-family: inherit',
+        ].join(';');
+
+        var textSpan = document.createElement('span');
+        textSpan.style.cssText = 'display:flex;align-items:center;gap:7px;';
+        textSpan.innerHTML = '<span style="font-size:15px;">' + s.icon + '</span> ' + msg;
+
+        var closeBtn = document.createElement('button');
+        closeBtn.innerHTML = '&times;';
+        closeBtn.style.cssText = 'background:none;border:none;font-size:18px;cursor:pointer;color:inherit;line-height:1;padding:0;opacity:0.7;flex-shrink:0;';
+        closeBtn.onclick = function() {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(20px)';
+          setTimeout(function() { toast.remove(); }, 300);
+        };
+
+        toast.appendChild(textSpan);
+        toast.appendChild(closeBtn);
+        container.appendChild(toast);
+
+        // Animate in
+        requestAnimationFrame(function() {
+          requestAnimationFrame(function() {
+            toast.style.opacity = '1';
+            toast.style.transform = 'translateX(0)';
           });
-        </script>
-      {% endif %}
-    {% endwith %}
+        });
+
+        // Auto-dismiss after 3 seconds
+        setTimeout(function() {
+          toast.style.opacity = '0';
+          toast.style.transform = 'translateX(20px)';
+          setTimeout(function() { toast.remove(); }, 300);
+        }, 3000);
+      };
+
+      // Render any Flask flash() messages as toasts on page load
+      window.addEventListener('DOMContentLoaded', function() {
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, msg in messages %}
+            showToast({{ msg | tojson }}, {{ category | tojson }});
+          {% endfor %}
+        {% endwith %}
+      });
+    </script>
     {% block content %}{% endblock %}
   </main>
 
@@ -1111,6 +1207,74 @@
       }
     }
   });
+
+  // ── Smooth Page Transitions + Top Progress Bar ──
+  (function() {
+    var bar = document.createElement('div');
+    bar.id = 'page-progress';
+    document.body.appendChild(bar);
+
+    var progress = 0;
+    var timer = null;
+
+    function startProgress() {
+      progress = 0;
+      bar.style.width = '0%';
+      bar.classList.remove('done');
+      bar.style.opacity = '1';
+      // Simulate progress: fast to 70%, then slow
+      timer = setInterval(function() {
+        if (progress < 70) progress += 8;
+        else if (progress < 90) progress += 1.5;
+        else progress += 0.3;
+        if (progress > 95) progress = 95;
+        bar.style.width = progress + '%';
+      }, 120);
+    }
+
+    function finishProgress() {
+      clearInterval(timer);
+      bar.classList.add('done');
+      setTimeout(function() {
+        bar.style.width = '0%';
+        bar.classList.remove('done');
+        bar.style.opacity = '1';
+      }, 500);
+    }
+
+    // Intercept all internal link clicks
+    document.addEventListener('click', function(e) {
+      var anchor = e.target.closest('a');
+      if (!anchor) return;
+      var href = anchor.getAttribute('href');
+      // Skip: external, hash-only, target=_blank, javascript:, or no href
+      if (!href || href.startsWith('#') || href.startsWith('http') ||
+          href.startsWith('javascript') || anchor.getAttribute('target') === '_blank' ||
+          anchor.getAttribute('download') !== null) return;
+      // Skip form submission links or buttons
+      if (e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey) return;
+
+      e.preventDefault();
+      startProgress();
+
+      // ── Sidebar loading state ──
+      var isNavLink = anchor.classList.contains('nav-primary') || anchor.classList.contains('nav-secondary');
+      if (isNavLink) {
+        var sidebar = document.querySelector('.sidebar');
+        if (sidebar) sidebar.classList.add('sidebar-navigating');
+        anchor.classList.add('nav-loading');
+      }
+
+      // Fade page out, then navigate
+      document.body.classList.add('page-leaving');
+      setTimeout(function() {
+        window.location.href = href;
+      }, 180);
+    });
+
+    // Complete bar when new page has fully loaded
+    window.addEventListener('pageshow', finishProgress);
+  })();
 </script>
 
 </body>
