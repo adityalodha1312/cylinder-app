@@ -911,7 +911,12 @@
   let html5QrcodeScanner = null;
 
   function openScannerModal() {
-    document.getElementById('scannerModal').style.display = 'flex';
+    const modal = document.getElementById('scannerModal');
+    // Move to body to avoid any CSS containing block issues
+    if (modal.parentNode !== document.body) {
+      document.body.appendChild(modal);
+    }
+    modal.style.display = 'flex';
     
     if (!html5QrcodeScanner) {
       html5QrcodeScanner = new Html5QrcodeScanner(
