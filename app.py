@@ -8661,7 +8661,7 @@ def api_admin_scan_submit_manual():
             transaction_gas = item.get('transaction_gas', '').strip()
             update_registry_gas = item.get('update_registry_gas', False)
             
-                        c = Cylinder.query.filter(Cylinder.uid.ilike(master_id)).first()
+            c = Cylinder.query.filter(Cylinder.uid.ilike(master_id)).first()
             if c:
                 if entered_id != master_id:
                     # Check if alias already exists
@@ -8711,5 +8711,6 @@ def api_admin_scan_submit_manual():
         return jsonify({'success': True, 'message': msg})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
 
 

@@ -767,65 +767,139 @@
 
 
 <!-- MANUAL ENTRY FORM -->
-<div class="form-body" id="manual-form" style="display: none;">
-  <div class="top-stats-bar">
-    <div class="stat-box-mode" id="manual-mode-toggle-card">
-      <div class="stat-mode-left" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-        <span class="stat-label">Scan Action</span>
-        <select id="manual-action-select" onchange="toggleManualCustomerField();" class="stat-mode-select">
-          <option value="Delivery">Delivery</option>
-          <option value="Collection">Collection</option>
-          <option value="Filling">Filling</option>
-        </select>
-      </div>
-      <svg class="mode-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-left: 8px;">
-        <polyline points="6 9 12 15 18 9"/>
-      </svg>
-    </div>
+<style>
+.manual-entry-workspace { display: grid; grid-template-columns: 36% 64%; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
+.entry-panel, .verification-panel { min-width: 0; }
+.results-table-wrapper { overflow-y: auto; }
+.mobile-result-cards { display: none; }
+.mobile-action-bar { display: none; }
+.mobile-verification-summary { display: none; }
+.desktop-verification-summary { display: block; }
 
-    <div class="field" id="manual-customer-field" style="display: none; margin-top: 12px;">
-      <label>Customer Name</label>
-      <div class="autocomplete-container">
-        <input type="text" id="manual-customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showManualCustomerDropdown()" onclick="showManualCustomerDropdown()" oninput="filterManualCustomerDropdown()">
-        <div id="manual-customer-dropdown" class="custom-dropdown-list" style="display: none;">
-          {% for name in customers %}
-            <div class="dropdown-item" onclick="selectManualCustomer(this.textContent)">{{ name }}</div>
-          {% endfor %}
+.mobile-action-button { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; border-radius: 8px; }
+.cylinder-id-input { min-height: 150px; font-size: 16px; line-height: 1.5; width: 100%; border-radius: 12px; border: 1.5px solid var(--gray-200); padding: 12px; font-family: monospace; resize: vertical; margin-bottom: 4px; }
+
+.result-card { background: white; border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
+.result-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
+.result-card-id { font-weight: 700; color: var(--green-900); font-size: 15px; }
+.result-card-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+.result-card-label { color: var(--gray-700); }
+.result-card-val { font-weight: 500; text-align: right; }
+
+@media (max-width: 767px) {
+  .manual-entry-workspace { display: flex; flex-direction: column; gap: 12px; padding: 12px; padding-bottom: 120px; }
+  .entry-panel, .verification-panel { width: 100%; }
+  .desktop-results-table { display: none; }
+  .desktop-verification-summary { display: none; }
+  .mobile-result-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+  .mobile-verification-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
+  .summary-box { background: white; border: 1px solid var(--gray-200); border-radius: 8px; padding: 10px; text-align: center; }
+  .summary-box-val { font-size: 18px; font-weight: 700; }
+  .summary-box-label { font-size: 11px; color: var(--gray-700); text-transform: uppercase; }
+  .mobile-action-bar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); background: white; border-top: 1px solid #d9e2df; box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08); }
+}
+@media (min-width: 768px) and (max-width: 1100px) {
+  .manual-entry-workspace { grid-template-columns: 42% 58%; }
+}
+@media (max-width: 900px) and (orientation: portrait) {
+  .manual-entry-workspace { display: flex; flex-direction: column; }
+}
+</style>
+
+<div id="manual-form" style="display: none;">
+  <div class="manual-entry-workspace">
+    <!-- ENTRY PANEL -->
+    <div class="entry-panel">
+      <div class="top-stats-bar">
+        <div class="stat-box-mode" id="manual-mode-toggle-card">
+          <div class="stat-mode-left" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+            <span class="stat-label">Scan Action</span>
+            <select id="manual-action-select" onchange="toggleManualCustomerField();" class="stat-mode-select">
+              <option value="Delivery">Delivery</option>
+              <option value="Collection">Collection</option>
+              <option value="Filling">Filling</option>
+            </select>
+          </div>
+          <svg class="mode-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-left: 8px;">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
+        </div>
+
+        <div class="field" id="manual-customer-field" style="display: none; margin-top: 12px;">
+          <label>Customer Name</label>
+          <div class="autocomplete-container">
+            <input type="text" id="manual-customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showManualCustomerDropdown()" onclick="showManualCustomerDropdown()" oninput="filterManualCustomerDropdown()">
+            <div id="manual-customer-dropdown" class="custom-dropdown-list" style="display: none;">
+              {% for name in customers %}
+                <div class="dropdown-item" onclick="selectManualCustomer(this.textContent)">{{ name }}</div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="field" style="margin-top: 16px;">
+        <label>Cylinder IDs (one per line or comma-separated)</label>
+        <textarea id="manual-uids" class="cylinder-id-input" placeholder="CYL-001245&#10;CYL-001246" oninput="updateUidCount()"></textarea>
+        <div style="font-size: 13px; color: var(--gray-700); margin-bottom: 12px; font-weight: 500;" id="manual-uid-count">0 IDs entered</div>
+        
+        <div style="display: flex; gap: 8px;">
+            <button onclick="verifyManualScans()" class="btn-primary mobile-action-button" style="flex: 1;">Verify Cylinders</button>
+            <button onclick="clearManualForm()" class="btn-secondary mobile-action-button" style="background: #fff; color: var(--gray-700); padding: 0 16px; flex: 0 0 auto;">Clear</button>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="field" style="margin-top: 16px;">
-    <label>Cylinder IDs (one per line or comma-separated)</label>
-    <textarea id="manual-uids" rows="5" placeholder="CYL-001245&#10;CYL-001246" style="width: 100%; border-radius: 12px; border: 1.5px solid var(--gray-200); padding: 12px; font-family: monospace; resize: vertical; margin-bottom: 12px;"></textarea>
-    
-    <div style="display: flex; gap: 8px;">
-        <button onclick="verifyManualScans()" class="btn-primary" style="flex: 1;">Verify Cylinders</button>
-        <button onclick="clearManualForm()" class="btn-secondary" style="background: #fff; color: var(--gray-700); padding: 0 16px;">Clear</button>
+    <!-- VERIFICATION PANEL -->
+    <div class="verification-panel" id="manual-results-section" style="display: none;">
+      <h3 style="font-size: 16px; margin-bottom: 16px; font-weight: 600;">Verification Results</h3>
+      
+      <!-- Mobile summary -->
+      <div class="mobile-verification-summary">
+         <div class="summary-box"><div class="summary-box-val" id="mob-sum-total">0</div><div class="summary-box-label">Total</div></div>
+         <div class="summary-box"><div class="summary-box-val" id="mob-sum-ready" style="color: var(--green-700);">0</div><div class="summary-box-label">Ready</div></div>
+         <div class="summary-box"><div class="summary-box-val" id="mob-sum-warn" style="color: #ea580c;">0</div><div class="summary-box-label">Warnings</div></div>
+         <div class="summary-box"><div class="summary-box-val" id="mob-sum-err" style="color: #dc2626;">0</div><div class="summary-box-label">Errors</div></div>
+      </div>
+      
+      <!-- Desktop Table -->
+      <div class="desktop-results-table">
+          <div style="margin-bottom: 12px; font-size: 13px; display: flex; gap: 12px; border: 1px solid var(--gray-200); padding: 8px 12px; border-radius: 8px; background: white;">
+              <span id="desk-sum-total"><strong>Total:</strong> 0</span>
+              <span id="desk-sum-ready" style="color: var(--green-700);"><strong>Ready:</strong> 0</span>
+              <span id="desk-sum-warn" style="color: #ea580c;"><strong>Warnings:</strong> 0</span>
+              <span id="desk-sum-err" style="color: #dc2626;"><strong>Errors:</strong> 0</span>
+          </div>
+          <div class="results-table-wrapper">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                <thead style="background: var(--green-50); text-align: left;">
+                    <tr>
+                        <th style="padding: 10px;">ID</th>
+                        <th style="padding: 10px;">Status</th>
+                        <th style="padding: 10px;">Action/Gas</th>
+                    </tr>
+                </thead>
+                <tbody id="manual-results-tbody">
+                    <!-- JS populated -->
+                </tbody>
+            </table>
+          </div>
+          <div style="margin-top: 16px;">
+              <button id="btn-submit-manual-desktop" onclick="submitManualScans()" class="btn-primary mobile-action-button" disabled>Submit Transactions</button>
+          </div>
+      </div>
+      
+      <!-- Mobile Cards -->
+      <div class="mobile-result-cards" id="manual-results-cards">
+          <!-- JS populated -->
+      </div>
     </div>
   </div>
-
-  <div id="manual-results-section" style="display: none; margin-top: 24px;">
-    <h3 style="font-size: 14px; margin-bottom: 12px;">Verification Results</h3>
-    <div style="overflow-x: auto;">
-        <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-            <thead style="background: var(--green-50); text-align: left;">
-                <tr>
-                    <th style="padding: 10px;">ID</th>
-                    <th style="padding: 10px;">Status</th>
-                    <th style="padding: 10px;">Action/Gas</th>
-                </tr>
-            </thead>
-            <tbody id="manual-results-tbody">
-                <!-- JS populated -->
-            </tbody>
-        </table>
-    </div>
-    
-    <div style="margin-top: 16px;">
-        <button id="btn-submit-manual" onclick="submitManualScans()" class="btn-primary" style="width: 100%;" disabled>Submit Transactions</button>
-    </div>
+  
+  <!-- Mobile Submit Action Bar -->
+  <div class="mobile-action-bar" id="mobile-action-bar" style="display: none;">
+     <div style="font-size: 13px; font-weight: 600; text-align: center; margin-bottom: 8px; color: var(--gray-700);" id="mobile-action-summary">0 ready Â· 0 errors</div>
+     <button id="btn-submit-manual-mobile" class="btn-primary mobile-action-button" onclick="submitManualScans()" disabled>Submit Verified Entries</button>
   </div>
 </div>
 
@@ -1656,6 +1730,14 @@ html5QrcodeScanner.render(onScanSuccess);
 <script>
 let verifiedItems = [];
 
+function updateUidCount() {
+    const text = document.getElementById('manual-uids').value;
+    const uids = text.split(/
+|,/).map(s => s.trim()).filter(s => s.length > 0);
+    const unique = new Set(uids).size;
+    document.getElementById('manual-uid-count').innerText = `${uids.length} IDs entered Â· ${unique} unique`;
+}
+
 function setEntryMode(mode) {
     const btnQr = document.getElementById('toggle-qr-mode');
     const btnMan = document.getElementById('toggle-manual-mode');
@@ -1670,7 +1752,6 @@ function setEntryMode(mode) {
         formQr.style.display = 'block';
         formMan.style.display = 'none';
         
-        // Restart scanner if possible
         if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
             try { html5QrcodeScanner.resume(); } catch (e) {}
         }
@@ -1682,7 +1763,6 @@ function setEntryMode(mode) {
         formQr.style.display = 'none';
         formMan.style.display = 'block';
         
-        // Pause scanner to save battery
         if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
             try { html5QrcodeScanner.pause(true); } catch (e) {}
         }
@@ -1700,24 +1780,14 @@ function toggleManualCustomerField() {
     }
 }
 
-function showManualCustomerDropdown() {
-    document.getElementById('manual-customer-dropdown').style.display = 'block';
-}
-
+function showManualCustomerDropdown() { document.getElementById('manual-customer-dropdown').style.display = 'block'; }
 function filterManualCustomerDropdown() {
     let filter = document.getElementById('manual-customer-select').value.toUpperCase();
-    let div = document.getElementById('manual-customer-dropdown');
-    let items = div.getElementsByClassName('dropdown-item');
+    let items = document.getElementById('manual-customer-dropdown').getElementsByClassName('dropdown-item');
     for (let i = 0; i < items.length; i++) {
-        let txtValue = items[i].textContent || items[i].innerText;
-        if (txtValue.toUpperCase().indexOf(filter) > -1) {
-            items[i].style.display = "";
-        } else {
-            items[i].style.display = "none";
-        }
+        items[i].style.display = (items[i].textContent.toUpperCase().indexOf(filter) > -1) ? "" : "none";
     }
 }
-
 function selectManualCustomer(val) {
     document.getElementById('manual-customer-select').value = val;
     document.getElementById('manual-customer-dropdown').style.display = 'none';
@@ -1725,32 +1795,27 @@ function selectManualCustomer(val) {
 
 function clearManualForm() {
     document.getElementById('manual-uids').value = '';
+    updateUidCount();
     document.getElementById('manual-results-section').style.display = 'none';
+    document.getElementById('mobile-action-bar').style.display = 'none';
     verifiedItems = [];
 }
 
 async function verifyManualScans() {
     const uids = document.getElementById('manual-uids').value;
     const action = document.getElementById('manual-action-select').value;
+    if (!uids.trim()) { alert("Please enter at least one Cylinder ID."); return; }
     
-    if (!uids.trim()) {
-        alert("Please enter at least one Cylinder ID.");
-        return;
-    }
-    
-    document.getElementById("btn-submit-manual").innerText = "Verifying...";
+    document.getElementById("btn-submit-manual-desktop").innerText = "Verifying...";
+    document.getElementById("btn-submit-manual-mobile").innerText = "Verifying...";
     try {
         const response = await fetch('/api/admin/scan/verify', {
             method: 'POST',
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ uids, action })
         });
-        
         const data = await response.json();
-        if (data.error) {
-            alert(data.error);
-            return;
-        }
+        if (data.error) { alert(data.error); return; }
         
         verifiedItems = data.results;
         renderManualResults();
@@ -1759,91 +1824,162 @@ async function verifyManualScans() {
     }
 }
 
+function getGasSelectHtml(idx, registryGas) {
+    return `
+        <select id="gas-select-${idx}" class="gas-select-input" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; width: 100%;">
+            <option value="">Select Gas...</option>
+            <option value="Oxygen" ${registryGas === 'Oxygen' ? 'selected' : ''}>Oxygen</option>
+            <option value="Argon" ${registryGas === 'Argon' ? 'selected' : ''}>Argon</option>
+            <option value="Nitrogen" ${registryGas === 'Nitrogen' ? 'selected' : ''}>Nitrogen</option>
+            <option value="CO2" ${registryGas === 'CO2' ? 'selected' : ''}>CO2</option>
+            <option value="DA" ${registryGas === 'DA' ? 'selected' : ''}>DA</option>
+            <option value="Helium" ${registryGas === 'Helium' ? 'selected' : ''}>Helium</option>
+        </select>
+        <div style="margin-top: 6px;">
+            <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="update-gas-${idx}"> Update Registry Permanently
+            </label>
+        </div>
+    `;
+}
+
 function renderManualResults() {
     const tbody = document.getElementById('manual-results-tbody');
+    const cardsDiv = document.getElementById('manual-results-cards');
     tbody.innerHTML = '';
-    let hasErrors = false;
+    cardsDiv.innerHTML = '';
+    
+    let total = verifiedItems.length;
+    let ready = 0;
+    let err = 0;
+    let warn = 0;
     
     verifiedItems.forEach((item, idx) => {
+        // Compute Status
+        let statusColor = "var(--green-700)";
+        let statusTitle = "OK";
+        let hasError = false;
+        
+        if (item.error) {
+            statusColor = "#dc2626";
+            statusTitle = item.status;
+            hasError = true;
+            err++;
+        } else if (item.is_duplicate) {
+            statusColor = "#ea580c";
+            statusTitle = "Duplicate Entry";
+            hasError = true;
+            err++;
+        } else if (item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
+            statusColor = "#ea580c";
+            statusTitle = item.status === 'Unmatched' ? 'Unregistered' : 'Mapped';
+            warn++;
+        } else {
+            ready++;
+        }
+        
+        let statusSub = hasError ? item.result_msg : (item.status === 'Unmatched' ? 'Will be created' : (item.status === 'Found through manual mapping' ? 'Mapped to Master' : 'Ready for submission'));
+        
+        // ---------------- TABLE ROW (DESKTOP) ----------------
         let tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid #eee';
         
-        // 1. ID Cell
-        let idHtml = `<strong style="color: var(--green-900);">${item.entered_id}</strong>`;
-        if (item.master_id !== item.entered_id) {
-            idHtml += `<br><small style="color: var(--gray-700);">Alias for: ${item.master_id}</small>`;
-        }
+        let idHtml = `<strong style="color: var(--green-900); font-size:14px;">${item.entered_id}</strong>`;
+        if (item.master_id !== item.entered_id) idHtml += `<br><small style="color: var(--gray-700);">Alias for: ${item.master_id}</small>`;
         
-        // 2. Status Cell
-        let statusHtml = ``;
-        if (item.error) {
-            statusHtml = `<span style="color: #dc2626; font-weight: 500;">${item.status}</span><br><small>${item.result_msg}</small>`;
-            hasErrors = true;
-        } else if (item.is_duplicate) {
-            statusHtml = `<span style="color: #ea580c; font-weight: 500;">Duplicate Entry</span>`;
-            hasErrors = true;
-        } else if (item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
-            statusHtml = `<span style="color: #ea580c; font-weight: 500;">${item.status === 'Unmatched' ? 'Unregistered' : 'Mapped'}</span><br><small>${item.status === 'Unmatched' ? 'Will be created' : 'Mapped to Master'}</small>`;
-        } else {
-            statusHtml = `<span style="color: var(--green-700); font-weight: 500;">OK</span>`;
-        }
+        let statusHtml = `<span style="color: ${statusColor}; font-weight: 600;">${statusTitle}</span><br><small style="color: var(--gray-700);">${statusSub}</small>`;
         
-        // 3. Action/Gas Cell
         let gasHtml = ``;
-        if (!item.error && !item.is_duplicate) {
-            gasHtml = `
-                <select id="gas-select-${idx}" style="padding: 4px; border-radius: 4px; border: 1px solid #ddd;">
-                    <option value="Oxygen" ${item.registry_gas === 'Oxygen' ? 'selected' : ''}>Oxygen</option>
-                    <option value="Argon" ${item.registry_gas === 'Argon' ? 'selected' : ''}>Argon</option>
-                    <option value="Nitrogen" ${item.registry_gas === 'Nitrogen' ? 'selected' : ''}>Nitrogen</option>
-                    <option value="CO2" ${item.registry_gas === 'CO2' ? 'selected' : ''}>CO2</option>
-                    <option value="DA" ${item.registry_gas === 'DA' ? 'selected' : ''}>DA</option>
-                    <option value="Helium" ${item.registry_gas === 'Helium' ? 'selected' : ''}>Helium</option>
-                </select>
-                <div style="margin-top: 4px;">
-                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                        <input type="checkbox" id="update-gas-${idx}"> Update Registry
-                    </label>
-                </div>
-            `;
+        if (!hasError) {
+            gasHtml = getGasSelectHtml(idx, item.registry_gas);
+            if (item.status === 'Unmatched') {
+                gasHtml += `
+                    <div style="margin-top: 8px; display: flex; gap: 4px;">
+                        <input type="text" id="map-master-${idx}" placeholder="Map to Master UID" style="width: 120px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
+                        <button onclick="applyMapping(${idx})" style="padding: 4px 8px; font-size: 11px; background: var(--green-500); color: #fff; border: none; border-radius: 4px;">Map</button>
+                    </div>
+                `;
+            }
         }
         
-        // If unmatched, provide an input to map it
-        if (item.status === 'Unmatched') {
-            gasHtml = `
-                <input type="text" id="map-master-${idx}" placeholder="Master UID" style="width: 100px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
-                <button onclick="applyMapping(${idx})" style="padding: 4px 8px; font-size: 11px; background: var(--green-500); color: #fff; border: none; border-radius: 4px;">Map</button>
-            `;
-        }
-        
-        tr.innerHTML = `
-            <td style="padding: 10px; vertical-align: top;">${idHtml}</td>
-            <td style="padding: 10px; vertical-align: top;">${statusHtml}</td>
-            <td style="padding: 10px; vertical-align: top;">${gasHtml}</td>
-        `;
+        tr.innerHTML = `<td style="padding: 12px; vertical-align: top;">${idHtml}</td>
+                        <td style="padding: 12px; vertical-align: top;">${statusHtml}</td>
+                        <td style="padding: 12px; vertical-align: top;">${gasHtml}</td>`;
         tbody.appendChild(tr);
+        
+        // ---------------- CARD (MOBILE) ----------------
+        let card = document.createElement('div');
+        card.className = 'result-card';
+        card.style.borderLeft = `4px solid ${statusColor}`;
+        
+        let cardId = item.entered_id;
+        let cardIcon = hasError ? 'âš ' : (statusTitle === 'Unregistered' ? 'â„¹' : 'âœ“');
+        
+        let cardInner = `
+            <div class="result-card-header">
+                <div class="result-card-id">${cardId} <span style="color: ${statusColor};">${cardIcon}</span></div>
+                <div style="font-size: 11px; color: ${statusColor}; font-weight: 600;">${statusTitle}</div>
+            </div>
+        `;
+        if (item.master_id !== item.entered_id) {
+            cardInner += `<div class="result-card-row"><div class="result-card-label">Mapped to</div><div class="result-card-val">${item.master_id}</div></div>`;
+        }
+        cardInner += `<div class="result-card-row"><div class="result-card-label">Status</div><div class="result-card-val">${statusSub}</div></div>`;
+        
+        if (!hasError) {
+            cardInner += `<div style="margin-top: 12px;">
+                <label style="font-size: 12px; color: var(--gray-700); margin-bottom: 4px; display:block;">Transaction Gas Type</label>
+                ${getGasSelectHtml(idx + '_mob', item.registry_gas)}
+            </div>`;
+            if (item.status === 'Unmatched') {
+                cardInner += `
+                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">
+                        <label style="font-size: 12px; color: var(--gray-700); margin-bottom: 4px; display:block;">Map to existing cylinder?</label>
+                        <div style="display: flex; gap: 8px;">
+                            <input type="text" id="map-master-${idx}_mob" placeholder="Master UID" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
+                            <button onclick="applyMapping(${idx}, true)" class="btn-primary" style="padding: 0 16px; border-radius: 4px;">Map</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        card.innerHTML = cardInner;
+        cardsDiv.appendChild(card);
     });
     
-    document.getElementById('manual-results-section').style.display = 'block';
+    // Update summary counts
+    document.getElementById('mob-sum-total').innerText = total;
+    document.getElementById('mob-sum-ready').innerText = ready;
+    document.getElementById('mob-sum-warn').innerText = warn;
+    document.getElementById('mob-sum-err').innerText = err;
     
-    const btnSubmit = document.getElementById('btn-submit-manual');
-    if (hasErrors) {
-        btnSubmit.disabled = true;
-        btnSubmit.style.opacity = '0.5';
-        btnSubmit.innerText = 'Resolve errors to submit';
+    document.getElementById('desk-sum-total').innerHTML = `<strong>Total:</strong> ${total}`;
+    document.getElementById('desk-sum-ready').innerHTML = `<strong>Ready:</strong> ${ready}`;
+    document.getElementById('desk-sum-warn').innerHTML = `<strong>Warnings:</strong> ${warn}`;
+    document.getElementById('desk-sum-err').innerHTML = `<strong>Errors:</strong> ${err}`;
+    
+    document.getElementById('mobile-action-summary').innerText = `${ready + warn} valid Â· ${err} errors`;
+    
+    const btnSubmitDesk = document.getElementById('btn-submit-manual-desktop');
+    const btnSubmitMob = document.getElementById('btn-submit-manual-mobile');
+    
+    if (err > 0) {
+        btnSubmitDesk.disabled = true; btnSubmitDesk.style.opacity = '0.5'; btnSubmitDesk.innerText = 'Resolve errors to submit';
+        btnSubmitMob.disabled = true; btnSubmitMob.style.opacity = '0.5'; btnSubmitMob.innerText = 'Resolve errors to submit';
     } else {
-        btnSubmit.disabled = false;
-        btnSubmit.style.opacity = '1';
-        btnSubmit.innerText = `Submit ${verifiedItems.length} Transactions`;
+        btnSubmitDesk.disabled = false; btnSubmitDesk.style.opacity = '1'; btnSubmitDesk.innerText = `Submit ${total} Transactions`;
+        btnSubmitMob.disabled = false; btnSubmitMob.style.opacity = '1'; btnSubmitMob.innerText = `Submit Verified Entries`;
     }
+    
+    document.getElementById('manual-results-section').style.display = 'block';
+    document.getElementById('mobile-action-bar').style.display = 'block';
 }
 
-function applyMapping(idx) {
-    const masterId = document.getElementById(`map-master-${idx}`).value.trim().toUpperCase();
+function applyMapping(idx, isMobile=false) {
+    const idKey = isMobile ? `map-master-${idx}_mob` : `map-master-${idx}`;
+    const masterId = document.getElementById(idKey).value.trim().toUpperCase();
     if (masterId) {
         verifiedItems[idx].master_id = masterId;
-        // Since we mapped it manually, we pretend it's found for the sake of the UI submission payload.
-        // The backend will re-validate if this master actually exists when we submit.
         verifiedItems[idx].error = false;
         verifiedItems[idx].status = 'Found through manual mapping';
         renderManualResults();
@@ -1853,33 +1989,44 @@ function applyMapping(idx) {
 async function submitManualScans() {
     const action = document.getElementById('manual-action-select').value;
     const customer = document.getElementById('manual-customer-select').value;
-    
-    if ((action === 'Delivery' || action === 'Collection') && !customer) {
-        alert("Please select a customer.");
-        return;
-    }
+    if ((action === 'Delivery' || action === 'Collection') && !customer) { alert("Please select a customer."); return; }
     
     let itemsToSubmit = [];
+    // Only one layout's inputs are actively visible, but we can check the desktop first, and fallback to mobile if missing or empty
     for (let i = 0; i < verifiedItems.length; i++) {
         let item = verifiedItems[i];
         if (item.error || item.is_duplicate) continue;
         
-        let gasSelect = document.getElementById(`gas-select-${i}`);
-        let gasUpdate = document.getElementById(`update-gas-${i}`);
+        // Find gas select value (Desktop or Mobile)
+        let deskSelect = document.getElementById(`gas-select-${i}`);
+        let mobSelect = document.getElementById(`gas-select-${i}_mob`);
+        let val = "";
+        let deskVisible = window.innerWidth >= 768;
+        
+        if (deskVisible && deskSelect) { val = deskSelect.value; }
+        else if (!deskVisible && mobSelect) { val = mobSelect.value; }
+        
+        let deskUpdate = document.getElementById(`update-gas-${i}`);
+        let mobUpdate = document.getElementById(`update-gas-${i}_mob`);
+        let upd = false;
+        
+        if (deskVisible && deskUpdate) { upd = deskUpdate.checked; }
+        else if (!deskVisible && mobUpdate) { upd = mobUpdate.checked; }
         
         itemsToSubmit.push({
             entered_id: item.entered_id,
             master_id: item.master_id,
-            transaction_gas: gasSelect ? gasSelect.value : '',
-            update_registry_gas: gasUpdate ? gasUpdate.checked : false
+            transaction_gas: val,
+            update_registry_gas: upd
         });
     }
     
     if (itemsToSubmit.length === 0) return;
     
-    const btnSubmit = document.getElementById('btn-submit-manual');
-    btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Submitting...';
+    document.getElementById('btn-submit-manual-desktop').disabled = true;
+    document.getElementById('btn-submit-manual-desktop').innerText = 'Submitting...';
+    document.getElementById('btn-submit-manual-mobile').disabled = true;
+    document.getElementById('btn-submit-manual-mobile').innerText = 'Submitting...';
     
     try {
         const response = await fetch('/api/admin/scan/submit_manual', {
@@ -1887,21 +2034,17 @@ async function submitManualScans() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({ action, customer, items: itemsToSubmit })
         });
-        
         const data = await response.json();
         if (data.error) {
             alert(data.error);
-            btnSubmit.disabled = false;
-            btnSubmit.innerText = 'Submit Transactions';
         } else {
             alert("Transactions submitted successfully!");
             clearManualForm();
         }
     } catch (err) {
         alert("Network error submitting transactions.");
-        btnSubmit.disabled = false;
-        btnSubmit.innerText = 'Submit Transactions';
     }
+    renderManualResults(); // re-evaluates button states based on remaining errors
 }
 </script>
 
