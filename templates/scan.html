@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -205,7 +205,7 @@
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { background: var(--gray-200); cursor: not-allowed; }
 
-  /* â”€â”€ SUCCESS SCREEN â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ SUCCESS SCREEN Ã¢â€â‚¬Ã¢â€â‚¬ */
   #success-screen {
     display: none;
     position: fixed;
@@ -310,7 +310,7 @@
   .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
   .status-badge.warning { background: #fffbeb; color: #b45309; border: 1.5px solid #fde68a; }
 
-  /* â”€â”€ CUSTOM SEARCHABLE DROPDOWN â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ CUSTOM SEARCHABLE DROPDOWN Ã¢â€â‚¬Ã¢â€â‚¬ */
   .autocomplete-container {
     position: relative;
   }
@@ -346,7 +346,7 @@
     font-weight: 500;
   }
 
-  /* â”€â”€ TOP STATS BAR â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ TOP STATS BAR Ã¢â€â‚¬Ã¢â€â‚¬ */
   .top-stats-bar {
     display: flex;
     flex-direction: column;
@@ -432,7 +432,7 @@
     flex-shrink: 0;
   }
 
-  /* â”€â”€ WIZARD LAYOUT & PROGRESS BAR â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ WIZARD LAYOUT & PROGRESS BAR Ã¢â€â‚¬Ã¢â€â‚¬ */
   .step-container {
     display: none;
     animation: fadeIn 0.2s ease-in-out;
@@ -484,7 +484,7 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
   }
 
-  /* â”€â”€ WIZARD BACK BUTTON â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ WIZARD BACK BUTTON Ã¢â€â‚¬Ã¢â€â‚¬ */
   .nav-back-btn {
     padding: 15px;
     background: white;
@@ -503,7 +503,7 @@
     background: #fcfcfb;
   }
 
-  /* â”€â”€ STEP 2 FEED â”€â”€ */
+  /* Ã¢â€â‚¬Ã¢â€â‚¬ STEP 2 FEED Ã¢â€â‚¬Ã¢â€â‚¬ */
   .scan-feed {
     margin-top: 14px;
     margin-bottom: 20px;
@@ -587,7 +587,7 @@
 </div>
 
 <div id="offline-banner">
-  âš ï¸ You are currently offline. Scans will be saved and synced automatically when you reconnect.
+  Ã¢Å¡Â Ã¯Â¸Â You are currently offline. Scans will be saved and synced automatically when you reconnect.
 </div>
 
 
@@ -597,8 +597,8 @@
 {% if user and user['role'] in ['manager', 'owner'] %}
 <div style="padding: 16px 20px 0; max-width: 800px; margin: 0 auto;">
   <div style="display: flex; background: #fff; border-radius: 12px; padding: 4px; border: 1.5px solid var(--gray-200);">
-    <button id="toggle-qr-mode" class="mode-toggle active" onclick="setEntryMode('qr')" style="flex: 1; padding: 10px; border: none; background: var(--green-500); color: white; border-radius: 8px; font-weight: 600; cursor: pointer;">📷 QR Scanner</button>
-    <button id="toggle-manual-mode" class="mode-toggle" onclick="setEntryMode('manual')" style="flex: 1; padding: 10px; border: none; background: transparent; color: var(--gray-700); border-radius: 8px; font-weight: 600; cursor: pointer;">⌨️ Manual Entry</button>
+    <button id="toggle-qr-mode" class="mode-toggle active" onclick="setEntryMode('qr')" style="flex: 1; padding: 10px; border: none; background: var(--green-500); color: white; border-radius: 8px; font-weight: 600; cursor: pointer;">ðŸ“· QR Scanner</button>
+    <button id="toggle-manual-mode" class="mode-toggle" onclick="setEntryMode('manual')" style="flex: 1; padding: 10px; border: none; background: transparent; color: var(--gray-700); border-radius: 8px; font-weight: 600; cursor: pointer;">âŒ¨ï¸ Manual Entry</button>
   </div>
 </div>
 {% endif %}
@@ -647,7 +647,7 @@
     </div>
 
 
-    <!-- Customer field â€” shown below scan mode when Delivery or Collection is selected -->
+    <!-- Customer field Ã¢â‚¬â€ shown below scan mode when Delivery or Collection is selected -->
     <div class="field" id="customer-field" style="display: none; margin-top: 12px;">
       <label>Customer Name</label>
       <div class="autocomplete-container">
@@ -736,7 +736,7 @@
           <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
           <div class="status-badge" style="display: none;"></div>
         </div>
-        <button class="remove-btn" onclick="removeRow(this)">Ã—</button>
+        <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>
       </div>
     </div>
 
@@ -888,7 +888,7 @@ async function fetchActiveJob(isBackground = false) {
       // Empty state
       html = `
         <div style="background:#fff; border-radius:12px; border:1.5px solid var(--gray-bd); padding:24px 16px; text-align:center;">
-          <div style="font-size:24px; margin-bottom:8px;">â³</div>
+          <div style="font-size:24px; margin-bottom:8px;">Ã¢ÂÂ³</div>
           <div style="font-weight:700; color:var(--dark-text); font-size:14px;">No Jobs Assigned Yet</div>
           <div style="font-size:12px; color:var(--gray-text); margin-top:4px;">Please check back later or contact admin.</div>
         </div>
@@ -1121,7 +1121,7 @@ function updateScanFeedList() {
         <div class="scan-feed-row">
           <span class="scan-feed-uid">${val.toUpperCase()}</span>
           <span class="scan-feed-status" style="color: ${statusColor};">
-            ${isConflict ? 'âš ï¸' : isWarning ? 'âš ï¸' : 'âœ“'} ${badgeText}
+            ${isConflict ? 'Ã¢Å¡Â Ã¯Â¸Â' : isWarning ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€œ'} ${badgeText}
           </span>
         </div>
       `;
@@ -1144,7 +1144,7 @@ function addCylinder() {
       <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
       <div class="status-badge" style="display: none;"></div>
     </div>
-    <button class="remove-btn" onclick="removeRow(this)">Ã—</button>`;
+    <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>`;
   container.appendChild(div);
 }
 
@@ -1253,7 +1253,7 @@ async function validateRow(inputEl) {
   if (isDuplicate) {
     badgeEl.style.display = "inline-block";
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "âš ï¸ Duplicate: Already in this scan list";
+    badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Duplicate: Already in this scan list";
     inputEl.dataset.action = "";
     invalidRows.add(rowDiv);
     updateSubmitButton();
@@ -1282,16 +1282,16 @@ async function validateRow(inputEl) {
       if (currentStatus === "Empty") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "âš ï¸ Unregistered - Empty (Ready to Fill)";
+          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Empty (Ready to Fill)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "âœ“ Empty (Ready to Fill)";
+          badgeEl.innerText = "Ã¢Å“â€œ Empty (Ready to Fill)";
         }
         inputEl.dataset.action = "Filling";
       } else {
         badgeEl.classList.add("conflict");
         let details = currentStatus === "Delivered" ? `with ${owner}` : "Already Filled";
-        badgeEl.innerText = `âš ï¸ Conflict: Cylinder is ${details}`;
+        badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Conflict: Cylinder is ${details}`;
         inputEl.dataset.action = "";
         invalidRows.add(rowDiv);
       }
@@ -1300,19 +1300,19 @@ async function validateRow(inputEl) {
       if (currentStatus === "Filled") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "âš ï¸ Unregistered - Filled (Ready to Deliver)";
+          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Filled (Ready to Deliver)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "âœ“ Filled (Ready to Deliver)";
+          badgeEl.innerText = "Ã¢Å“â€œ Filled (Ready to Deliver)";
         }
         inputEl.dataset.action = "Delivery";
       } else if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `âš ï¸ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Unregistered - Collected (Auto-Switched: Was with ${owner})`;
         } else {
           badgeEl.classList.add("delivered");
-          badgeEl.innerText = `â†º Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `Ã¢â€ Âº Collected (Auto-Switched: Was with ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -1322,7 +1322,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`âš ï¸ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`Ã¢Å¡Â Ã¯Â¸Â Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -1333,17 +1333,17 @@ async function validateRow(inputEl) {
         if (FILL_REQUIRED) {
           // Rule ON: block delivery of empty cylinders
           badgeEl.classList.add("conflict");
-          badgeEl.innerText = "âš ï¸ Conflict: Cylinder is Empty (Must refill first)";
+          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Conflict: Cylinder is Empty (Must refill first)";
           inputEl.dataset.action = "";
           invalidRows.add(rowDiv);
         } else {
           // Rule OFF: allow delivery of empty cylinders without warning
           if (data.registered === false) {
             badgeEl.classList.add("warning");
-            badgeEl.innerText = "âš ï¸ Unregistered - Empty (Delivering as-is)";
+            badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Empty (Delivering as-is)";
           } else {
             badgeEl.classList.add("filled");
-            badgeEl.innerText = "âœ“ Empty (Delivering as-is)";
+            badgeEl.innerText = "Ã¢Å“â€œ Empty (Delivering as-is)";
           }
           inputEl.dataset.action = "Delivery";
         }
@@ -1353,10 +1353,10 @@ async function validateRow(inputEl) {
       if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `âš ï¸ Unregistered - Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Unregistered - Delivered (Collecting from ${owner})`;
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = `âœ“ Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `Ã¢Å“â€œ Delivered (Collecting from ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -1366,7 +1366,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`âš ï¸ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`Ã¢Å¡Â Ã¯Â¸Â Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -1376,16 +1376,16 @@ async function validateRow(inputEl) {
       } else {
         badgeEl.classList.add("warning");
         if (currentStatus === "Filled") {
-          badgeEl.innerText = "âš ï¸ Collection (Warning: Cylinder marked Filled/In Depot)";
+          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Collection (Warning: Cylinder marked Filled/In Depot)";
         } else {
-          badgeEl.innerText = "âš ï¸ Collection (Warning: Cylinder marked Empty/In Depot)";
+          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Collection (Warning: Cylinder marked Empty/In Depot)";
         }
         inputEl.dataset.action = "Collection";
       }
     }
   } catch (err) {
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "âš ï¸ Error verifying cylinder status";
+    badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Error verifying cylinder status";
     invalidRows.add(rowDiv);
   }
   
@@ -1540,7 +1540,7 @@ function resetForm() {
         <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">Ã—</button>
+      <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>
     </div>`;
   invalidRows.clear();
   updateCount();
@@ -1577,7 +1577,7 @@ function onScanSuccess(decodedText) {
   let inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i].value === decodedText) {
-      showStatus("âš  Already scanned: " + decodedText);
+      showStatus("Ã¢Å¡Â  Already scanned: " + decodedText);
       setTimeout(() => {
         scanLocked = false;
         if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
@@ -1608,7 +1608,7 @@ function onScanSuccess(decodedText) {
         <input type="text" name="cylinders" value="${decodedText}" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">Ã—</button>`;
+      <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>`;
     container.appendChild(div);
     let newlyAddedInput = div.querySelector('input');
     validateRow(newlyAddedInput);
@@ -1616,7 +1616,7 @@ function onScanSuccess(decodedText) {
 
   updateCount();
   beep.play();
-  showStatus("âœ“ Added: " + decodedText);
+  showStatus("Ã¢Å“â€œ Added: " + decodedText);
   setTimeout(() => {
     scanLocked = false;
     if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
@@ -1734,11 +1734,11 @@ async function verifyManualScans() {
     const action = document.getElementById('manual-action-select').value;
     
     if (!uids.trim()) {
-        showToast("Please enter at least one Cylinder ID.", "error");
+        alert("Please enter at least one Cylinder ID.");
         return;
     }
     
-    showToast("Verifying...", "info");
+    document.getElementById("btn-submit-manual").innerText = "Verifying...";
     try {
         const response = await fetch('/api/admin/scan/verify', {
             method: 'POST',
@@ -1748,14 +1748,14 @@ async function verifyManualScans() {
         
         const data = await response.json();
         if (data.error) {
-            showToast(data.error, "error");
+            alert(data.error);
             return;
         }
         
         verifiedItems = data.results;
         renderManualResults();
     } catch (err) {
-        showToast("Network error verifying scans.", "error");
+        alert("Network error verifying scans.");
     }
 }
 
@@ -1853,7 +1853,7 @@ async function submitManualScans() {
     const customer = document.getElementById('manual-customer-select').value;
     
     if ((action === 'Delivery' || action === 'Collection') && !customer) {
-        showToast("Please select a customer.", "error");
+        alert("Please select a customer.");
         return;
     }
     
@@ -1888,15 +1888,15 @@ async function submitManualScans() {
         
         const data = await response.json();
         if (data.error) {
-            showToast(data.error, "error");
+            alert(data.error);
             btnSubmit.disabled = false;
             btnSubmit.innerText = 'Submit Transactions';
         } else {
-            showToast("Transactions submitted successfully!", "success");
+            alert("Transactions submitted successfully!");
             clearManualForm();
         }
     } catch (err) {
-        showToast("Network error submitting transactions.", "error");
+        alert("Network error submitting transactions.");
         btnSubmit.disabled = false;
         btnSubmit.innerText = 'Submit Transactions';
     }
@@ -1905,3 +1905,4 @@ async function submitManualScans() {
 
 </body>
 </html>
+
