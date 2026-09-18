@@ -768,140 +768,548 @@
 
 <!-- MANUAL ENTRY FORM -->
 <style>
-.manual-entry-workspace { display: grid; grid-template-columns: 36% 64%; gap: 16px; max-width: 1200px; margin: 0 auto; padding: 20px 16px; }
-.entry-panel, .verification-panel { min-width: 0; }
-.results-table-wrapper { overflow-y: auto; }
-.mobile-result-cards { display: none; }
-.mobile-action-bar { display: none; }
-.mobile-verification-summary { display: none; }
-.desktop-verification-summary { display: block; }
-
-.mobile-action-button { width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; border-radius: 8px; }
-.cylinder-id-input { min-height: 150px; font-size: 16px; line-height: 1.5; width: 100%; border-radius: 12px; border: 1.5px solid var(--gray-200); padding: 12px; font-family: monospace; resize: vertical; margin-bottom: 4px; }
-
-.result-card { background: white; border: 1px solid var(--gray-200); border-radius: 10px; padding: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-.result-card-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding-bottom: 8px; margin-bottom: 8px; }
-.result-card-id { font-weight: 700; color: var(--green-900); font-size: 15px; }
-.result-card-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
-.result-card-label { color: var(--gray-700); }
-.result-card-val { font-weight: 500; text-align: right; }
-
-@media (max-width: 767px) {
-  .manual-entry-workspace { display: flex; flex-direction: column; gap: 12px; padding: 12px; padding-bottom: 120px; }
-  .entry-panel, .verification-panel { width: 100%; }
-  .desktop-results-table { display: none; }
-  .desktop-verification-summary { display: none; }
-  .mobile-result-cards { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
-  .mobile-verification-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px; }
-  .summary-box { background: white; border: 1px solid var(--gray-200); border-radius: 8px; padding: 10px; text-align: center; }
-  .summary-box-val { font-size: 18px; font-weight: 700; }
-  .summary-box-label { font-size: 11px; color: var(--gray-700); text-transform: uppercase; }
-  .mobile-action-bar { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; padding: 10px 12px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); background: white; border-top: 1px solid #d9e2df; box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08); }
+/* Admin Mode Toggle Container */
+.admin-mode-toggle-wrap {
+  padding: 14px 20px 0;
+  max-width: 1400px;
+  margin: 0 auto;
 }
-@media (min-width: 768px) and (max-width: 1100px) {
-  .manual-entry-workspace { grid-template-columns: 42% 58%; }
+.mode-toggle-pills {
+  display: flex;
+  background: #fff;
+  border-radius: 12px;
+  padding: 4px;
+  border: 1.5px solid var(--gray-200);
 }
-@media (max-width: 900px) and (orientation: portrait) {
-  .manual-entry-workspace { display: flex; flex-direction: column; }
+.mode-toggle-btn {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+}
+.mode-toggle-btn.active {
+  background: var(--green-500);
+  color: white;
+  box-shadow: 0 2px 6px rgba(29, 158, 117, 0.25);
+}
+.mode-toggle-btn:not(.active) {
+  background: transparent;
+  color: var(--gray-700);
+}
+
+/* Operation Selector Button Group */
+.op-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.op-btn-row {
+  display: flex;
+  gap: 8px;
+}
+.op-btn {
+  flex: 1;
+  min-height: 46px;
+  border: 1.5px solid var(--gray-200);
+  background: #f9faf8;
+  color: var(--gray-900);
+  border-radius: 10px;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+.op-btn:hover {
+  border-color: var(--green-500);
+  background: var(--green-50);
+}
+.op-btn.active {
+  background: var(--green-700) !important;
+  border-color: var(--green-700) !important;
+  color: white !important;
+  box-shadow: 0 2px 6px rgba(15, 110, 86, 0.25);
+}
+
+.cylinder-id-textarea {
+  min-height: 150px;
+  font-size: 16px !important;
+  line-height: 1.5;
+  width: 100%;
+  border-radius: 12px;
+  border: 1.5px solid var(--gray-200);
+  padding: 12px;
+  font-family: monospace;
+  resize: vertical;
+  background: white;
+  color: var(--gray-900);
+  box-sizing: border-box;
+}
+.cylinder-id-textarea:focus {
+  border-color: var(--green-500);
+  outline: none;
+}
+
+/* Entry Panel */
+.entry-panel-card {
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+/* Verification Panel */
+.verification-panel-card {
+  background: white;
+  border: 1.5px solid var(--gray-200);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  display: flex;
+  flex-direction: column;
+}
+
+/* Summary Grid */
+.summary-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 16px;
+}
+.metric-box {
+  background: #fbfbfa;
+  border: 1px solid var(--gray-200);
+  border-radius: 10px;
+  padding: 10px 8px;
+  text-align: center;
+}
+.metric-box-val {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--gray-900);
+  line-height: 1.2;
+}
+.metric-box-label {
+  font-size: 11px;
+  color: var(--gray-700);
+  text-transform: uppercase;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* Filter Pills */
+.filter-pills-wrap {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+.filter-pill-btn {
+  padding: 5px 12px;
+  border-radius: 20px;
+  border: 1px solid var(--gray-200);
+  background: white;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+}
+.filter-pill-btn.active {
+  background: var(--green-700);
+  border-color: var(--green-700);
+  color: white;
+}
+
+/* Desktop Verification Table */
+.desktop-table-scroll {
+  flex: 1;
+  overflow-y: auto;
+  border: 1px solid #e8e9e4;
+  border-radius: 10px;
+  min-height: 180px;
+}
+.verif-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  background: white;
+}
+.verif-table th {
+  background: var(--green-50);
+  color: var(--green-900);
+  font-weight: 600;
+  padding: 10px 12px;
+  text-align: left;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+.verif-table td {
+  padding: 12px;
+  border-bottom: 1px solid #f0f1ed;
+  vertical-align: top;
+}
+
+/* Mobile Result Cards */
+.mobile-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.res-card {
+  background: white;
+  border: 1.5px solid #e8e9e4;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+.res-card.status-ok { border-left: 5px solid var(--green-500); }
+.res-card.status-warn { border-left: 5px solid #ea580c; }
+.res-card.status-err { border-left: 5px solid #dc2626; }
+
+.res-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+  border-bottom: 1px solid #f0f1ed;
+}
+.res-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--green-900);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.res-card-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 12px;
+}
+.badge-ok { background: #e1f5ee; color: #0f6e56; }
+.badge-warn { background: #ffedd5; color: #c2410c; }
+.badge-err { background: #fee2e2; color: #b91c1c; }
+
+.res-card-field {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 13px;
+}
+.res-card-label {
+  color: var(--gray-700);
+}
+.res-card-val {
+  font-weight: 600;
+  color: var(--gray-900);
+  text-align: right;
+}
+
+/* Empty State Placeholder */
+.empty-placeholder {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--gray-700);
+  margin: auto;
+}
+
+/* ========================================================
+   RESPONSIVE MEDIA QUERIES
+   ======================================================== */
+
+/* PC / Laptop Screens (min-width: 992px) */
+@media (min-width: 992px) {
+  body.manual-mode-active {
+    overflow: hidden !important;
+    height: 100vh !important;
+  }
+  .manual-entry-workspace {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 20px;
+    height: calc(100vh - 140px);
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    box-sizing: border-box;
+  }
+  .entry-panel-card {
+    height: 100%;
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+  .verification-panel-card {
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
+  }
+  .desktop-table-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .mobile-cards-list {
+    display: none !important;
+  }
+  .mobile-sticky-bar {
+    display: none !important;
+  }
+  .desktop-submit-wrap {
+    padding-top: 14px;
+    flex-shrink: 0;
+  }
+}
+
+/* Mobile & Tablet Screens (max-width: 991px) */
+@media (max-width: 991px) {
+  body.manual-mode-active {
+    overflow-y: auto !important;
+    min-height: 100svh;
+  }
+  .manual-entry-workspace {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 12px 14px 110px;
+    box-sizing: border-box;
+  }
+  .entry-panel-card, .verification-panel-card {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 16px;
+  }
+  .desktop-table-container {
+    display: none !important;
+  }
+  .mobile-cards-list {
+    display: flex !important;
+  }
+  .summary-metric-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .desktop-submit-wrap {
+    display: none !important;
+  }
+  .mobile-sticky-bar {
+    display: block !important;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    background: white;
+    border-top: 1.5px solid #d9e2df;
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.08);
+    padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+  }
+  .mobile-sticky-inner {
+    max-width: 600px;
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .mobile-action-status-text {
+    font-size: 12px;
+    font-weight: 600;
+    text-align: center;
+    color: var(--gray-700);
+  }
+  .mobile-action-btn {
+    width: 100%;
+    min-height: 48px;
+    font-size: 15px;
+    font-weight: 600;
+  }
 }
 </style>
 
 <div id="manual-form" style="display: none;">
   <div class="manual-entry-workspace">
-    <!-- ENTRY PANEL -->
-    <div class="entry-panel">
-      <div class="top-stats-bar">
-        <div class="stat-box-mode" id="manual-mode-toggle-card">
-          <div class="stat-mode-left" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
-            <span class="stat-label">Scan Action</span>
-            <select id="manual-action-select" onchange="toggleManualCustomerField();" class="stat-mode-select">
-              <option value="Delivery">Delivery</option>
-              <option value="Collection">Collection</option>
-              <option value="Filling">Filling</option>
-            </select>
+    
+    <!-- LEFT PANEL: ENTRY FORM -->
+    <div class="entry-panel-card">
+      
+      <!-- 1. Operation Selector -->
+      <div class="field" style="margin-bottom: 16px;">
+        <label style="font-weight: 700; font-size: 12px; text-transform: uppercase; color: var(--gray-700); letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Select Operation</label>
+        <div class="op-btn-group">
+          <div class="op-btn-row">
+            <button type="button" class="op-btn active" id="btn-op-Delivery" onclick="selectManualAction('Delivery')">
+              <span>🚚</span> Delivery
+            </button>
+            <button type="button" class="op-btn" id="btn-op-Collection" onclick="selectManualAction('Collection')">
+              <span>🔄</span> Collection
+            </button>
           </div>
-          <svg class="mode-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-left: 8px;">
-            <polyline points="6 9 12 15 18 9"/>
-          </svg>
+          <div class="op-btn-row">
+            <button type="button" class="op-btn" id="btn-op-Filling" onclick="selectManualAction('Filling')">
+              <span>⚡</span> Plant Filling
+            </button>
+          </div>
         </div>
+        <input type="hidden" id="manual-action-select" value="Delivery">
+      </div>
 
-        <div class="field" id="manual-customer-field" style="display: none; margin-top: 12px;">
-          <label>Customer Name</label>
-          <div class="autocomplete-container">
-            <input type="text" id="manual-customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showManualCustomerDropdown()" onclick="showManualCustomerDropdown()" oninput="filterManualCustomerDropdown()">
-            <div id="manual-customer-dropdown" class="custom-dropdown-list" style="display: none;">
-              {% for name in customers %}
-                <div class="dropdown-item" onclick="selectManualCustomer(this.textContent)">{{ name }}</div>
-              {% endfor %}
-            </div>
+      <!-- 2. Customer Selector -->
+      <div class="field" id="manual-customer-field" style="margin-bottom: 16px;">
+        <label style="font-weight: 700; font-size: 12px; text-transform: uppercase; color: var(--gray-700); letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Customer</label>
+        <div class="autocomplete-container">
+          <input type="text" id="manual-customer-select" class="field input" placeholder="Search or select customer..." autocomplete="off" onfocus="showManualCustomerDropdown()" onclick="showManualCustomerDropdown()" oninput="filterManualCustomerDropdown()" style="width: 100%; padding: 12px 14px; border: 1.5px solid #d8d9d4; border-radius: 10px; font-size: 15px;">
+          <div id="manual-customer-dropdown" class="custom-dropdown-list" style="display: none;">
+            {% for name in customers %}
+              <div class="dropdown-item" onclick="selectManualCustomer(this.textContent)">{{ name }}</div>
+            {% endfor %}
           </div>
         </div>
       </div>
 
-      <div class="field" style="margin-top: 16px;">
-        <label>Cylinder IDs (one per line or comma-separated)</label>
-        <textarea id="manual-uids" class="cylinder-id-input" placeholder="CYL-001245&#10;CYL-001246" oninput="updateUidCount()"></textarea>
-        <div style="font-size: 13px; color: var(--gray-700); margin-bottom: 12px; font-weight: 500;" id="manual-uid-count">0 IDs entered</div>
-        
-        <div style="display: flex; gap: 8px;">
-            <button onclick="verifyManualScans()" class="btn-primary mobile-action-button" style="flex: 1;">Verify Cylinders</button>
-            <button onclick="clearManualForm()" class="btn-secondary mobile-action-button" style="background: #fff; color: var(--gray-700); padding: 0 16px; flex: 0 0 auto;">Clear</button>
-        </div>
+      <!-- 3. Default Gas Type Selector -->
+      <div class="field" style="margin-bottom: 16px;">
+        <label style="font-weight: 700; font-size: 12px; text-transform: uppercase; color: var(--gray-700); letter-spacing: 0.5px; margin-bottom: 8px; display: block;">Gas Type</label>
+        <select id="manual-default-gas" onchange="applyDefaultGasToAll()" style="width: 100%; padding: 12px 14px; border: 1.5px solid #d8d9d4; border-radius: 10px; font-size: 15px; background: white;">
+          <option value="">Use registry gas type (Auto-detect)</option>
+          <option value="Oxygen">Oxygen</option>
+          <option value="Argon">Argon</option>
+          <option value="Nitrogen">Nitrogen</option>
+          <option value="CO2">CO2</option>
+          <option value="DA">DA (Dissolved Acetylene)</option>
+          <option value="Helium">Helium</option>
+        </select>
       </div>
+
+      <!-- 4. Cylinder IDs Textarea -->
+      <div class="field" style="margin-bottom: 16px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+          <label style="font-weight: 700; font-size: 12px; text-transform: uppercase; color: var(--gray-700); letter-spacing: 0.5px; margin: 0;">Cylinder IDs</label>
+          <span style="font-size: 12px; color: var(--gray-700); font-weight: 600;" id="manual-uid-count">0 IDs entered</span>
+        </div>
+        <textarea id="manual-uids" class="cylinder-id-textarea" placeholder="CYL-001245&#10;CYL-001246&#10;MH20-00452" oninput="updateUidCount()"></textarea>
+        <div style="font-size: 11px; color: var(--gray-700); margin-top: 4px;">Enter one cylinder ID per line. You can paste multiple IDs.</div>
+      </div>
+
+      <!-- 5. Verification Actions -->
+      <div style="display: flex; gap: 8px;">
+        <button type="button" id="btn-verify" onclick="verifyManualScans()" class="btn-primary" style="flex: 1; min-height: 48px; font-size: 15px; font-weight: 600;">
+          🔍 Verify Cylinders
+        </button>
+        <button type="button" onclick="clearManualForm()" class="btn-secondary" style="background: white; color: var(--gray-700); border: 1.5px solid var(--gray-200); padding: 0 16px; min-height: 48px; font-weight: 600;">
+          Clear
+        </button>
+      </div>
+
     </div>
 
-    <!-- VERIFICATION PANEL -->
-    <div class="verification-panel" id="manual-results-section" style="display: none;">
-      <h3 style="font-size: 16px; margin-bottom: 16px; font-weight: 600;">Verification Results</h3>
+    <!-- RIGHT / STACKED PANEL: VERIFICATION PANEL -->
+    <div class="verification-panel-card">
       
-      <!-- Mobile summary -->
-      <div class="mobile-verification-summary">
-         <div class="summary-box"><div class="summary-box-val" id="mob-sum-total">0</div><div class="summary-box-label">Total</div></div>
-         <div class="summary-box"><div class="summary-box-val" id="mob-sum-ready" style="color: var(--green-700);">0</div><div class="summary-box-label">Ready</div></div>
-         <div class="summary-box"><div class="summary-box-val" id="mob-sum-warn" style="color: #ea580c;">0</div><div class="summary-box-label">Warnings</div></div>
-         <div class="summary-box"><div class="summary-box-val" id="mob-sum-err" style="color: #dc2626;">0</div><div class="summary-box-label">Errors</div></div>
+      <!-- Empty state before verify is clicked -->
+      <div id="manual-empty-state" class="empty-placeholder">
+        <div style="font-size: 44px; margin-bottom: 12px; opacity: 0.7;">📋</div>
+        <h4 style="font-size: 16px; font-weight: 600; color: var(--gray-900); margin-bottom: 6px;">Verification Results</h4>
+        <p style="font-size: 13px; color: var(--gray-700); max-width: 320px; margin: 0 auto; line-height: 1.5;">
+          Enter or paste cylinder IDs on the left and click <strong>Verify Cylinders</strong> to check registry status, aliases, gas types, and duplicates.
+        </p>
       </div>
-      
-      <!-- Desktop Table -->
-      <div class="desktop-results-table">
-          <div style="margin-bottom: 12px; font-size: 13px; display: flex; gap: 12px; border: 1px solid var(--gray-200); padding: 8px 12px; border-radius: 8px; background: white;">
-              <span id="desk-sum-total"><strong>Total:</strong> 0</span>
-              <span id="desk-sum-ready" style="color: var(--green-700);"><strong>Ready:</strong> 0</span>
-              <span id="desk-sum-warn" style="color: #ea580c;"><strong>Warnings:</strong> 0</span>
-              <span id="desk-sum-err" style="color: #dc2626;"><strong>Errors:</strong> 0</span>
+
+      <!-- Verification Results Content (Shown once verified) -->
+      <div id="manual-results-content" style="display: none;">
+        
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+          <h3 style="font-size: 16px; font-weight: 700; color: var(--gray-900); margin: 0;">Verification Results</h3>
+          <div class="filter-pills-wrap">
+            <button type="button" class="filter-pill-btn active" id="pill-all" onclick="filterResults('all')">All (<span id="count-pill-all">0</span>)</button>
+            <button type="button" class="filter-pill-btn" id="pill-ready" onclick="filterResults('ready')">Ready (<span id="count-pill-ready">0</span>)</button>
+            <button type="button" class="filter-pill-btn" id="pill-warn" onclick="filterResults('warning')">Warnings (<span id="count-pill-warn">0</span>)</button>
+            <button type="button" class="filter-pill-btn" id="pill-err" onclick="filterResults('error')">Errors (<span id="count-pill-err">0</span>)</button>
           </div>
-          <div class="results-table-wrapper">
-            <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                <thead style="background: var(--green-50); text-align: left;">
-                    <tr>
-                        <th style="padding: 10px;">ID</th>
-                        <th style="padding: 10px;">Status</th>
-                        <th style="padding: 10px;">Action/Gas</th>
-                    </tr>
-                </thead>
-                <tbody id="manual-results-tbody">
-                    <!-- JS populated -->
-                </tbody>
+        </div>
+
+        <!-- 4-Box Summary Metric Grid -->
+        <div class="summary-metric-grid">
+          <div class="metric-box">
+            <div class="metric-box-val" id="sum-total">0</div>
+            <div class="metric-box-label">Total</div>
+          </div>
+          <div class="metric-box" style="border-top: 3px solid var(--green-500);">
+            <div class="metric-box-val" id="sum-ready" style="color: var(--green-700);">0</div>
+            <div class="metric-box-label">Ready ✓</div>
+          </div>
+          <div class="metric-box" style="border-top: 3px solid #ea580c;">
+            <div class="metric-box-val" id="sum-warn" style="color: #ea580c;">0</div>
+            <div class="metric-box-label">Warnings</div>
+          </div>
+          <div class="metric-box" style="border-top: 3px solid #dc2626;">
+            <div class="metric-box-val" id="sum-err" style="color: #dc2626;">0</div>
+            <div class="metric-box-label">Errors ⚠</div>
+          </div>
+        </div>
+
+        <!-- Desktop Results Table (Visible >= 992px) -->
+        <div class="desktop-table-container">
+          <div class="desktop-table-scroll">
+            <table class="verif-table">
+              <thead>
+                <tr>
+                  <th style="width: 28%;">Cylinder ID</th>
+                  <th style="width: 34%;">Status &amp; Match</th>
+                  <th style="width: 38%;">Gas Type / Mapping</th>
+                </tr>
+              </thead>
+              <tbody id="desktop-results-tbody">
+                <!-- JS Populated -->
+              </tbody>
             </table>
           </div>
-          <div style="margin-top: 16px;">
-              <button id="btn-submit-manual-desktop" onclick="submitManualScans()" class="btn-primary mobile-action-button" disabled>Submit Transactions</button>
+          <div class="desktop-submit-wrap">
+            <button id="btn-submit-desktop" onclick="submitManualScans()" class="btn-primary" style="width: 100%; min-height: 48px; font-size: 15px; font-weight: 600;" disabled>
+              Submit Verified Transactions
+            </button>
           </div>
+        </div>
+
+        <!-- Mobile Results Cards (Visible < 992px) -->
+        <div class="mobile-cards-list" id="mobile-results-cards">
+          <!-- JS Populated Cards -->
+        </div>
+
       </div>
-      
-      <!-- Mobile Cards -->
-      <div class="mobile-result-cards" id="manual-results-cards">
-          <!-- JS populated -->
-      </div>
+
+    </div>
+
+  </div>
+
+  <!-- Mobile Sticky Bottom Action Bar (< 992px) -->
+  <div class="mobile-sticky-bar" id="mobile-action-bar" style="display: none;">
+    <div class="mobile-sticky-inner">
+      <div class="mobile-action-status-text" id="mobile-action-summary">0 ready · 0 errors</div>
+      <button id="btn-submit-mobile" class="btn-primary mobile-action-btn" onclick="submitManualScans()" disabled>
+        Submit Verified Entries
+      </button>
     </div>
   </div>
-  
-  <!-- Mobile Submit Action Bar -->
-  <div class="mobile-action-bar" id="mobile-action-bar" style="display: none;">
-     <div style="font-size: 13px; font-weight: 600; text-align: center; margin-bottom: 8px; color: var(--gray-700);" id="mobile-action-summary">0 ready Â· 0 errors</div>
-     <button id="btn-submit-manual-mobile" class="btn-primary mobile-action-button" onclick="submitManualScans()" disabled>Submit Verified Entries</button>
-  </div>
+
 </div>
+
 
 <script>
 const validCustomers = {{ customers | tojson }};
@@ -1729,13 +2137,38 @@ html5QrcodeScanner.render(onScanSuccess);
 
 <script>
 let verifiedItems = [];
+let currentFilter = 'all';
 
 function updateUidCount() {
-    const text = document.getElementById('manual-uids').value;
-    const uids = text.split(/
-|,/).map(s => s.trim()).filter(s => s.length > 0);
+    const text = document.getElementById('manual-uids').value || '';
+    const uids = text.split(/[,\s]+/).map(s => s.trim()).filter(s => s.length > 0);
     const unique = new Set(uids).size;
-    document.getElementById('manual-uid-count').innerText = `${uids.length} IDs entered Â· ${unique} unique`;
+    document.getElementById('manual-uid-count').innerText = `${uids.length} IDs entered · ${unique} unique`;
+}
+
+function selectManualAction(action) {
+    document.getElementById('manual-action-select').value = action;
+    
+    // Update button states
+    ['Delivery', 'Collection', 'Filling'].forEach(act => {
+        const btn = document.getElementById('btn-op-' + act);
+        if (btn) {
+            if (act === action) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
+
+    const custField = document.getElementById('manual-customer-field');
+    if (custField) {
+        if (action === 'Delivery' || action === 'Collection') {
+            custField.style.display = 'block';
+        } else {
+            custField.style.display = 'none';
+        }
+    }
 }
 
 function setEntryMode(mode) {
@@ -1745,60 +2178,92 @@ function setEntryMode(mode) {
     const formMan = document.getElementById('manual-form');
     
     if (mode === 'qr') {
-        btnQr.style.background = 'var(--green-500)';
-        btnQr.style.color = 'white';
-        btnMan.style.background = 'transparent';
-        btnMan.style.color = 'var(--gray-700)';
-        formQr.style.display = 'block';
-        formMan.style.display = 'none';
+        document.body.classList.remove('manual-mode-active');
+        if (btnQr) {
+            btnQr.classList.add('active');
+            btnQr.style.background = 'var(--green-500)';
+            btnQr.style.color = 'white';
+        }
+        if (btnMan) {
+            btnMan.classList.remove('active');
+            btnMan.style.background = 'transparent';
+            btnMan.style.color = 'var(--gray-700)';
+        }
+        if (formQr) formQr.style.display = 'block';
+        if (formMan) formMan.style.display = 'none';
         
         if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
             try { html5QrcodeScanner.resume(); } catch (e) {}
         }
     } else {
-        btnMan.style.background = 'var(--green-500)';
-        btnMan.style.color = 'white';
-        btnQr.style.background = 'transparent';
-        btnQr.style.color = 'var(--gray-700)';
-        formQr.style.display = 'none';
-        formMan.style.display = 'block';
+        document.body.classList.add('manual-mode-active');
+        if (btnMan) {
+            btnMan.classList.add('active');
+            btnMan.style.background = 'var(--green-500)';
+            btnMan.style.color = 'white';
+        }
+        if (btnQr) {
+            btnQr.classList.remove('active');
+            btnQr.style.background = 'transparent';
+            btnQr.style.color = 'var(--gray-700)';
+        }
+        if (formQr) formQr.style.display = 'none';
+        if (formMan) formMan.style.display = 'block';
         
         if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
             try { html5QrcodeScanner.pause(true); } catch (e) {}
         }
-        toggleManualCustomerField();
+        
+        // Ensure action selector is properly reflected
+        const currentAction = document.getElementById('manual-action-select').value || 'Delivery';
+        selectManualAction(currentAction);
     }
 }
 
-function toggleManualCustomerField() {
-    const action = document.getElementById('manual-action-select').value;
-    const field = document.getElementById('manual-customer-field');
-    if (action === 'Delivery' || action === 'Collection') {
-        field.style.display = 'block';
-    } else {
-        field.style.display = 'none';
-    }
+function showManualCustomerDropdown() { 
+    const dd = document.getElementById('manual-customer-dropdown');
+    if (dd) dd.style.display = 'block'; 
 }
 
-function showManualCustomerDropdown() { document.getElementById('manual-customer-dropdown').style.display = 'block'; }
 function filterManualCustomerDropdown() {
-    let filter = document.getElementById('manual-customer-select').value.toUpperCase();
-    let items = document.getElementById('manual-customer-dropdown').getElementsByClassName('dropdown-item');
+    const input = document.getElementById('manual-customer-select');
+    if (!input) return;
+    const filter = input.value.toUpperCase();
+    const dd = document.getElementById('manual-customer-dropdown');
+    if (!dd) return;
+    const items = dd.getElementsByClassName('dropdown-item');
     for (let i = 0; i < items.length; i++) {
         items[i].style.display = (items[i].textContent.toUpperCase().indexOf(filter) > -1) ? "" : "none";
     }
 }
+
 function selectManualCustomer(val) {
-    document.getElementById('manual-customer-select').value = val;
-    document.getElementById('manual-customer-dropdown').style.display = 'none';
+    const input = document.getElementById('manual-customer-select');
+    if (input) input.value = val;
+    const dd = document.getElementById('manual-customer-dropdown');
+    if (dd) dd.style.display = 'none';
 }
 
 function clearManualForm() {
     document.getElementById('manual-uids').value = '';
     updateUidCount();
-    document.getElementById('manual-results-section').style.display = 'none';
+    document.getElementById('manual-empty-state').style.display = 'block';
+    document.getElementById('manual-results-content').style.display = 'none';
     document.getElementById('mobile-action-bar').style.display = 'none';
     verifiedItems = [];
+}
+
+function applyDefaultGasToAll() {
+    const defaultGas = document.getElementById('manual-default-gas').value;
+    if (!defaultGas) return;
+    
+    // Apply to all items
+    for (let i = 0; i < verifiedItems.length; i++) {
+        const deskSelect = document.getElementById(`gas-select-${i}`);
+        if (deskSelect) deskSelect.value = defaultGas;
+        const mobSelect = document.getElementById(`gas-select-${i}_mob`);
+        if (mobSelect) mobSelect.value = defaultGas;
+    }
 }
 
 async function verifyManualScans() {
@@ -1806,8 +2271,11 @@ async function verifyManualScans() {
     const action = document.getElementById('manual-action-select').value;
     if (!uids.trim()) { alert("Please enter at least one Cylinder ID."); return; }
     
-    document.getElementById("btn-submit-manual-desktop").innerText = "Verifying...";
-    document.getElementById("btn-submit-manual-mobile").innerText = "Verifying...";
+    const btnVerify = document.getElementById("btn-verify");
+    const origText = btnVerify.innerText;
+    btnVerify.disabled = true;
+    btnVerify.innerText = "Verifying...";
+    
     try {
         const response = await fetch('/api/admin/scan/verify', {
             method: 'POST',
@@ -1815,37 +2283,63 @@ async function verifyManualScans() {
             body: JSON.stringify({ uids, action })
         });
         const data = await response.json();
+        btnVerify.disabled = false;
+        btnVerify.innerText = origText;
+        
         if (data.error) { alert(data.error); return; }
         
         verifiedItems = data.results;
+        currentFilter = 'all';
         renderManualResults();
     } catch (err) {
+        btnVerify.disabled = false;
+        btnVerify.innerText = origText;
         alert("Network error verifying scans.");
     }
 }
 
-function getGasSelectHtml(idx, registryGas) {
+function filterResults(filterType) {
+    currentFilter = filterType;
+    ['all', 'ready', 'warn', 'err'].forEach(f => {
+        const btn = document.getElementById('pill-' + f);
+        if (btn) {
+            if ((f === 'all' && filterType === 'all') ||
+                (f === 'ready' && filterType === 'ready') ||
+                (f === 'warn' && filterType === 'warning') ||
+                (f === 'err' && filterType === 'error')) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        }
+    });
+    renderManualResults();
+}
+
+function getGasSelectHtml(key, currentGas) {
+    const defaultGas = document.getElementById('manual-default-gas').value;
+    const selected = defaultGas || currentGas;
     return `
-        <select id="gas-select-${idx}" class="gas-select-input" style="padding: 6px; border-radius: 4px; border: 1px solid #ddd; width: 100%;">
-            <option value="">Select Gas...</option>
-            <option value="Oxygen" ${registryGas === 'Oxygen' ? 'selected' : ''}>Oxygen</option>
-            <option value="Argon" ${registryGas === 'Argon' ? 'selected' : ''}>Argon</option>
-            <option value="Nitrogen" ${registryGas === 'Nitrogen' ? 'selected' : ''}>Nitrogen</option>
-            <option value="CO2" ${registryGas === 'CO2' ? 'selected' : ''}>CO2</option>
-            <option value="DA" ${registryGas === 'DA' ? 'selected' : ''}>DA</option>
-            <option value="Helium" ${registryGas === 'Helium' ? 'selected' : ''}>Helium</option>
+        <select id="gas-select-${key}" style="padding: 6px 8px; border-radius: 6px; border: 1.5px solid var(--gray-200); width: 100%; font-size: 13px; background: white; font-weight: 500;">
+            <option value="">Select Gas Type...</option>
+            <option value="Oxygen" ${selected === 'Oxygen' ? 'selected' : ''}>Oxygen</option>
+            <option value="Argon" ${selected === 'Argon' ? 'selected' : ''}>Argon</option>
+            <option value="Nitrogen" ${selected === 'Nitrogen' ? 'selected' : ''}>Nitrogen</option>
+            <option value="CO2" ${selected === 'CO2' ? 'selected' : ''}>CO2</option>
+            <option value="DA" ${selected === 'DA' ? 'selected' : ''}>DA</option>
+            <option value="Helium" ${selected === 'Helium' ? 'selected' : ''}>Helium</option>
         </select>
         <div style="margin-top: 6px;">
-            <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
-                <input type="checkbox" id="update-gas-${idx}"> Update Registry Permanently
+            <label style="font-size: 11px; display: flex; align-items: center; gap: 5px; color: var(--gray-700); cursor: pointer;">
+                <input type="checkbox" id="update-gas-${key}"> Update Registry Permanently
             </label>
         </div>
     `;
 }
 
 function renderManualResults() {
-    const tbody = document.getElementById('manual-results-tbody');
-    const cardsDiv = document.getElementById('manual-results-cards');
+    const tbody = document.getElementById('desktop-results-tbody');
+    const cardsDiv = document.getElementById('mobile-results-cards');
     tbody.innerHTML = '';
     cardsDiv.innerHTML = '';
     
@@ -1855,129 +2349,159 @@ function renderManualResults() {
     let warn = 0;
     
     verifiedItems.forEach((item, idx) => {
-        // Compute Status
-        let statusColor = "var(--green-700)";
-        let statusTitle = "OK";
-        let hasError = false;
+        let category = 'ready';
+        let statusBadgeClass = 'badge-ok';
+        let cardStatusClass = 'status-ok';
+        let statusText = 'Ready ✓';
+        let detailMsg = 'Ready for submission';
         
         if (item.error) {
-            statusColor = "#dc2626";
-            statusTitle = item.status;
-            hasError = true;
+            category = 'error';
+            statusBadgeClass = 'badge-err';
+            cardStatusClass = 'status-err';
+            statusText = item.status || 'Error ⚠';
+            detailMsg = item.result_msg || 'Cannot submit';
             err++;
         } else if (item.is_duplicate) {
-            statusColor = "#ea580c";
-            statusTitle = "Duplicate Entry";
-            hasError = true;
+            category = 'error';
+            statusBadgeClass = 'badge-err';
+            cardStatusClass = 'status-err';
+            statusText = 'Duplicate Entry';
+            detailMsg = 'Duplicate cylinder in submission';
             err++;
         } else if (item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
-            statusColor = "#ea580c";
-            statusTitle = item.status === 'Unmatched' ? 'Unregistered' : 'Mapped';
+            category = 'warning';
+            statusBadgeClass = 'badge-warn';
+            cardStatusClass = 'status-warn';
+            statusText = item.status === 'Unmatched' ? 'Unregistered ℹ' : 'Mapped ✓';
+            detailMsg = item.status === 'Unmatched' ? 'Will create new record' : 'Mapped to Master UID';
             warn++;
         } else {
             ready++;
         }
         
-        let statusSub = hasError ? item.result_msg : (item.status === 'Unmatched' ? 'Will be created' : (item.status === 'Found through manual mapping' ? 'Mapped to Master' : 'Ready for submission'));
+        // Filter out if not matching active filter
+        if (currentFilter !== 'all' && currentFilter !== category) {
+            return;
+        }
         
-        // ---------------- TABLE ROW (DESKTOP) ----------------
-        let tr = document.createElement('tr');
-        tr.style.borderBottom = '1px solid #eee';
+        // 1. DESKTOP ROW
+        const tr = document.createElement('tr');
         
-        let idHtml = `<strong style="color: var(--green-900); font-size:14px;">${item.entered_id}</strong>`;
-        if (item.master_id !== item.entered_id) idHtml += `<br><small style="color: var(--gray-700);">Alias for: ${item.master_id}</small>`;
+        let idDisplay = `<strong style="font-size: 14px; color: var(--green-900);">${item.entered_id}</strong>`;
+        if (item.master_id && item.master_id !== item.entered_id) {
+            idDisplay += `<div style="font-size: 11px; color: var(--gray-700); margin-top: 2px;">Alias for: <strong>${item.master_id}</strong></div>`;
+        }
         
-        let statusHtml = `<span style="color: ${statusColor}; font-weight: 600;">${statusTitle}</span><br><small style="color: var(--gray-700);">${statusSub}</small>`;
+        let statusDisplay = `<span class="res-card-badge ${statusBadgeClass}">${statusText}</span><div style="font-size: 12px; color: var(--gray-700); margin-top: 4px;">${detailMsg}</div>`;
         
-        let gasHtml = ``;
-        if (!hasError) {
-            gasHtml = getGasSelectHtml(idx, item.registry_gas);
+        let actionDisplay = '';
+        if (!item.error && !item.is_duplicate) {
+            actionDisplay = getGasSelectHtml(idx, item.registry_gas);
             if (item.status === 'Unmatched') {
-                gasHtml += `
+                actionDisplay += `
                     <div style="margin-top: 8px; display: flex; gap: 4px;">
-                        <input type="text" id="map-master-${idx}" placeholder="Map to Master UID" style="width: 120px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
-                        <button onclick="applyMapping(${idx})" style="padding: 4px 8px; font-size: 11px; background: var(--green-500); color: #fff; border: none; border-radius: 4px;">Map</button>
+                        <input type="text" id="map-master-${idx}" placeholder="Map to Master UID" style="flex: 1; padding: 5px; border: 1.5px solid var(--gray-200); border-radius: 4px; font-size: 12px;">
+                        <button type="button" onclick="applyMapping(${idx})" style="padding: 4px 10px; font-size: 11px; background: var(--green-700); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: 600;">Map</button>
                     </div>
                 `;
             }
+        } else {
+            actionDisplay = `<span style="color: #dc2626; font-size: 12px; font-weight: 500;">Action blocked</span>`;
         }
         
-        tr.innerHTML = `<td style="padding: 12px; vertical-align: top;">${idHtml}</td>
-                        <td style="padding: 12px; vertical-align: top;">${statusHtml}</td>
-                        <td style="padding: 12px; vertical-align: top;">${gasHtml}</td>`;
+        tr.innerHTML = `<td>${idDisplay}</td><td>${statusDisplay}</td><td>${actionDisplay}</td>`;
         tbody.appendChild(tr);
         
-        // ---------------- CARD (MOBILE) ----------------
-        let card = document.createElement('div');
-        card.className = 'result-card';
-        card.style.borderLeft = `4px solid ${statusColor}`;
+        // 2. MOBILE CARD
+        const card = document.createElement('div');
+        card.className = `res-card ${cardStatusClass}`;
         
-        let cardId = item.entered_id;
-        let cardIcon = hasError ? 'âš ' : (statusTitle === 'Unregistered' ? 'â„¹' : 'âœ“');
-        
-        let cardInner = `
-            <div class="result-card-header">
-                <div class="result-card-id">${cardId} <span style="color: ${statusColor};">${cardIcon}</span></div>
-                <div style="font-size: 11px; color: ${statusColor}; font-weight: 600;">${statusTitle}</div>
+        let cardContent = `
+            <div class="res-card-header">
+                <div class="res-card-title">${item.entered_id}</div>
+                <span class="res-card-badge ${statusBadgeClass}">${statusText}</span>
             </div>
         `;
-        if (item.master_id !== item.entered_id) {
-            cardInner += `<div class="result-card-row"><div class="result-card-label">Mapped to</div><div class="result-card-val">${item.master_id}</div></div>`;
+        if (item.master_id && item.master_id !== item.entered_id) {
+            cardContent += `<div class="res-card-field"><span class="res-card-label">Master ID</span><span class="res-card-val">${item.master_id}</span></div>`;
         }
-        cardInner += `<div class="result-card-row"><div class="result-card-label">Status</div><div class="result-card-val">${statusSub}</div></div>`;
+        cardContent += `<div class="res-card-field"><span class="res-card-label">Validation</span><span class="res-card-val" style="font-weight: 500;">${detailMsg}</span></div>`;
         
-        if (!hasError) {
-            cardInner += `<div style="margin-top: 12px;">
-                <label style="font-size: 12px; color: var(--gray-700); margin-bottom: 4px; display:block;">Transaction Gas Type</label>
-                ${getGasSelectHtml(idx + '_mob', item.registry_gas)}
-            </div>`;
+        if (!item.error && !item.is_duplicate) {
+            cardContent += `
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #f0f1ed;">
+                    <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--gray-700); display: block; margin-bottom: 4px;">Gas Type</label>
+                    ${getGasSelectHtml(idx + '_mob', item.registry_gas)}
+                </div>
+            `;
             if (item.status === 'Unmatched') {
-                cardInner += `
-                    <div style="margin-top: 12px; padding-top: 12px; border-top: 1px solid #eee;">
-                        <label style="font-size: 12px; color: var(--gray-700); margin-bottom: 4px; display:block;">Map to existing cylinder?</label>
-                        <div style="display: flex; gap: 8px;">
-                            <input type="text" id="map-master-${idx}_mob" placeholder="Master UID" style="flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 4px;">
-                            <button onclick="applyMapping(${idx}, true)" class="btn-primary" style="padding: 0 16px; border-radius: 4px;">Map</button>
+                cardContent += `
+                    <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e8e9e4;">
+                        <label style="font-size: 11px; font-weight: 700; color: var(--gray-700); display: block; margin-bottom: 4px;">Map to Existing Master Cylinder?</label>
+                        <div style="display: flex; gap: 6px;">
+                            <input type="text" id="map-master-${idx}_mob" placeholder="Master UID" style="flex: 1; padding: 8px; border: 1.5px solid var(--gray-200); border-radius: 6px; font-size: 14px;">
+                            <button type="button" onclick="applyMapping(${idx}, true)" class="btn-primary" style="padding: 0 16px; border-radius: 6px; font-weight: 600; font-size: 13px;">Map</button>
                         </div>
                     </div>
                 `;
             }
         }
-        card.innerHTML = cardInner;
+        card.innerHTML = cardContent;
         cardsDiv.appendChild(card);
     });
     
     // Update summary counts
-    document.getElementById('mob-sum-total').innerText = total;
-    document.getElementById('mob-sum-ready').innerText = ready;
-    document.getElementById('mob-sum-warn').innerText = warn;
-    document.getElementById('mob-sum-err').innerText = err;
+    document.getElementById('sum-total').innerText = total;
+    document.getElementById('sum-ready').innerText = ready;
+    document.getElementById('sum-warn').innerText = warn;
+    document.getElementById('sum-err').innerText = err;
     
-    document.getElementById('desk-sum-total').innerHTML = `<strong>Total:</strong> ${total}`;
-    document.getElementById('desk-sum-ready').innerHTML = `<strong>Ready:</strong> ${ready}`;
-    document.getElementById('desk-sum-warn').innerHTML = `<strong>Warnings:</strong> ${warn}`;
-    document.getElementById('desk-sum-err').innerHTML = `<strong>Errors:</strong> ${err}`;
+    document.getElementById('count-pill-all').innerText = total;
+    document.getElementById('count-pill-ready').innerText = ready;
+    document.getElementById('count-pill-warn').innerText = warn;
+    document.getElementById('count-pill-err').innerText = err;
     
-    document.getElementById('mobile-action-summary').innerText = `${ready + warn} valid Â· ${err} errors`;
+    const validCount = ready + warn;
+    document.getElementById('mobile-action-summary').innerText = `${validCount} ready · ${err} errors`;
     
-    const btnSubmitDesk = document.getElementById('btn-submit-manual-desktop');
-    const btnSubmitMob = document.getElementById('btn-submit-manual-mobile');
+    const btnDesk = document.getElementById('btn-submit-desktop');
+    const btnMob = document.getElementById('btn-submit-mobile');
     
     if (err > 0) {
-        btnSubmitDesk.disabled = true; btnSubmitDesk.style.opacity = '0.5'; btnSubmitDesk.innerText = 'Resolve errors to submit';
-        btnSubmitMob.disabled = true; btnSubmitMob.style.opacity = '0.5'; btnSubmitMob.innerText = 'Resolve errors to submit';
+        if (btnDesk) {
+            btnDesk.disabled = true;
+            btnDesk.style.opacity = '0.5';
+            btnDesk.innerText = `Fix ${err} error(s) to submit`;
+        }
+        if (btnMob) {
+            btnMob.disabled = true;
+            btnMob.style.opacity = '0.5';
+            btnMob.innerText = `Fix ${err} error(s) to submit`;
+        }
     } else {
-        btnSubmitDesk.disabled = false; btnSubmitDesk.style.opacity = '1'; btnSubmitDesk.innerText = `Submit ${total} Transactions`;
-        btnSubmitMob.disabled = false; btnSubmitMob.style.opacity = '1'; btnSubmitMob.innerText = `Submit Verified Entries`;
+        if (btnDesk) {
+            btnDesk.disabled = false;
+            btnDesk.style.opacity = '1';
+            btnDesk.innerText = `Submit ${total} Verified Transactions`;
+        }
+        if (btnMob) {
+            btnMob.disabled = false;
+            btnMob.style.opacity = '1';
+            btnMob.innerText = `Submit ${total} Verified Entries`;
+        }
     }
     
-    document.getElementById('manual-results-section').style.display = 'block';
+    document.getElementById('manual-empty-state').style.display = 'none';
+    document.getElementById('manual-results-content').style.display = 'block';
     document.getElementById('mobile-action-bar').style.display = 'block';
 }
 
 function applyMapping(idx, isMobile=false) {
     const idKey = isMobile ? `map-master-${idx}_mob` : `map-master-${idx}`;
-    const masterId = document.getElementById(idKey).value.trim().toUpperCase();
+    const el = document.getElementById(idKey);
+    if (!el) return;
+    const masterId = el.value.trim().toUpperCase();
     if (masterId) {
         verifiedItems[idx].master_id = masterId;
         verifiedItems[idx].error = false;
@@ -1988,30 +2512,33 @@ function applyMapping(idx, isMobile=false) {
 
 async function submitManualScans() {
     const action = document.getElementById('manual-action-select').value;
-    const customer = document.getElementById('manual-customer-select').value;
-    if ((action === 'Delivery' || action === 'Collection') && !customer) { alert("Please select a customer."); return; }
+    const customer = (document.getElementById('manual-customer-select').value || '').trim();
+    if ((action === 'Delivery' || action === 'Collection') && !customer) { 
+        alert("Please select a customer."); 
+        return; 
+    }
     
     let itemsToSubmit = [];
-    // Only one layout's inputs are actively visible, but we can check the desktop first, and fallback to mobile if missing or empty
+    const isDesk = window.innerWidth >= 992;
+    
     for (let i = 0; i < verifiedItems.length; i++) {
         let item = verifiedItems[i];
         if (item.error || item.is_duplicate) continue;
         
-        // Find gas select value (Desktop or Mobile)
         let deskSelect = document.getElementById(`gas-select-${i}`);
         let mobSelect = document.getElementById(`gas-select-${i}_mob`);
         let val = "";
-        let deskVisible = window.innerWidth >= 768;
-        
-        if (deskVisible && deskSelect) { val = deskSelect.value; }
-        else if (!deskVisible && mobSelect) { val = mobSelect.value; }
+        if (isDesk && deskSelect) { val = deskSelect.value; }
+        else if (!isDesk && mobSelect) { val = mobSelect.value; }
+        else if (deskSelect) { val = deskSelect.value; }
+        else if (mobSelect) { val = mobSelect.value; }
         
         let deskUpdate = document.getElementById(`update-gas-${i}`);
         let mobUpdate = document.getElementById(`update-gas-${i}_mob`);
         let upd = false;
-        
-        if (deskVisible && deskUpdate) { upd = deskUpdate.checked; }
-        else if (!deskVisible && mobUpdate) { upd = mobUpdate.checked; }
+        if (isDesk && deskUpdate) { upd = deskUpdate.checked; }
+        else if (!isDesk && mobUpdate) { upd = mobUpdate.checked; }
+        else if (deskUpdate) { upd = deskUpdate.checked; }
         
         itemsToSubmit.push({
             entered_id: item.entered_id,
@@ -2023,10 +2550,10 @@ async function submitManualScans() {
     
     if (itemsToSubmit.length === 0) return;
     
-    document.getElementById('btn-submit-manual-desktop').disabled = true;
-    document.getElementById('btn-submit-manual-desktop').innerText = 'Submitting...';
-    document.getElementById('btn-submit-manual-mobile').disabled = true;
-    document.getElementById('btn-submit-manual-mobile').innerText = 'Submitting...';
+    const btnDesk = document.getElementById('btn-submit-desktop');
+    const btnMob = document.getElementById('btn-submit-mobile');
+    if (btnDesk) { btnDesk.disabled = true; btnDesk.innerText = "Submitting..."; }
+    if (btnMob) { btnMob.disabled = true; btnMob.innerText = "Submitting..."; }
     
     try {
         const response = await fetch('/api/admin/scan/submit_manual', {
@@ -2037,14 +2564,17 @@ async function submitManualScans() {
         const data = await response.json();
         if (data.error) {
             alert(data.error);
+            if (btnDesk) { btnDesk.disabled = false; btnDesk.innerText = "Submit Verified Transactions"; }
+            if (btnMob) { btnMob.disabled = false; btnMob.innerText = "Submit Verified Entries"; }
         } else {
             alert("Transactions submitted successfully!");
             clearManualForm();
         }
     } catch (err) {
         alert("Network error submitting transactions.");
+        if (btnDesk) { btnDesk.disabled = false; btnDesk.innerText = "Submit Verified Transactions"; }
+        if (btnMob) { btnMob.disabled = false; btnMob.innerText = "Submit Verified Entries"; }
     }
-    renderManualResults(); // re-evaluates button states based on remaining errors
 }
 </script>
 
