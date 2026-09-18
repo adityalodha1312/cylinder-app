@@ -1,4 +1,4 @@
-from db import db
+﻿from db import db
 from datetime import datetime
 
 class User(db.Model):
@@ -108,6 +108,7 @@ class Scan(db.Model):
     cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
     customer = db.Column(db.String(255), index=True)
     gas_type = db.Column(db.String(50))
+    entry_source = db.Column(db.String(50), default='qr')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -175,6 +176,7 @@ class Product(db.Model):
     product_id = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(100))
     gas_type = db.Column(db.String(50))
+    entry_source = db.Column(db.String(50), default='qr')
     cylinder_type = db.Column(db.String(50))
     gas_per_cyl = db.Column(db.Float, default=0.0)
     unit = db.Column(db.String(20))
@@ -229,6 +231,7 @@ class AdminScanLog(db.Model):
     scan_time = db.Column(db.String(50))
     cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
     gas_type = db.Column(db.String(50))
+    entry_source = db.Column(db.String(50), default='qr')
     customer = db.Column(db.String(255), index=True)
     action = db.Column(db.String(50), nullable=False)
     admin_name = db.Column(db.String(100))
@@ -332,7 +335,7 @@ class DriverJob(db.Model):
             'assigned_at': self.assigned_at.strftime('%d-%m-%Y %H:%M') if self.assigned_at else '',
             'completed_at': self.completed_at.strftime('%d-%m-%Y %H:%M') if self.completed_at else '',
             'notes': self.notes or ''
-            # NOTE: customer is intentionally excluded — never sent to driver
+            # NOTE: customer is intentionally excluded â€” never sent to driver
         }
 
 class CommercialOffer(db.Model):
@@ -358,7 +361,7 @@ class CommercialOffer(db.Model):
         }
 
 
-# ── Spare Parts Inventory ──────────────────────────────────────────
+# â”€â”€ Spare Parts Inventory â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class SpareItem(db.Model):
     __tablename__ = 'spare_items'
@@ -411,7 +414,7 @@ class SpareTransaction(db.Model):
         }
 
 
-# ── Vehicle Fuel Tracking ──────────────────────────────────────────
+# â”€â”€ Vehicle Fuel Tracking â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 class Vehicle(db.Model):
     __tablename__ = 'vehicles'
@@ -473,3 +476,23 @@ class VehicleRefuelling(db.Model):
             'notes': self.notes or '',
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
         }
+
+class CylinderAlias(db.Model):
+    __tablename__ = 'cylinder_aliases'
+    id = db.Column(db.Integer, primary_key=True)
+    cylinder_id = db.Column(db.Integer, db.ForeignKey('cylinders.id'), nullable=False)
+    alias_name = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    created_by = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class GasTypeHistory(db.Model):
+    __tablename__ = 'gas_type_history'
+    id = db.Column(db.Integer, primary_key=True)
+    cylinder_id = db.Column(db.Integer, db.ForeignKey('cylinders.id'), nullable=False)
+    old_gas_type = db.Column(db.String(50))
+    entry_source = db.Column(db.String(50), default='qr')
+    new_gas_type = db.Column(db.String(50))
+    entry_source = db.Column(db.String(50), default='qr')
+    changed_by = db.Column(db.String(50))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+

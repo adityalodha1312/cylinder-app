@@ -205,7 +205,7 @@
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { background: var(--gray-200); cursor: not-allowed; }
 
-  /* ── SUCCESS SCREEN ── */
+  /* â”€â”€ SUCCESS SCREEN â”€â”€ */
   #success-screen {
     display: none;
     position: fixed;
@@ -310,7 +310,7 @@
   .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
   .status-badge.warning { background: #fffbeb; color: #b45309; border: 1.5px solid #fde68a; }
 
-  /* ── CUSTOM SEARCHABLE DROPDOWN ── */
+  /* â”€â”€ CUSTOM SEARCHABLE DROPDOWN â”€â”€ */
   .autocomplete-container {
     position: relative;
   }
@@ -346,7 +346,7 @@
     font-weight: 500;
   }
 
-  /* ── TOP STATS BAR ── */
+  /* â”€â”€ TOP STATS BAR â”€â”€ */
   .top-stats-bar {
     display: flex;
     flex-direction: column;
@@ -432,7 +432,7 @@
     flex-shrink: 0;
   }
 
-  /* ── WIZARD LAYOUT & PROGRESS BAR ── */
+  /* â”€â”€ WIZARD LAYOUT & PROGRESS BAR â”€â”€ */
   .step-container {
     display: none;
     animation: fadeIn 0.2s ease-in-out;
@@ -484,7 +484,7 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
   }
 
-  /* ── WIZARD BACK BUTTON ── */
+  /* â”€â”€ WIZARD BACK BUTTON â”€â”€ */
   .nav-back-btn {
     padding: 15px;
     background: white;
@@ -503,7 +503,7 @@
     background: #fcfcfb;
   }
 
-  /* ── STEP 2 FEED ── */
+  /* â”€â”€ STEP 2 FEED â”€â”€ */
   .scan-feed {
     margin-top: 14px;
     margin-bottom: 20px;
@@ -587,11 +587,21 @@
 </div>
 
 <div id="offline-banner">
-  ⚠️ You are currently offline. Scans will be saved and synced automatically when you reconnect.
+  âš ï¸ You are currently offline. Scans will be saved and synced automatically when you reconnect.
 </div>
 
 
 
+
+<!-- ADMIN ENTRY TOGGLE -->
+{% if user and user['role'] in ['manager', 'owner'] %}
+<div style="padding: 16px 20px 0; max-width: 800px; margin: 0 auto;">
+  <div style="display: flex; background: #fff; border-radius: 12px; padding: 4px; border: 1.5px solid var(--gray-200);">
+    <button id="toggle-qr-mode" class="mode-toggle active" onclick="setEntryMode('qr')" style="flex: 1; padding: 10px; border: none; background: var(--green-500); color: white; border-radius: 8px; font-weight: 600; cursor: pointer;">📷 QR Scanner</button>
+    <button id="toggle-manual-mode" class="mode-toggle" onclick="setEntryMode('manual')" style="flex: 1; padding: 10px; border: none; background: transparent; color: var(--gray-700); border-radius: 8px; font-weight: 600; cursor: pointer;">⌨️ Manual Entry</button>
+  </div>
+</div>
+{% endif %}
 
 <!-- MAIN FORM -->
 <div class="form-body" id="main-form">
@@ -637,7 +647,7 @@
     </div>
 
 
-    <!-- Customer field — shown below scan mode when Delivery or Collection is selected -->
+    <!-- Customer field â€” shown below scan mode when Delivery or Collection is selected -->
     <div class="field" id="customer-field" style="display: none; margin-top: 12px;">
       <label>Customer Name</label>
       <div class="autocomplete-container">
@@ -726,7 +736,7 @@
           <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
           <div class="status-badge" style="display: none;"></div>
         </div>
-        <button class="remove-btn" onclick="removeRow(this)">×</button>
+        <button class="remove-btn" onclick="removeRow(this)">Ã—</button>
       </div>
     </div>
 
@@ -753,6 +763,70 @@
   <div class="success-sub" id="success-sub">Data saved to Google Sheets</div>
   <div class="success-details" id="success-details"></div>
   <button class="new-scan-btn" onclick="resetForm()">New Scan</button>
+</div>
+
+
+<!-- MANUAL ENTRY FORM -->
+<div class="form-body" id="manual-form" style="display: none;">
+  <div class="top-stats-bar">
+    <div class="stat-box-mode" id="manual-mode-toggle-card">
+      <div class="stat-mode-left" style="flex: 1; display: flex; flex-direction: column; min-width: 0;">
+        <span class="stat-label">Scan Action</span>
+        <select id="manual-action-select" onchange="toggleManualCustomerField();" class="stat-mode-select">
+          <option value="Delivery">Delivery</option>
+          <option value="Collection">Collection</option>
+          <option value="Filling">Filling</option>
+        </select>
+      </div>
+      <svg class="mode-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.6; margin-left: 8px;">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </div>
+
+    <div class="field" id="manual-customer-field" style="display: none; margin-top: 12px;">
+      <label>Customer Name</label>
+      <div class="autocomplete-container">
+        <input type="text" id="manual-customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showManualCustomerDropdown()" onclick="showManualCustomerDropdown()" oninput="filterManualCustomerDropdown()">
+        <div id="manual-customer-dropdown" class="custom-dropdown-list" style="display: none;">
+          {% for name in customers %}
+            <div class="dropdown-item" onclick="selectManualCustomer(this.textContent)">{{ name }}</div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="field" style="margin-top: 16px;">
+    <label>Cylinder IDs (one per line or comma-separated)</label>
+    <textarea id="manual-uids" rows="5" placeholder="CYL-001245&#10;CYL-001246" style="width: 100%; border-radius: 12px; border: 1.5px solid var(--gray-200); padding: 12px; font-family: monospace; resize: vertical; margin-bottom: 12px;"></textarea>
+    
+    <div style="display: flex; gap: 8px;">
+        <button onclick="verifyManualScans()" class="btn-primary" style="flex: 1;">Verify Cylinders</button>
+        <button onclick="clearManualForm()" class="btn-secondary" style="background: #fff; color: var(--gray-700); padding: 0 16px;">Clear</button>
+    </div>
+  </div>
+
+  <div id="manual-results-section" style="display: none; margin-top: 24px;">
+    <h3 style="font-size: 14px; margin-bottom: 12px;">Verification Results</h3>
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+            <thead style="background: var(--green-50); text-align: left;">
+                <tr>
+                    <th style="padding: 10px;">ID</th>
+                    <th style="padding: 10px;">Status</th>
+                    <th style="padding: 10px;">Action/Gas</th>
+                </tr>
+            </thead>
+            <tbody id="manual-results-tbody">
+                <!-- JS populated -->
+            </tbody>
+        </table>
+    </div>
+    
+    <div style="margin-top: 16px;">
+        <button id="btn-submit-manual" onclick="submitManualScans()" class="btn-primary" style="width: 100%;" disabled>Submit Transactions</button>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -814,7 +888,7 @@ async function fetchActiveJob(isBackground = false) {
       // Empty state
       html = `
         <div style="background:#fff; border-radius:12px; border:1.5px solid var(--gray-bd); padding:24px 16px; text-align:center;">
-          <div style="font-size:24px; margin-bottom:8px;">⏳</div>
+          <div style="font-size:24px; margin-bottom:8px;">â³</div>
           <div style="font-weight:700; color:var(--dark-text); font-size:14px;">No Jobs Assigned Yet</div>
           <div style="font-size:12px; color:var(--gray-text); margin-top:4px;">Please check back later or contact admin.</div>
         </div>
@@ -1047,7 +1121,7 @@ function updateScanFeedList() {
         <div class="scan-feed-row">
           <span class="scan-feed-uid">${val.toUpperCase()}</span>
           <span class="scan-feed-status" style="color: ${statusColor};">
-            ${isConflict ? '⚠️' : isWarning ? '⚠️' : '✓'} ${badgeText}
+            ${isConflict ? 'âš ï¸' : isWarning ? 'âš ï¸' : 'âœ“'} ${badgeText}
           </span>
         </div>
       `;
@@ -1070,7 +1144,7 @@ function addCylinder() {
       <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
       <div class="status-badge" style="display: none;"></div>
     </div>
-    <button class="remove-btn" onclick="removeRow(this)">×</button>`;
+    <button class="remove-btn" onclick="removeRow(this)">Ã—</button>`;
   container.appendChild(div);
 }
 
@@ -1179,7 +1253,7 @@ async function validateRow(inputEl) {
   if (isDuplicate) {
     badgeEl.style.display = "inline-block";
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "⚠️ Duplicate: Already in this scan list";
+    badgeEl.innerText = "âš ï¸ Duplicate: Already in this scan list";
     inputEl.dataset.action = "";
     invalidRows.add(rowDiv);
     updateSubmitButton();
@@ -1208,16 +1282,16 @@ async function validateRow(inputEl) {
       if (currentStatus === "Empty") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "⚠️ Unregistered - Empty (Ready to Fill)";
+          badgeEl.innerText = "âš ï¸ Unregistered - Empty (Ready to Fill)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "✓ Empty (Ready to Fill)";
+          badgeEl.innerText = "âœ“ Empty (Ready to Fill)";
         }
         inputEl.dataset.action = "Filling";
       } else {
         badgeEl.classList.add("conflict");
         let details = currentStatus === "Delivered" ? `with ${owner}` : "Already Filled";
-        badgeEl.innerText = `⚠️ Conflict: Cylinder is ${details}`;
+        badgeEl.innerText = `âš ï¸ Conflict: Cylinder is ${details}`;
         inputEl.dataset.action = "";
         invalidRows.add(rowDiv);
       }
@@ -1226,19 +1300,19 @@ async function validateRow(inputEl) {
       if (currentStatus === "Filled") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "⚠️ Unregistered - Filled (Ready to Deliver)";
+          badgeEl.innerText = "âš ï¸ Unregistered - Filled (Ready to Deliver)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "✓ Filled (Ready to Deliver)";
+          badgeEl.innerText = "âœ“ Filled (Ready to Deliver)";
         }
         inputEl.dataset.action = "Delivery";
       } else if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `⚠️ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `âš ï¸ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
         } else {
           badgeEl.classList.add("delivered");
-          badgeEl.innerText = `↺ Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `â†º Collected (Auto-Switched: Was with ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -1248,7 +1322,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`âš ï¸ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -1259,17 +1333,17 @@ async function validateRow(inputEl) {
         if (FILL_REQUIRED) {
           // Rule ON: block delivery of empty cylinders
           badgeEl.classList.add("conflict");
-          badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
+          badgeEl.innerText = "âš ï¸ Conflict: Cylinder is Empty (Must refill first)";
           inputEl.dataset.action = "";
           invalidRows.add(rowDiv);
         } else {
           // Rule OFF: allow delivery of empty cylinders without warning
           if (data.registered === false) {
             badgeEl.classList.add("warning");
-            badgeEl.innerText = "⚠️ Unregistered - Empty (Delivering as-is)";
+            badgeEl.innerText = "âš ï¸ Unregistered - Empty (Delivering as-is)";
           } else {
             badgeEl.classList.add("filled");
-            badgeEl.innerText = "✓ Empty (Delivering as-is)";
+            badgeEl.innerText = "âœ“ Empty (Delivering as-is)";
           }
           inputEl.dataset.action = "Delivery";
         }
@@ -1279,10 +1353,10 @@ async function validateRow(inputEl) {
       if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `⚠️ Unregistered - Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `âš ï¸ Unregistered - Delivered (Collecting from ${owner})`;
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `âœ“ Delivered (Collecting from ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -1292,7 +1366,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`âš ï¸ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -1302,16 +1376,16 @@ async function validateRow(inputEl) {
       } else {
         badgeEl.classList.add("warning");
         if (currentStatus === "Filled") {
-          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Filled/In Depot)";
+          badgeEl.innerText = "âš ï¸ Collection (Warning: Cylinder marked Filled/In Depot)";
         } else {
-          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Empty/In Depot)";
+          badgeEl.innerText = "âš ï¸ Collection (Warning: Cylinder marked Empty/In Depot)";
         }
         inputEl.dataset.action = "Collection";
       }
     }
   } catch (err) {
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "⚠️ Error verifying cylinder status";
+    badgeEl.innerText = "âš ï¸ Error verifying cylinder status";
     invalidRows.add(rowDiv);
   }
   
@@ -1466,7 +1540,7 @@ function resetForm() {
         <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">×</button>
+      <button class="remove-btn" onclick="removeRow(this)">Ã—</button>
     </div>`;
   invalidRows.clear();
   updateCount();
@@ -1503,7 +1577,7 @@ function onScanSuccess(decodedText) {
   let inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i].value === decodedText) {
-      showStatus("⚠ Already scanned: " + decodedText);
+      showStatus("âš  Already scanned: " + decodedText);
       setTimeout(() => {
         scanLocked = false;
         if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
@@ -1534,7 +1608,7 @@ function onScanSuccess(decodedText) {
         <input type="text" name="cylinders" value="${decodedText}" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">×</button>`;
+      <button class="remove-btn" onclick="removeRow(this)">Ã—</button>`;
     container.appendChild(div);
     let newlyAddedInput = div.querySelector('input');
     validateRow(newlyAddedInput);
@@ -1542,7 +1616,7 @@ function onScanSuccess(decodedText) {
 
   updateCount();
   beep.play();
-  showStatus("✓ Added: " + decodedText);
+  showStatus("âœ“ Added: " + decodedText);
   setTimeout(() => {
     scanLocked = false;
     if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
@@ -1576,6 +1650,257 @@ html5QrcodeScanner.render(onScanSuccess);
   window.addEventListener('online', updateOnlineStatus);
   window.addEventListener('offline', updateOnlineStatus);
   updateOnlineStatus();
+</script>
+
+
+<script>
+let verifiedItems = [];
+
+function setEntryMode(mode) {
+    const btnQr = document.getElementById('toggle-qr-mode');
+    const btnMan = document.getElementById('toggle-manual-mode');
+    const formQr = document.getElementById('main-form');
+    const formMan = document.getElementById('manual-form');
+    
+    if (mode === 'qr') {
+        btnQr.style.background = 'var(--green-500)';
+        btnQr.style.color = 'white';
+        btnMan.style.background = 'transparent';
+        btnMan.style.color = 'var(--gray-700)';
+        formQr.style.display = 'block';
+        formMan.style.display = 'none';
+        
+        // Restart scanner if possible
+        if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
+            try { html5QrcodeScanner.resume(); } catch (e) {}
+        }
+    } else {
+        btnMan.style.background = 'var(--green-500)';
+        btnMan.style.color = 'white';
+        btnQr.style.background = 'transparent';
+        btnQr.style.color = 'var(--gray-700)';
+        formQr.style.display = 'none';
+        formMan.style.display = 'block';
+        
+        // Pause scanner to save battery
+        if (typeof html5QrcodeScanner !== 'undefined' && html5QrcodeScanner) {
+            try { html5QrcodeScanner.pause(true); } catch (e) {}
+        }
+        toggleManualCustomerField();
+    }
+}
+
+function toggleManualCustomerField() {
+    const action = document.getElementById('manual-action-select').value;
+    const field = document.getElementById('manual-customer-field');
+    if (action === 'Delivery' || action === 'Collection') {
+        field.style.display = 'block';
+    } else {
+        field.style.display = 'none';
+    }
+}
+
+function showManualCustomerDropdown() {
+    document.getElementById('manual-customer-dropdown').style.display = 'block';
+}
+
+function filterManualCustomerDropdown() {
+    let filter = document.getElementById('manual-customer-select').value.toUpperCase();
+    let div = document.getElementById('manual-customer-dropdown');
+    let items = div.getElementsByClassName('dropdown-item');
+    for (let i = 0; i < items.length; i++) {
+        let txtValue = items[i].textContent || items[i].innerText;
+        if (txtValue.toUpperCase().indexOf(filter) > -1) {
+            items[i].style.display = "";
+        } else {
+            items[i].style.display = "none";
+        }
+    }
+}
+
+function selectManualCustomer(val) {
+    document.getElementById('manual-customer-select').value = val;
+    document.getElementById('manual-customer-dropdown').style.display = 'none';
+}
+
+function clearManualForm() {
+    document.getElementById('manual-uids').value = '';
+    document.getElementById('manual-results-section').style.display = 'none';
+    verifiedItems = [];
+}
+
+async function verifyManualScans() {
+    const uids = document.getElementById('manual-uids').value;
+    const action = document.getElementById('manual-action-select').value;
+    
+    if (!uids.trim()) {
+        showToast("Please enter at least one Cylinder ID.", "error");
+        return;
+    }
+    
+    showToast("Verifying...", "info");
+    try {
+        const response = await fetch('/api/admin/scan/verify', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ uids, action })
+        });
+        
+        const data = await response.json();
+        if (data.error) {
+            showToast(data.error, "error");
+            return;
+        }
+        
+        verifiedItems = data.results;
+        renderManualResults();
+    } catch (err) {
+        showToast("Network error verifying scans.", "error");
+    }
+}
+
+function renderManualResults() {
+    const tbody = document.getElementById('manual-results-tbody');
+    tbody.innerHTML = '';
+    let hasErrors = false;
+    
+    verifiedItems.forEach((item, idx) => {
+        let tr = document.createElement('tr');
+        tr.style.borderBottom = '1px solid #eee';
+        
+        // 1. ID Cell
+        let idHtml = `<strong style="color: var(--green-900);">${item.entered_id}</strong>`;
+        if (item.master_id !== item.entered_id) {
+            idHtml += `<br><small style="color: var(--gray-700);">Alias for: ${item.master_id}</small>`;
+        }
+        
+        // 2. Status Cell
+        let statusHtml = ``;
+        if (item.error) {
+            statusHtml = `<span style="color: #dc2626; font-weight: 500;">${item.status}</span><br><small>${item.result_msg}</small>`;
+            hasErrors = true;
+        } else if (item.is_duplicate) {
+            statusHtml = `<span style="color: #ea580c; font-weight: 500;">Duplicate Entry</span>`;
+            hasErrors = true;
+        } else {
+            statusHtml = `<span style="color: var(--green-700); font-weight: 500;">OK</span>`;
+        }
+        
+        // 3. Action/Gas Cell
+        let gasHtml = ``;
+        if (!item.error && !item.is_duplicate) {
+            gasHtml = `
+                <select id="gas-select-${idx}" style="padding: 4px; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="Oxygen" ${item.registry_gas === 'Oxygen' ? 'selected' : ''}>Oxygen</option>
+                    <option value="Argon" ${item.registry_gas === 'Argon' ? 'selected' : ''}>Argon</option>
+                    <option value="Nitrogen" ${item.registry_gas === 'Nitrogen' ? 'selected' : ''}>Nitrogen</option>
+                    <option value="CO2" ${item.registry_gas === 'CO2' ? 'selected' : ''}>CO2</option>
+                    <option value="DA" ${item.registry_gas === 'DA' ? 'selected' : ''}>DA</option>
+                    <option value="Helium" ${item.registry_gas === 'Helium' ? 'selected' : ''}>Helium</option>
+                </select>
+                <div style="margin-top: 4px;">
+                    <label style="font-size: 11px; display: flex; align-items: center; gap: 4px;">
+                        <input type="checkbox" id="update-gas-${idx}"> Update Registry
+                    </label>
+                </div>
+            `;
+        }
+        
+        // If unmatched, provide an input to map it
+        if (item.status === 'Unmatched') {
+            gasHtml = `
+                <input type="text" id="map-master-${idx}" placeholder="Master UID" style="width: 100px; padding: 4px; border: 1px solid #ddd; border-radius: 4px;">
+                <button onclick="applyMapping(${idx})" style="padding: 4px 8px; font-size: 11px; background: var(--green-500); color: #fff; border: none; border-radius: 4px;">Map</button>
+            `;
+        }
+        
+        tr.innerHTML = `
+            <td style="padding: 10px; vertical-align: top;">${idHtml}</td>
+            <td style="padding: 10px; vertical-align: top;">${statusHtml}</td>
+            <td style="padding: 10px; vertical-align: top;">${gasHtml}</td>
+        `;
+        tbody.appendChild(tr);
+    });
+    
+    document.getElementById('manual-results-section').style.display = 'block';
+    
+    const btnSubmit = document.getElementById('btn-submit-manual');
+    if (hasErrors) {
+        btnSubmit.disabled = true;
+        btnSubmit.style.opacity = '0.5';
+        btnSubmit.innerText = 'Resolve errors to submit';
+    } else {
+        btnSubmit.disabled = false;
+        btnSubmit.style.opacity = '1';
+        btnSubmit.innerText = `Submit ${verifiedItems.length} Transactions`;
+    }
+}
+
+function applyMapping(idx) {
+    const masterId = document.getElementById(`map-master-${idx}`).value.trim().toUpperCase();
+    if (masterId) {
+        verifiedItems[idx].master_id = masterId;
+        // Since we mapped it manually, we pretend it's found for the sake of the UI submission payload.
+        // The backend will re-validate if this master actually exists when we submit.
+        verifiedItems[idx].error = false;
+        verifiedItems[idx].status = 'Found through manual mapping';
+        renderManualResults();
+    }
+}
+
+async function submitManualScans() {
+    const action = document.getElementById('manual-action-select').value;
+    const customer = document.getElementById('manual-customer-select').value;
+    
+    if ((action === 'Delivery' || action === 'Collection') && !customer) {
+        showToast("Please select a customer.", "error");
+        return;
+    }
+    
+    let itemsToSubmit = [];
+    for (let i = 0; i < verifiedItems.length; i++) {
+        let item = verifiedItems[i];
+        if (item.error || item.is_duplicate) continue;
+        
+        let gasSelect = document.getElementById(`gas-select-${i}`);
+        let gasUpdate = document.getElementById(`update-gas-${i}`);
+        
+        itemsToSubmit.push({
+            entered_id: item.entered_id,
+            master_id: item.master_id,
+            transaction_gas: gasSelect ? gasSelect.value : '',
+            update_registry_gas: gasUpdate ? gasUpdate.checked : false
+        });
+    }
+    
+    if (itemsToSubmit.length === 0) return;
+    
+    const btnSubmit = document.getElementById('btn-submit-manual');
+    btnSubmit.disabled = true;
+    btnSubmit.innerText = 'Submitting...';
+    
+    try {
+        const response = await fetch('/api/admin/scan/submit_manual', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ action, customer, items: itemsToSubmit })
+        });
+        
+        const data = await response.json();
+        if (data.error) {
+            showToast(data.error, "error");
+            btnSubmit.disabled = false;
+            btnSubmit.innerText = 'Submit Transactions';
+        } else {
+            showToast("Transactions submitted successfully!", "success");
+            clearManualForm();
+        }
+    } catch (err) {
+        showToast("Network error submitting transactions.", "error");
+        btnSubmit.disabled = false;
+        btnSubmit.innerText = 'Submit Transactions';
+    }
+}
 </script>
 
 </body>
