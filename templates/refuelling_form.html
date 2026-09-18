@@ -1,0 +1,139 @@
+﻿{% extends "admin_base.html" %}
+{% block title %}{{ 'Add Refuelling' if mode == 'add' else 'Edit Refuelling' }}{% endblock %}
+{% block head %}
+<style>
+  .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; flex-wrap: wrap; }
+  .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #f1efe8; color: var(--gray-text); border: 1.5px solid var(--gray-bd); border-radius: 9px; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.15s; }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+  .form-section { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .form-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1.5px solid var(--green-50); color: var(--green-700); }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; margin-bottom: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--dark-text); }
+  .form-group input, .form-group select, .form-group textarea { padding: 9px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--dark-text); background: #fff; outline: none; transition: border-color 0.15s; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--green-500); }
+  .form-group .hint { font-size: 11px; color: var(--gray-text); }
+  .btn-submit { display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 12px 24px; background: var(--green-700); color: #fff; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.15s; margin-top: 10px; width: auto; }
+  .btn-submit:hover { background: var(--green-500); }
+  .error-box { background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+  .error-box h4 { margin: 0 0 8px; color: #b91c1c; font-size: 14px; }
+  .error-box ul { margin: 0; padding-left: 20px; color: #b91c1c; font-size: 13px; }
+  
+  #calc-preview { background: var(--green-50); border: 1.5px solid var(--green-500); border-radius: 10px; padding: 14px 18px; margin-top: 16px; margin-bottom: 20px; display: none; }
+  .preview-label { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--green-700); margin-bottom: 8px; }
+  .preview-stats { display: flex; gap: 24px; flex-wrap: wrap; }
+  .p-stat-name { font-size: 12px; color: var(--gray-text); font-weight: 600; }
+  .p-stat-val { font-size: 20px; color: var(--green-900); font-weight: 700; font-family: monospace; }
+  .p-stat-unit { font-size: 12px; color: var(--gray-text); }
+  @media (max-width: 600px) { .btn-submit { width: 100%; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="/admin/vehicles/{{ vehicle.id }}" class="back-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    {{ vehicle.vehicle_number }}
+  </a>
+  <h1 class="page-title" style="margin:0;">{{ 'Add Refuelling' if mode == 'add' else 'Edit Refuelling' }}</h1>
+</div>
+<p class="page-sub" style="margin-bottom:24px;">{{ vehicle.vehicle_number }} — {{ vehicle.fuel_type or 'Vehicle' }}</p>
+
+{% if errors %}
+<div class="error-box">
+  <h4>Please correct the following errors:</h4>
+  <ul>
+    {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="POST" action="{% if mode == 'add' %}/admin/vehicles/{{ vehicle.id }}/refuellings/new{% else %}/admin/vehicles/{{ vehicle.id }}/refuellings/{{ refuelling.id }}/edit{% endif %}" class="form-section">
+  <div class="form-section-title">Refuelling Details</div>
+  
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Fuel Date *</label>
+      <input type="text" name="fuel_date" value="{{ form_data.get('fuel_date', '') }}" required placeholder="DD-MM-YYYY">
+      <span class="hint">Format: DD-MM-YYYY</span>
+    </div>
+    <div class="form-group">
+      <label>Fuel Quantity (Litres) *</label>
+      <input type="number" step="0.001" min="0.001" name="fuel_quantity_litres" id="inp-qty" value="{{ form_data.get('fuel_quantity_litres', '') }}" required>
+    </div>
+    <div class="form-group">
+      <label>Total Fuel Price (&#8377;) *</label>
+      <input type="number" step="0.01" min="0" name="fuel_price_total" value="{{ form_data.get('fuel_price_total', '') }}" required>
+    </div>
+    <div class="form-group">
+      <label>Starting Odometer (km) *</label>
+      <input type="number" step="0.01" min="0" name="starting_odometer_km" id="inp-start" value="{{ form_data.get('starting_odometer_km', '') }}" required>
+    </div>
+    <div class="form-group">
+      <label>Ending Odometer (km) *</label>
+      <input type="number" step="0.01" min="0" name="ending_odometer_km" id="inp-end" value="{{ form_data.get('ending_odometer_km', '') }}" required>
+    </div>
+    <div class="form-group">
+      <label>Driver Name</label>
+      <input type="text" name="driver_name" value="{{ form_data.get('driver_name', '') }}" placeholder="e.g. Ramesh (optional)">
+    </div>
+    <div class="form-group">
+      <label>Receipt / Bill No.</label>
+      <input type="text" name="receipt_number" value="{{ form_data.get('receipt_number', '') }}" placeholder="Optional">
+    </div>
+  </div>
+
+  <div id="calc-preview">
+    <div class="preview-label">Live Preview (server calculates final values)</div>
+    <div class="preview-stats">
+      <div>
+        <div class="p-stat-name">Distance</div>
+        <div><span class="p-stat-val" id="prev-dist">—</span> <span class="p-stat-unit">km</span></div>
+      </div>
+      <div>
+        <div class="p-stat-name">Mileage</div>
+        <div><span class="p-stat-val" id="prev-mil">—</span> <span class="p-stat-unit">km/l</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="form-group">
+    <label>Notes</label>
+    <textarea name="notes" rows="3" placeholder="Optional notes...">{{ form_data.get('notes', '') }}</textarea>
+  </div>
+  
+  <button type="submit" class="btn-submit">{{ 'Save Refuelling' }}</button>
+</form>
+{% endblock %}
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const qtyInp = document.getElementById('inp-qty');
+    const startInp = document.getElementById('inp-start');
+    const endInp = document.getElementById('inp-end');
+    const previewBox = document.getElementById('calc-preview');
+    const distEl = document.getElementById('prev-dist');
+    const milEl = document.getElementById('prev-mil');
+
+    function updatePreview() {
+      const q = parseFloat(qtyInp.value);
+      const s = parseFloat(startInp.value);
+      const e = parseFloat(endInp.value);
+      
+      if (!isNaN(q) && !isNaN(s) && !isNaN(e) && e > s && q > 0) {
+        const dist = e - s;
+        const mil = dist / q;
+        distEl.textContent = dist.toFixed(2);
+        milEl.textContent = mil.toFixed(2);
+        previewBox.style.display = 'block';
+      } else {
+        previewBox.style.display = 'none';
+      }
+    }
+
+    qtyInp.addEventListener('input', updatePreview);
+    startInp.addEventListener('input', updatePreview);
+    endInp.addEventListener('input', updatePreview);
+    updatePreview(); // initial check if pre-filled
+  });
+</script>
+{% endblock %}

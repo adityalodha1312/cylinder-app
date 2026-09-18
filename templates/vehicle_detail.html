@@ -1,0 +1,239 @@
+﻿{% extends "admin_base.html" %}
+{% block title %}{{ vehicle.vehicle_number }}{% endblock %}
+
+{% block head %}
+<style>
+  .veh-header {
+    display: flex; justify-content: space-between; align-items: flex-start;
+    flex-wrap: wrap; gap: 16px; margin-bottom: 28px;
+  }
+  .veh-header-left { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .back-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 9px;
+    font-size: 13px; font-weight: 600; text-decoration: none; transition: all 0.15s;
+  }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+  .veh-header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn-primary {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 18px; background: var(--green-700); color: #fff;
+    border: none; border-radius: 10px; font-family: "DM Sans", sans-serif;
+    font-size: 14px; font-weight: 600; text-decoration: none; cursor: pointer;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover { background: var(--green-500); }
+  .btn-secondary {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; background: #f1efe8; color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd); border-radius: 10px;
+    font-family: "DM Sans", sans-serif; font-size: 14px; font-weight: 600;
+    text-decoration: none; cursor: pointer; transition: all 0.15s;
+  }
+  .btn-secondary:hover { background: var(--gray-bd); color: var(--dark-text); }
+  .btn-danger {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 9px 16px; background: #fef2f2; color: #b91c1c;
+    border: 1.5px solid #fecaca; border-radius: 10px;
+    font-family: "DM Sans", sans-serif; font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.15s;
+  }
+  .btn-danger:hover { background: #b91c1c; color: #fff; }
+  .info-card {
+    background: #fff; border: 1.5px solid var(--gray-bd);
+    border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    padding: 20px 24px; margin-bottom: 24px;
+  }
+  .info-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 18px; }
+  .info-item label { font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--gray-text); display: block; margin-bottom: 4px; }
+  .info-item .info-value { font-size: 14px; font-weight: 600; color: var(--dark-text); }
+  .badge-active   { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-inactive { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .kpi-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 24px; }
+  @media (max-width: 1100px) { .kpi-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 540px)  { .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; } }
+  .perf-card {
+    background: #fff; border: 1.5px solid var(--gray-bd); border-top: 4px solid var(--green-500);
+    border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); padding: 20px 24px; margin-bottom: 24px;
+  }
+  .perf-section-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; color: var(--green-700); margin-bottom: 16px; padding-bottom: 10px; border-bottom: 1.5px solid var(--green-50); display: flex; align-items: center; gap: 8px; }
+  .perf-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 16px; margin-bottom: 16px; }
+  .perf-stat .p-label { font-size: 11.5px; color: var(--gray-text); font-weight: 600; text-transform: uppercase; letter-spacing: 0.4px; }
+  .perf-stat .p-value { font-size: 22px; font-weight: 700; color: var(--green-900); margin-top: 2px; }
+  .perf-stat .p-unit  { font-size: 12px; color: var(--gray-text); margin-left: 3px; }
+  .perf-sub-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; background: var(--green-50); border-radius: 10px; padding: 14px; margin-top: 12px; }
+  @media (max-width: 600px) { .perf-sub-grid { grid-template-columns: 1fr; } }
+  .perf-sub-stat .ps-label { font-size: 11.5px; color: var(--gray-text); font-weight: 600; }
+  .perf-sub-stat .ps-value { font-size: 15px; font-weight: 700; color: var(--green-900); margin-top: 2px; }
+  .section-card { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 24px; }
+  .section-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1.5px solid var(--gray-bd); flex-wrap: wrap; gap: 12px; }
+  .section-title { font-size: 15px; font-weight: 700; color: var(--dark-text); margin: 0; }
+  .hist-table { width: 100%; border-collapse: collapse; background: #fff; }
+  .hist-table thead th { background: var(--green-50); color: var(--green-900); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; white-space: nowrap; }
+  .hist-table tbody tr { border-top: 1px solid #eeeee9; transition: background 0.1s; }
+  .hist-table tbody tr:hover { background: #fafaf8; }
+  .hist-table tbody td { padding: 10px 14px; font-size: 13.5px; color: var(--dark-text); white-space: nowrap; }
+  .mileage-good { color: #155724; font-weight: 700; }
+  .mileage-ok   { color: var(--green-700); font-weight: 700; }
+  .mileage-low  { color: #856404; font-weight: 700; }
+  .action-btns  { display: flex; gap: 6px; }
+  .btn-sm-edit { padding: 4px 10px; background: var(--green-50); color: var(--green-700); border: 1.5px solid var(--green-500); border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; transition: all 0.12s; }
+  .btn-sm-edit:hover { background: var(--green-500); color: #fff; }
+  .btn-sm-del  { padding: 4px 10px; background: #fef2f2; color: #b91c1c; border: 1.5px solid #fecaca; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.12s; }
+  .btn-sm-del:hover { background: #b91c1c; color: #fff; border-color: #b91c1c; }
+  .empty-history { text-align: center; padding: 48px; color: var(--gray-text); }
+  .modal-bg { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 9000; align-items: center; justify-content: center; }
+  .modal-bg.open { display: flex; }
+  .modal-box { background: #fff; border-radius: 14px; padding: 24px 28px; max-width: 420px; width: 90%; box-shadow: 0 12px 40px rgba(0,0,0,0.18); }
+  .modal-box h3 { margin: 0 0 12px; font-size: 17px; color: var(--dark-text); }
+  .modal-box p  { margin: 0 0 20px; font-size: 14px; color: var(--gray-text); line-height: 1.5; }
+  .modal-actions { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
+  @media (max-width: 768px) { .hide-md { display: none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="veh-header">
+  <div class="veh-header-left">
+    <a href="/admin/vehicles" class="back-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Vehicles
+    </a>
+    <div>
+      <h1 class="page-title" style="margin-bottom:2px;">{{ vehicle.vehicle_number }}</h1>
+      <p class="page-sub">{{ vehicle.vehicle_type or "Vehicle" }}{% if vehicle.fuel_type %} &middot; {{ vehicle.fuel_type }}{% endif %}{% if vehicle.registration_number %} &middot; {{ vehicle.registration_number }}{% endif %}</p>
+    </div>
+  </div>
+  <div class="veh-header-actions">
+    <a href="/admin/vehicles/{{ vehicle.id }}/refuellings/new" class="btn-primary">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Refuelling
+    </a>
+    <a href="/admin/vehicles/{{ vehicle.id }}/edit" class="btn-secondary">Edit</a>
+    <button class="btn-danger" onclick="openDeleteModal()">
+      {% if vehicle.status == "active" %}Deactivate{% else %}Delete{% endif %}
+    </button>
+  </div>
+</div>
+
+<div class="info-card">
+  <div class="info-grid">
+    <div class="info-item"><label>Status</label><div class="info-value">{% if vehicle.status == "active" %}<span class="badge-active">Active</span>{% else %}<span class="badge-inactive">Inactive</span>{% endif %}</div></div>
+    <div class="info-item"><label>Vehicle Type</label><div class="info-value">{{ vehicle.vehicle_type or "—" }}</div></div>
+    <div class="info-item"><label>Fuel Type</label><div class="info-value">{{ vehicle.fuel_type or "—" }}</div></div>
+    <div class="info-item"><label>Registration</label><div class="info-value">{{ vehicle.registration_number or "—" }}</div></div>
+    <div class="info-item"><label>Current Odometer</label><div class="info-value">{% if stats.latest_odometer %}{{ "{:,.1f}".format(stats.latest_odometer) }} km{% else %}—{% endif %}</div></div>
+    {% if vehicle.notes %}<div class="info-item" style="grid-column:1/-1;"><label>Notes</label><div class="info-value" style="font-weight:400;color:var(--gray-text);">{{ vehicle.notes }}</div></div>{% endif %}
+  </div>
+</div>
+
+<div class="kpi-row">
+  <div class="kpi-card"><div class="kpi-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg></div><div class="kpi-value">{{ stats.total_entries }}</div><div class="kpi-label">Total Entries</div></div>
+  <div class="kpi-card"><div class="kpi-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="kpi-value">{{ "{:,.2f}".format(stats.total_litres) }}</div><div class="kpi-label">Total Litres</div></div>
+  <div class="kpi-card"><div class="kpi-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="kpi-value">&#8377;{{ "{:,.0f}".format(stats.total_cost) }}</div><div class="kpi-label">Total Fuel Cost</div></div>
+  <div class="kpi-card"><div class="kpi-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg></div><div class="kpi-value">{{ "{:,.1f}".format(stats.total_distance) }}</div><div class="kpi-label">Total Distance (km)</div></div>
+  <div class="kpi-card"><div class="kpi-icon green"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0F6E56" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="15" y2="15"/></svg></div><div class="kpi-value">{{ stats.avg_mileage }}</div><div class="kpi-label">Avg Mileage (km/l)</div></div>
+  <div class="kpi-card"><div class="kpi-icon blue"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#1d4ed8" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><div class="kpi-value">{{ stats.latest_mileage }}</div><div class="kpi-label">Latest Mileage (km/l)</div></div>
+  <div class="kpi-card"><div class="kpi-icon orange"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#c2410c" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div class="kpi-value">&#8377;{{ "{:,.0f}".format(stats.month_cost) }}</div><div class="kpi-label">{{ stats.curr_month_label }} Cost</div></div>
+</div>
+
+<div class="perf-card">
+  <div class="perf-section-title">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+    Recent Performance
+  </div>
+  {% if recent_perf %}
+  <p style="font-size:13px;color:var(--gray-text);margin-bottom:16px;">Combined last 2 refuelling entries — matches Excel summary method</p>
+  <div class="perf-grid">
+    <div class="perf-stat"><div class="p-label">Combined Distance</div><div class="p-value">{{ "{:,.2f}".format(recent_perf.comb_distance) }}<span class="p-unit">km</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Fuel</div><div class="p-value">{{ "{:,.3f}".format(recent_perf.comb_litres) }}<span class="p-unit">l</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Cost</div><div class="p-value">&#8377;{{ "{:,.0f}".format(recent_perf.comb_cost) }}</div></div>
+    <div class="perf-stat"><div class="p-label">Combined Mileage</div><div class="p-value" style="color:var(--green-700);">{{ recent_perf.comb_mileage }}<span class="p-unit">km/l</span></div></div>
+  </div>
+  <div class="perf-sub-grid">
+    <div class="perf-sub-stat"><div class="ps-label">Last 5 Entries Avg</div><div class="ps-value">{{ stats.last5_avg_mileage }} km/l</div></div>
+    <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Avg</div><div class="ps-value">{{ stats.month_avg_mileage }} km/l</div></div>
+    <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Cost</div><div class="ps-value">&#8377;{{ "{:,.0f}".format(stats.month_cost) }}</div></div>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:28px 0;color:var(--gray-text);font-size:14px;">At least 2 refuelling records needed to calculate combined performance.</div>
+  {% endif %}
+</div>
+
+<div class="section-card">
+  <div class="section-header">
+    <h2 class="section-title">Fuel History</h2>
+    <a href="/admin/vehicles/{{ vehicle.id }}/refuellings/new" class="btn-primary" style="font-size:13px;padding:7px 14px;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Add Refuelling
+    </a>
+  </div>
+  {% if records %}
+  <div style="overflow-x:auto;">
+    <table class="hist-table">
+      <thead><tr>
+        <th>#</th><th>Date</th><th>Qty (L)</th><th>Price</th>
+        <th>Start KM</th><th>End KM</th><th>Distance</th><th>KMPL</th>
+        <th class="hide-md">Driver</th><th class="hide-md">Receipt</th><th>Actions</th>
+      </tr></thead>
+      <tbody>
+        {% for r in records %}
+        <tr>
+          <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
+          <td>{{ r.fuel_date }}</td>
+          <td>{{ "%.3f"|format(r.fuel_quantity_litres|float) }}</td>
+          <td>&#8377;{{ "{:,.0f}".format(r.fuel_price_total|float) }}</td>
+          <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.starting_odometer_km|float) }}</td>
+          <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.ending_odometer_km|float) }}</td>
+          <td style="font-weight:600;">{{ "{:,.1f}".format(r.distance_km|float) }} km</td>
+          <td>{% set m = r.mileage_km_per_litre|float %}<span class="{% if m >= 12 %}mileage-good{% elif m >= 8 %}mileage-ok{% else %}mileage-low{% endif %}">{{ "%.2f"|format(m) }}</span></td>
+          <td class="hide-md" style="color:var(--gray-text);">{{ r.driver_name or "—" }}</td>
+          <td class="hide-md" style="color:var(--gray-text);font-size:12px;">{{ r.receipt_number or "—" }}</td>
+          <td>
+            <div class="action-btns">
+              <a href="/admin/vehicles/{{ vehicle.id }}/refuellings/{{ r.id }}/edit" class="btn-sm-edit">Edit</a>
+              <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/refuellings/{{ r.id }}/delete" onsubmit="return confirm('Delete this refuelling record?');" style="display:inline;">
+                <button type="submit" class="btn-sm-del">Del</button>
+              </form>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-history">
+    <p style="font-size:15px;font-weight:600;color:var(--dark-text);margin-bottom:6px;">No refuelling records yet</p>
+    <p style="font-size:13px;">Add the first entry to start tracking mileage.</p>
+    <a href="/admin/vehicles/{{ vehicle.id }}/refuellings/new" class="btn-primary" style="margin-top:16px;display:inline-flex;">Add First Refuelling</a>
+  </div>
+  {% endif %}
+</div>
+
+<div class="modal-bg" id="deleteModal">
+  <div class="modal-box">
+    <h3>{% if vehicle.status == "active" %}Deactivate or Delete Vehicle?{% else %}Delete Vehicle?{% endif %}</h3>
+    <p>{% if vehicle.status == "active" %}<strong>Deactivate</strong> keeps all records and marks the vehicle inactive.<br><br><strong>Permanently Delete</strong> removes the vehicle and all {{ records|length }} refuelling record(s). This cannot be undone.{% else %}This will permanently delete the vehicle and all {{ records|length }} refuelling record(s). This cannot be undone.{% endif %}</p>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
+      {% if vehicle.status == "active" %}
+      <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/delete" style="display:inline;">
+        <input type="hidden" name="action" value="deactivate">
+        <button type="submit" style="padding:9px 16px;background:#fff3cd;color:#856404;border:1.5px solid #ffc107;border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Deactivate</button>
+      </form>
+      {% endif %}
+      <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/delete" style="display:inline;" onsubmit="return confirm('Permanently delete vehicle and ALL records?');">
+        <input type="hidden" name="action" value="delete">
+        <button type="submit" class="btn-danger" style="border:none;">Delete Permanently</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+  function openDeleteModal()  { document.getElementById("deleteModal").classList.add("open"); }
+  function closeDeleteModal() { document.getElementById("deleteModal").classList.remove("open"); }
+  document.getElementById("deleteModal").addEventListener("click", function(e){ if(e.target===this) closeDeleteModal(); });
+</script>
+{% endblock %}

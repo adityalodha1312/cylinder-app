@@ -373,6 +373,51 @@ with app.app_context():
     except Exception as e:
         db.session.rollback()
         print("[startup] driver_jobs table creation failed:", e)
+
+    # Create vehicle fuel tracking tables if they don't exist
+    try:
+        from sqlalchemy import text as sa_veh
+        db.session.execute(sa_veh("""
+            CREATE TABLE IF NOT EXISTS vehicles (
+                id SERIAL PRIMARY KEY,
+                vehicle_number VARCHAR(50) UNIQUE NOT NULL,
+                registration_number VARCHAR(50),
+                vehicle_type VARCHAR(50),
+                fuel_type VARCHAR(20),
+                status VARCHAR(20) DEFAULT 'active',
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW(),
+                updated_at TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        db.session.execute(sa_veh("""
+            CREATE TABLE IF NOT EXISTS vehicle_refuellings (
+                id SERIAL PRIMARY KEY,
+                vehicle_id INTEGER NOT NULL REFERENCES vehicles(id) ON DELETE CASCADE,
+                fuel_date VARCHAR(50) NOT NULL,
+                fuel_quantity_litres NUMERIC(10,3) NOT NULL,
+                fuel_price_total NUMERIC(12,2) NOT NULL,
+                starting_odometer_km NUMERIC(12,2) NOT NULL,
+                ending_odometer_km NUMERIC(12,2) NOT NULL,
+                distance_km NUMERIC(10,2) NOT NULL,
+                mileage_km_per_litre NUMERIC(8,3) NOT NULL,
+                driver_name VARCHAR(100),
+                receipt_number VARCHAR(100),
+                notes TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            );
+        """))
+        db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vr_vehicle_id ON vehicle_refuellings(vehicle_id);"))
+        db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vr_fuel_date ON vehicle_refuellings(fuel_date);"))
+        db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vr_start_odo ON vehicle_refuellings(starting_odometer_km);"))
+        db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vr_end_odo ON vehicle_refuellings(ending_odometer_km);"))
+        db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);"))
+        db.session.commit()
+        print("[startup] Vehicle fuel tracking tables verified/created.")
+    except Exception as e:
+        db.session.rollback()
+        print("[startup] Vehicle tables creation failed:", e)
+
     print("[startup] DB tables verified/created.")
 
 # Session Security Configuration
@@ -7991,4 +8036,484 @@ else:
     # Also start scheduler when running under WSGI server (like Gunicorn), but not during migrations
     if not os.environ.get('RUN_MIGRATION') == '1':
         start_scheduler()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  VEHICLE FUEL TRACKING
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── Sheets sync helper (fire-and-forget) ─────────────────────────────────────
+def _sync_refuelling_to_sheets(vehicle_number, refuelling):
+    """Append a refuelling row to the 'Vehicle Fuel Register' tab (best-effort)."""
+    try:
+        if doc is None:
+            return
+        try:
+            fuel_ws = doc.worksheet('Vehicle Fuel Register')
+        except Exception:
+            fuel_ws = doc.add_worksheet(title='Vehicle Fuel Register', rows=1000, cols=15)
+            fuel_ws.append_row([
+                'Vehicle', 'Sr No', 'Fuel Date', 'Fuel QTY LTR', 'Fuel Prices',
+                'Starting KM', 'To', 'Ending KM', 'Total KM', 'Fuel KMPL',
+                'Driver', 'Receipt No', 'Notes'
+            ])
+        all_rows = fuel_ws.get_all_values()
+        sr_no = max(len(all_rows), 1)  # header = row 1
+        row = [
+            vehicle_number,
+            sr_no,
+            refuelling.fuel_date,
+            float(refuelling.fuel_quantity_litres),
+            float(refuelling.fuel_price_total),
+            float(refuelling.starting_odometer_km),
+            'To',
+            float(refuelling.ending_odometer_km),
+            float(refuelling.distance_km),
+            float(refuelling.mileage_km_per_litre),
+            refuelling.driver_name or '',
+            refuelling.receipt_number or '',
+            refuelling.notes or '',
+        ]
+        fuel_ws.append_row(row)
+    except Exception as e:
+        print(f"[Sheets] Vehicle fuel sync failed: {e}")
+
+
+# ── Validation helper ────────────────────────────────────────────────────────
+def _validate_refuelling_form(form):
+    """Returns (errors list, parsed values dict)."""
+    errors = []
+    vals = {}
+
+    # fuel_date
+    fuel_date = form.get('fuel_date', '').strip()
+    if not fuel_date:
+        errors.append("Fuel date is required.")
+    else:
+        try:
+            datetime.strptime(fuel_date, '%d-%m-%Y')
+            vals['fuel_date'] = fuel_date
+        except ValueError:
+            errors.append("Fuel date must be in DD-MM-YYYY format.")
+
+    # fuel_quantity_litres
+    try:
+        qty = float(form.get('fuel_quantity_litres', '').strip() or 0)
+        if qty <= 0:
+            errors.append("Fuel quantity must be greater than zero.")
+        else:
+            vals['fuel_quantity_litres'] = qty
+    except (ValueError, TypeError):
+        errors.append("Fuel quantity must be a valid number.")
+
+    # fuel_price_total
+    try:
+        price = float(form.get('fuel_price_total', '').strip() or 0)
+        if price < 0:
+            errors.append("Fuel price cannot be negative.")
+        else:
+            vals['fuel_price_total'] = price
+    except (ValueError, TypeError):
+        errors.append("Fuel price must be a valid number.")
+
+    # starting_odometer_km
+    try:
+        start_odo = float(form.get('starting_odometer_km', '').strip() or 0)
+        if start_odo < 0:
+            errors.append("Starting odometer cannot be negative.")
+        else:
+            vals['starting_odometer_km'] = start_odo
+    except (ValueError, TypeError):
+        errors.append("Starting odometer must be a valid number.")
+
+    # ending_odometer_km
+    try:
+        end_odo = float(form.get('ending_odometer_km', '').strip() or 0)
+        if end_odo < 0:
+            errors.append("Ending odometer cannot be negative.")
+        else:
+            vals['ending_odometer_km'] = end_odo
+    except (ValueError, TypeError):
+        errors.append("Ending odometer must be a valid number.")
+
+    # cross-field: ending > starting → calculate distance + mileage
+    if 'starting_odometer_km' in vals and 'ending_odometer_km' in vals:
+        if vals['ending_odometer_km'] <= vals['starting_odometer_km']:
+            errors.append("Ending odometer must be greater than starting odometer.")
+        else:
+            dist = round(vals['ending_odometer_km'] - vals['starting_odometer_km'], 2)
+            if dist <= 0:
+                errors.append("Distance travelled must be greater than zero.")
+            else:
+                vals['distance_km'] = dist
+                if 'fuel_quantity_litres' in vals and vals['fuel_quantity_litres'] > 0:
+                    vals['mileage_km_per_litre'] = round(dist / vals['fuel_quantity_litres'], 3)
+
+    return errors, vals
+
+
+# ── Route: Vehicle List ──────────────────────────────────────────────────────
+@app.route('/admin/vehicles')
+@admin_required
+def admin_vehicles_list():
+    vehicles = Vehicle.query.order_by(Vehicle.status.asc(), Vehicle.vehicle_number.asc()).all()
+    # Attach latest odometer + mileage per vehicle
+    vehicle_data = []
+    for v in vehicles:
+        latest = VehicleRefuelling.query.filter_by(vehicle_id=v.id)\
+                    .order_by(VehicleRefuelling.id.desc()).first()
+        vehicle_data.append({
+            'vehicle': v,
+            'latest_odometer': float(latest.ending_odometer_km) if latest else None,
+            'latest_mileage':  float(latest.mileage_km_per_litre) if latest else None,
+            'total_entries':   VehicleRefuelling.query.filter_by(vehicle_id=v.id).count(),
+        })
+    return render_template('vehicles_list.html',
+        user=session['user'],
+        vehicle_data=vehicle_data
+    )
+
+
+# ── Route: New Vehicle ───────────────────────────────────────────────────────
+@app.route('/admin/vehicles/new', methods=['GET', 'POST'])
+@admin_required
+def admin_vehicles_new():
+    errors = []
+    form_data = {}
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        vehicle_number = (form_data.get('vehicle_number') or '').strip().upper()
+        if not vehicle_number:
+            errors.append("Vehicle number is required.")
+        elif Vehicle.query.filter(db.func.upper(Vehicle.vehicle_number) == vehicle_number).first():
+            errors.append(f"Vehicle '{vehicle_number}' already exists.")
+        if not errors:
+            try:
+                v = Vehicle(
+                    vehicle_number=vehicle_number,
+                    registration_number=(form_data.get('registration_number') or '').strip(),
+                    vehicle_type=(form_data.get('vehicle_type') or '').strip(),
+                    fuel_type=(form_data.get('fuel_type') or '').strip(),
+                    status='active',
+                    notes=(form_data.get('notes') or '').strip(),
+                )
+                db.session.add(v)
+                db.session.commit()
+                showToast_msg = f"Vehicle {vehicle_number} added successfully."
+                return redirect(f'/admin/vehicles/{v.id}')
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"Database error: {str(e)[:120]}")
+    return render_template('vehicle_form.html',
+        user=session['user'], mode='add', errors=errors, form_data=form_data
+    )
+
+
+# ── Route: Reports (must be before <int:vehicle_id>) ────────────────────────
+@app.route('/admin/vehicles/reports')
+@admin_required
+def admin_vehicles_reports():
+    from sqlalchemy import func as sqfunc
+    vehicles = Vehicle.query.order_by(Vehicle.vehicle_number).all()
+    # Filters
+    sel_vehicle_id = request.args.get('vehicle_id', '', type=int) or None
+    start_date_str = request.args.get('start_date', '').strip()
+    end_date_str   = request.args.get('end_date', '').strip()
+
+    q = db.session.query(
+        Vehicle.vehicle_number,
+        sqfunc.count(VehicleRefuelling.id).label('entries'),
+        sqfunc.sum(VehicleRefuelling.fuel_quantity_litres).label('total_litres'),
+        sqfunc.sum(VehicleRefuelling.fuel_price_total).label('total_cost'),
+        sqfunc.sum(VehicleRefuelling.distance_km).label('total_distance'),
+        sqfunc.avg(VehicleRefuelling.mileage_km_per_litre).label('avg_mileage'),
+    ).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
+
+    if sel_vehicle_id:
+        q = q.filter(VehicleRefuelling.vehicle_id == sel_vehicle_id)
+    # Date filter: convert dd-mm-yyyy strings to compare lexicographically using yyyy-mm-dd
+    if start_date_str:
+        try:
+            sd = datetime.strptime(start_date_str, '%Y-%m-%d')
+            sd_fmt = sd.strftime('%d-%m-%Y')
+            q = q.filter(VehicleRefuelling.fuel_date >= sd_fmt)
+        except ValueError:
+            pass
+    if end_date_str:
+        try:
+            ed = datetime.strptime(end_date_str, '%Y-%m-%d')
+            ed_fmt = ed.strftime('%d-%m-%Y')
+            q = q.filter(VehicleRefuelling.fuel_date <= ed_fmt)
+        except ValueError:
+            pass
+
+    rows = q.group_by(Vehicle.vehicle_number).all()
+
+    report_rows = []
+    for r in rows:
+        report_rows.append({
+            'vehicle_number': r.vehicle_number,
+            'entries':        int(r.entries or 0),
+            'total_litres':   round(float(r.total_litres or 0), 2),
+            'total_cost':     round(float(r.total_cost or 0), 2),
+            'total_distance': round(float(r.total_distance or 0), 2),
+            'avg_mileage':    round(float(r.avg_mileage or 0), 2),
+        })
+
+    totals = {
+        'entries':        sum(r['entries'] for r in report_rows),
+        'total_litres':   round(sum(r['total_litres'] for r in report_rows), 2),
+        'total_cost':     round(sum(r['total_cost'] for r in report_rows), 2),
+        'total_distance': round(sum(r['total_distance'] for r in report_rows), 2),
+        'avg_mileage':    round(
+            sum(r['avg_mileage'] for r in report_rows) / len(report_rows), 2
+        ) if report_rows else 0,
+    }
+
+    return render_template('vehicles_reports.html',
+        user=session['user'],
+        vehicles=vehicles,
+        report_rows=report_rows,
+        totals=totals,
+        sel_vehicle_id=sel_vehicle_id,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str,
+    )
+
+
+# ── Route: Vehicle Detail ────────────────────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>')
+@admin_required
+def admin_vehicle_detail(vehicle_id):
+    from sqlalchemy import func as sqfunc
+    v = Vehicle.query.get_or_404(vehicle_id)
+    records = VehicleRefuelling.query.filter_by(vehicle_id=vehicle_id)\
+                .order_by(VehicleRefuelling.fuel_date.asc(), VehicleRefuelling.id.asc()).all()
+
+    # ── Summary stats ────────────────────────────────────────────
+    total_entries   = len(records)
+    total_litres    = round(sum(float(r.fuel_quantity_litres) for r in records), 2)
+    total_cost      = round(sum(float(r.fuel_price_total) for r in records), 2)
+    total_distance  = round(sum(float(r.distance_km) for r in records), 2)
+    avg_mileage     = round(total_distance / total_litres, 2) if total_litres > 0 else 0
+    latest_mileage  = round(float(records[-1].mileage_km_per_litre), 2) if records else 0
+    latest_odometer = round(float(records[-1].ending_odometer_km), 2) if records else 0
+
+    # Current month cost
+    now = datetime.utcnow()
+    curr_month_str = now.strftime('%m-%Y')
+    month_cost = round(sum(
+        float(r.fuel_price_total) for r in records
+        if r.fuel_date and r.fuel_date[3:] == curr_month_str
+    ), 2)
+
+    # ── Recent Performance — last 2 entries ──────────────────────
+    recent_perf = None
+    if len(records) >= 2:
+        r1, r2 = records[-2], records[-1]
+        comb_litres   = round(float(r1.fuel_quantity_litres) + float(r2.fuel_quantity_litres), 3)
+        comb_distance = round(float(r1.distance_km) + float(r2.distance_km), 2)
+        comb_cost     = round(float(r1.fuel_price_total) + float(r2.fuel_price_total), 2)
+        comb_mileage  = round(comb_distance / comb_litres, 2) if comb_litres > 0 else 0
+        recent_perf = {
+            'entry1': r1, 'entry2': r2,
+            'comb_litres': comb_litres, 'comb_distance': comb_distance,
+            'comb_cost': comb_cost, 'comb_mileage': comb_mileage,
+        }
+
+    # ── Last 5 avg mileage ───────────────────────────────────────
+    last5 = records[-5:] if len(records) >= 5 else records
+    last5_litres   = sum(float(r.fuel_quantity_litres) for r in last5)
+    last5_distance = sum(float(r.distance_km) for r in last5)
+    last5_avg_mileage = round(last5_distance / last5_litres, 2) if last5_litres > 0 else 0
+
+    # ── Current month avg mileage ────────────────────────────────
+    month_records = [r for r in records if r.fuel_date and r.fuel_date[3:] == curr_month_str]
+    month_litres   = sum(float(r.fuel_quantity_litres) for r in month_records)
+    month_distance = sum(float(r.distance_km) for r in month_records)
+    month_avg_mileage = round(month_distance / month_litres, 2) if month_litres > 0 else 0
+
+    stats = {
+        'total_entries':     total_entries,
+        'total_litres':      total_litres,
+        'total_cost':        total_cost,
+        'total_distance':    total_distance,
+        'avg_mileage':       avg_mileage,
+        'latest_mileage':    latest_mileage,
+        'latest_odometer':   latest_odometer,
+        'month_cost':        month_cost,
+        'last5_avg_mileage': last5_avg_mileage,
+        'month_avg_mileage': month_avg_mileage,
+        'curr_month_label':  now.strftime('%B %Y'),
+    }
+
+    return render_template('vehicle_detail.html',
+        user=session['user'],
+        vehicle=v,
+        records=records,
+        stats=stats,
+        recent_perf=recent_perf,
+    )
+
+
+# ── Route: Edit Vehicle ──────────────────────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_vehicle_edit(vehicle_id):
+    v = Vehicle.query.get_or_404(vehicle_id)
+    errors = []
+    form_data = {}
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        vehicle_number = (form_data.get('vehicle_number') or '').strip().upper()
+        if not vehicle_number:
+            errors.append("Vehicle number is required.")
+        else:
+            conflict = Vehicle.query.filter(
+                db.func.upper(Vehicle.vehicle_number) == vehicle_number,
+                Vehicle.id != vehicle_id
+            ).first()
+            if conflict:
+                errors.append(f"Another vehicle with number '{vehicle_number}' already exists.")
+        if not errors:
+            try:
+                v.vehicle_number      = vehicle_number
+                v.registration_number = (form_data.get('registration_number') or '').strip()
+                v.vehicle_type        = (form_data.get('vehicle_type') or '').strip()
+                v.fuel_type           = (form_data.get('fuel_type') or '').strip()
+                v.status              = form_data.get('status', 'active')
+                v.notes               = (form_data.get('notes') or '').strip()
+                v.updated_at          = datetime.utcnow()
+                db.session.commit()
+                return redirect(f'/admin/vehicles/{vehicle_id}')
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"Database error: {str(e)[:120]}")
+    else:
+        form_data = v.to_dict()
+    return render_template('vehicle_form.html',
+        user=session['user'], mode='edit', vehicle=v, errors=errors, form_data=form_data
+    )
+
+
+# ── Route: Delete / Deactivate Vehicle ──────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>/delete', methods=['POST'])
+@admin_required
+def admin_vehicle_delete(vehicle_id):
+    v = Vehicle.query.get_or_404(vehicle_id)
+    action = request.form.get('action', 'deactivate')
+    try:
+        if action == 'delete':
+            db.session.delete(v)  # cascade deletes refuellings
+            db.session.commit()
+            return redirect('/admin/vehicles')
+        else:
+            v.status = 'inactive'
+            v.updated_at = datetime.utcnow()
+            db.session.commit()
+            return redirect(f'/admin/vehicles/{vehicle_id}')
+    except Exception as e:
+        db.session.rollback()
+        return redirect(f'/admin/vehicles/{vehicle_id}')
+
+
+# ── Route: New Refuelling ────────────────────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>/refuellings/new', methods=['GET', 'POST'])
+@admin_required
+def admin_refuelling_new(vehicle_id):
+    v = Vehicle.query.get_or_404(vehicle_id)
+    errors = []
+    form_data = {}
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        errors, vals = _validate_refuelling_form(form_data)
+        if not errors and 'distance_km' in vals and 'mileage_km_per_litre' in vals:
+            try:
+                ref = VehicleRefuelling(
+                    vehicle_id           = vehicle_id,
+                    fuel_date            = vals['fuel_date'],
+                    fuel_quantity_litres = vals['fuel_quantity_litres'],
+                    fuel_price_total     = vals['fuel_price_total'],
+                    starting_odometer_km = vals['starting_odometer_km'],
+                    ending_odometer_km   = vals['ending_odometer_km'],
+                    distance_km          = vals['distance_km'],
+                    mileage_km_per_litre = vals['mileage_km_per_litre'],
+                    driver_name          = (form_data.get('driver_name') or '').strip() or None,
+                    receipt_number       = (form_data.get('receipt_number') or '').strip() or None,
+                    notes                = (form_data.get('notes') or '').strip() or None,
+                )
+                db.session.add(ref)
+                db.session.commit()
+                # Sheets sync (best-effort, non-blocking)
+                async_sheets_write(_sync_refuelling_to_sheets, v.vehicle_number, ref)
+                return redirect(f'/admin/vehicles/{vehicle_id}')
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"Database error: {str(e)[:120]}")
+        elif not errors:
+            errors.append("Could not calculate distance and mileage. Please check odometer values.")
+    else:
+        # Pre-fill starting odometer from last record
+        last = VehicleRefuelling.query.filter_by(vehicle_id=vehicle_id)\
+                .order_by(VehicleRefuelling.id.desc()).first()
+        if last:
+            form_data['starting_odometer_km'] = float(last.ending_odometer_km)
+    return render_template('refuelling_form.html',
+        user=session['user'], mode='add', vehicle=v, errors=errors, form_data=form_data
+    )
+
+
+# ── Route: Edit Refuelling ───────────────────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/edit',
+           methods=['GET', 'POST'])
+@admin_required
+def admin_refuelling_edit(vehicle_id, refuelling_id):
+    v   = Vehicle.query.get_or_404(vehicle_id)
+    ref = VehicleRefuelling.query.filter_by(id=refuelling_id, vehicle_id=vehicle_id).first_or_404()
+    errors = []
+    form_data = {}
+    if request.method == 'POST':
+        form_data = request.form.to_dict()
+        errors, vals = _validate_refuelling_form(form_data)
+        if not errors and 'distance_km' in vals and 'mileage_km_per_litre' in vals:
+            try:
+                ref.fuel_date            = vals['fuel_date']
+                ref.fuel_quantity_litres = vals['fuel_quantity_litres']
+                ref.fuel_price_total     = vals['fuel_price_total']
+                ref.starting_odometer_km = vals['starting_odometer_km']
+                ref.ending_odometer_km   = vals['ending_odometer_km']
+                ref.distance_km          = vals['distance_km']
+                ref.mileage_km_per_litre = vals['mileage_km_per_litre']
+                ref.driver_name          = (form_data.get('driver_name') or '').strip() or None
+                ref.receipt_number       = (form_data.get('receipt_number') or '').strip() or None
+                ref.notes                = (form_data.get('notes') or '').strip() or None
+                db.session.commit()
+                return redirect(f'/admin/vehicles/{vehicle_id}')
+            except Exception as e:
+                db.session.rollback()
+                errors.append(f"Database error: {str(e)[:120]}")
+        elif not errors:
+            errors.append("Could not calculate distance and mileage. Please check odometer values.")
+    else:
+        form_data = ref.to_dict()
+    return render_template('refuelling_form.html',
+        user=session['user'], mode='edit', vehicle=v, refuelling=ref,
+        errors=errors, form_data=form_data
+    )
+
+
+# ── Route: Delete Refuelling ─────────────────────────────────────────────────
+@app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/delete',
+           methods=['POST'])
+@admin_required
+def admin_refuelling_delete(vehicle_id, refuelling_id):
+    ref = VehicleRefuelling.query.filter_by(id=refuelling_id, vehicle_id=vehicle_id).first_or_404()
+    try:
+        db.session.delete(ref)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+    return redirect(f'/admin/vehicles/{vehicle_id}')
+
+# ═══════════════════════════════════════════════════════════════════════════════
 

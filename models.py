@@ -410,3 +410,66 @@ class SpareTransaction(db.Model):
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
         }
 
+
+# ── Vehicle Fuel Tracking ──────────────────────────────────────────
+
+class Vehicle(db.Model):
+    __tablename__ = 'vehicles'
+    id                   = db.Column(db.Integer, primary_key=True)
+    vehicle_number       = db.Column(db.String(50), unique=True, nullable=False)
+    registration_number  = db.Column(db.String(50))
+    vehicle_type         = db.Column(db.String(50))   # Truck / Van / Car / Bike / Other
+    fuel_type            = db.Column(db.String(20))   # Petrol / Diesel / CNG / Electric
+    status               = db.Column(db.String(20), default='active', index=True)  # active / inactive
+    notes                = db.Column(db.Text)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at           = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    refuellings          = db.relationship('VehicleRefuelling', backref='vehicle', lazy=True,
+                                           cascade='all, delete-orphan',
+                                           order_by='VehicleRefuelling.id')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vehicle_number': self.vehicle_number,
+            'registration_number': self.registration_number or '',
+            'vehicle_type': self.vehicle_type or '',
+            'fuel_type': self.fuel_type or '',
+            'status': self.status or 'active',
+            'notes': self.notes or '',
+        }
+
+
+class VehicleRefuelling(db.Model):
+    __tablename__ = 'vehicle_refuellings'
+    id                   = db.Column(db.Integer, primary_key=True)
+    vehicle_id           = db.Column(db.Integer, db.ForeignKey('vehicles.id', ondelete='CASCADE'),
+                                     nullable=False, index=True)
+    fuel_date            = db.Column(db.String(50), nullable=False, index=True)  # dd-mm-yyyy
+    fuel_quantity_litres = db.Column(db.Numeric(10, 3), nullable=False)
+    fuel_price_total     = db.Column(db.Numeric(12, 2), nullable=False)
+    starting_odometer_km = db.Column(db.Numeric(12, 2), nullable=False, index=True)
+    ending_odometer_km   = db.Column(db.Numeric(12, 2), nullable=False, index=True)
+    distance_km          = db.Column(db.Numeric(10, 2), nullable=False)   # server-calculated
+    mileage_km_per_litre = db.Column(db.Numeric(8, 3), nullable=False)   # server-calculated
+    driver_name          = db.Column(db.String(100))   # free text
+    receipt_number       = db.Column(db.String(100))
+    notes                = db.Column(db.Text)
+    created_at           = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'vehicle_id': self.vehicle_id,
+            'fuel_date': self.fuel_date,
+            'fuel_quantity_litres': float(self.fuel_quantity_litres),
+            'fuel_price_total': float(self.fuel_price_total),
+            'starting_odometer_km': float(self.starting_odometer_km),
+            'ending_odometer_km': float(self.ending_odometer_km),
+            'distance_km': float(self.distance_km),
+            'mileage_km_per_litre': float(self.mileage_km_per_litre),
+            'driver_name': self.driver_name or '',
+            'receipt_number': self.receipt_number or '',
+            'notes': self.notes or '',
+            'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
+        }

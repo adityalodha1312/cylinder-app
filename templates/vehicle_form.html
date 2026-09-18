@@ -1,0 +1,86 @@
+﻿{% extends "admin_base.html" %}
+{% block title %}{{ 'Add Vehicle' if mode == 'add' else 'Edit Vehicle' }}{% endblock %}
+{% block head %}
+<style>
+  .page-header { display: flex; align-items: center; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+  .back-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: #f1efe8; color: var(--gray-text); border: 1.5px solid var(--gray-bd); border-radius: 9px; font-size: 13px; font-weight: 600; text-decoration: none; transition: 0.15s; }
+  .back-btn:hover { background: var(--gray-bd); color: var(--dark-text); }
+  .form-section { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 12px; padding: 24px 28px; margin-bottom: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+  .form-section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 20px; padding-bottom: 10px; border-bottom: 1.5px solid var(--green-50); color: var(--green-700); }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 18px; margin-bottom: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group label { font-size: 13px; font-weight: 600; color: var(--dark-text); }
+  .form-group input, .form-group select, .form-group textarea { padding: 9px 12px; border: 1.5px solid var(--gray-bd); border-radius: 8px; font-family: 'DM Sans', sans-serif; font-size: 14px; color: var(--dark-text); background: #fff; outline: none; transition: border-color 0.15s; }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus { border-color: var(--green-500); }
+  .btn-submit { display: inline-flex; justify-content: center; align-items: center; gap: 8px; padding: 12px 24px; background: var(--green-700); color: #fff; border: none; border-radius: 10px; font-family: 'DM Sans', sans-serif; font-size: 15px; font-weight: 600; cursor: pointer; transition: 0.15s; margin-top: 10px; width: auto; }
+  .btn-submit:hover { background: var(--green-500); }
+  .error-box { background: #fef2f2; border: 1.5px solid #fecaca; border-radius: 10px; padding: 16px; margin-bottom: 24px; }
+  .error-box h4 { margin: 0 0 8px; color: #b91c1c; font-size: 14px; }
+  .error-box ul { margin: 0; padding-left: 20px; color: #b91c1c; font-size: 13px; }
+  @media (max-width: 600px) { .btn-submit { width: 100%; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <a href="/admin/vehicles" class="back-btn">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    Vehicles
+  </a>
+  <h1 class="page-title" style="margin:0;">{{ 'Add Vehicle' if mode == 'add' else 'Edit Vehicle' }}</h1>
+</div>
+
+{% if errors %}
+<div class="error-box">
+  <h4>Please correct the following errors:</h4>
+  <ul>
+    {% for err in errors %}<li>{{ err }}</li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+<form method="POST" action="{% if mode == 'add' %}/admin/vehicles/new{% else %}/admin/vehicles/{{ vehicle.id }}/edit{% endif %}" class="form-section">
+  <div class="form-section-title">Vehicle Information</div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Vehicle Number *</label>
+      <input type="text" name="vehicle_number" value="{{ form_data.get('vehicle_number', '') }}" required placeholder="e.g. MH 20 GC 0469" style="text-transform: uppercase;">
+    </div>
+    <div class="form-group">
+      <label>Registration Number</label>
+      <input type="text" name="registration_number" value="{{ form_data.get('registration_number', '') }}" placeholder="Optional">
+    </div>
+    <div class="form-group">
+      <label>Vehicle Type</label>
+      <select name="vehicle_type">
+        <option value="">-- Select Type --</option>
+        {% for t in ['Truck', 'Van', 'Car', 'Bike', 'Tempo', 'Other'] %}
+        <option value="{{ t }}" {% if form_data.get('vehicle_type') == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Fuel Type</label>
+      <select name="fuel_type">
+        <option value="">-- Select Fuel --</option>
+        {% for t in ['Petrol', 'Diesel', 'CNG', 'Electric'] %}
+        <option value="{{ t }}" {% if form_data.get('fuel_type') == t %}selected{% endif %}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    {% if mode == 'edit' %}
+    <div class="form-group">
+      <label>Status</label>
+      <select name="status">
+        <option value="active" {% if form_data.get('status') == 'active' %}selected{% endif %}>Active</option>
+        <option value="inactive" {% if form_data.get('status') == 'inactive' %}selected{% endif %}>Inactive</option>
+      </select>
+    </div>
+    {% endif %}
+  </div>
+  <div class="form-group">
+    <label>Notes</label>
+    <textarea name="notes" rows="4" placeholder="Optional notes about this vehicle...">{{ form_data.get('notes', '') }}</textarea>
+  </div>
+  <button type="submit" class="btn-submit">{{ 'Add Vehicle' if mode == 'add' else 'Save Changes' }}</button>
+</form>
+{% endblock %}

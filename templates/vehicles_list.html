@@ -1,0 +1,97 @@
+﻿{% extends "admin_base.html" %}
+{% block title %}Vehicles{% endblock %}
+{% block head %}
+<style>
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .header-actions { display: flex; gap: 10px; }
+  .btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: var(--green-700); color: #fff; border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 14px; transition: 0.15s; }
+  .btn-primary:hover { background: var(--green-500); }
+  .btn-outlined { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: transparent; color: var(--green-700); border: 1.5px solid var(--green-700); border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 14px; transition: 0.15s; }
+  .btn-outlined:hover { background: var(--green-50); }
+  .table-wrap { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 24px; }
+  .data-table { width: 100%; border-collapse: collapse; }
+  .data-table thead th { background: var(--green-50); color: var(--green-900); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; }
+  .data-table tbody tr { border-top: 1px solid #eeeee9; transition: 0.1s; }
+  .data-table tbody tr:hover { background: #fafaf8; }
+  .data-table tbody tr.inactive { opacity: 0.55; }
+  .data-table td { padding: 12px 16px; font-size: 13.5px; color: var(--dark-text); }
+  .veh-link { font-family: monospace; font-weight: 700; font-size: 14px; color: var(--green-700); text-decoration: none; }
+  .veh-link:hover { text-decoration: underline; }
+  .badge-active { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge-inactive { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-text); }
+  .action-btns { display: flex; gap: 6px; }
+  .btn-sm { padding: 4px 10px; background: var(--green-50); color: var(--green-700); border: 1.5px solid var(--green-500); border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; transition: 0.12s; }
+  .btn-sm:hover { background: var(--green-500); color: #fff; }
+  @media (max-width: 768px) { .hide-mobile { display: none; } }
+</style>
+{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title" style="margin-bottom:4px;">Vehicles</h1>
+    <p class="page-sub">Vehicle fuel tracking and mileage register</p>
+  </div>
+  <div class="header-actions">
+    <a href="/admin/vehicles/reports" class="btn-outlined">Reports</a>
+    <a href="/admin/vehicles/new" class="btn-primary">Add Vehicle</a>
+  </div>
+</div>
+
+<div class="table-wrap">
+  {% if vehicle_data %}
+  <div style="overflow-x:auto;">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Vehicle Number</th>
+          <th class="hide-mobile">Registration</th>
+          <th class="hide-mobile">Type</th>
+          <th class="hide-mobile">Fuel Type</th>
+          <th>Status</th>
+          <th>Latest Odometer</th>
+          <th>Latest Mileage km/l</th>
+          <th>Entries</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in vehicle_data %}
+        <tr class="{% if row.vehicle.status == 'inactive' %}inactive{% endif %}">
+          <td style="color:var(--gray-text); font-size:12px;">{{ loop.index }}</td>
+          <td><a href="/admin/vehicles/{{ row.vehicle.id }}" class="veh-link">{{ row.vehicle.vehicle_number }}</a></td>
+          <td class="hide-mobile">{{ row.vehicle.registration_number or '—' }}</td>
+          <td class="hide-mobile">{{ row.vehicle.vehicle_type or '—' }}</td>
+          <td class="hide-mobile">{{ row.vehicle.fuel_type or '—' }}</td>
+          <td>
+            {% if row.vehicle.status == 'active' %}
+              <span class="badge-active">Active</span>
+            {% else %}
+              <span class="badge-inactive">Inactive</span>
+            {% endif %}
+          </td>
+          <td style="font-family:monospace;">{% if row.latest_odometer %}{{ "{:,.1f}".format(row.latest_odometer) }} km{% else %}—{% endif %}</td>
+          <td>{% if row.latest_mileage %}{{ "%.2f"|format(row.latest_mileage) }}{% else %}—{% endif %}</td>
+          <td>{{ row.total_entries }}</td>
+          <td>
+            <div class="action-btns">
+              <a href="/admin/vehicles/{{ row.vehicle.id }}" class="btn-sm">View</a>
+              <a href="/admin/vehicles/{{ row.vehicle.id }}/edit" class="btn-sm">Edit</a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <div class="empty-state">
+    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:16px; display:inline-block;"><rect x="2" y="7" width="20" height="11" rx="2" ry="2"/><path d="M2 13h20"/><path d="M8 7v4"/><path d="M16 7v4"/></svg>
+    <p style="font-size:16px; font-weight:600; color:var(--dark-text); margin-bottom:8px;">No vehicles registered yet</p>
+    <p style="font-size:14px; margin-bottom:16px;">Add your first vehicle to start tracking fuel and mileage.</p>
+    <a href="/admin/vehicles/new" class="btn-primary">Add First Vehicle</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
