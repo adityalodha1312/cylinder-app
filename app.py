@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, flash, url_for
+﻿from flask import Flask, render_template, request, redirect, session, jsonify, flash, url_for
 from openpyxl import load_workbook
 from datetime import datetime, date, timedelta
 import math
@@ -53,7 +53,7 @@ def to_ist_filter(dt):
         return ''
 
 
-# â”€â”€ Groq AI Setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Groq AI Setup Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 _groq_client = None
 
 def _get_groq():
@@ -114,7 +114,7 @@ def _build_dashboard_context():
         deliveries = sum(1 for r in scan_rows if r.action == 'Delivery')
         collections = sum(1 for r in scan_rows if r.action == 'Collection')
         fillings = sum(1 for r in scan_rows if r.action == 'Filling')
-        lines.append(f"Today's scans: {len(scan_rows)} total â€” {deliveries} deliveries, {collections} collections, {fillings} fillings")
+        lines.append(f"Today's scans: {len(scan_rows)} total Ã¢â‚¬â€ {deliveries} deliveries, {collections} collections, {fillings} fillings")
 
         # This week vs last week
         week_ago = (today - timedelta(days=7)).strftime('%d-%m-%Y')
@@ -251,7 +251,7 @@ def _get_ai_insights(force=False):
 
     client = _get_groq()
     if not client:
-        return ['âš ï¸ Groq API key not configured. Add GROQ_API_KEY to environment variables.'], -1
+        return ['Ã¢Å¡Ã¯ Groq API key not configured. Add GROQ_API_KEY to environment variables.'], -1
 
     try:
         context = _build_dashboard_context()
@@ -261,7 +261,7 @@ Analyze the following operational data and write exactly 5 concise insights for 
 Rules:
 - Each insight must be 1-2 sentences max
 - Be specific: use actual numbers and names from the data
-- Start each with exactly one emoji: âš ï¸ (risk/alert), ðŸ“ˆ (trend), âœ… (good news), or ðŸ’¡ (action needed)
+- Start each with exactly one emoji: Ã¢Å¡Ã¯ (risk/alert), Ã°Å¸â€œË† (trend), Ã¢Å“â€¦ (good news), or Ã°Å¸â€™ (action needed)
 - Write in plain English, no jargon
 - If data is all zeros or empty, note that operations haven't started yet and suggest syncing data
 
@@ -289,7 +289,7 @@ Return exactly 5 bullet points, one per line, no numbering, no extra text."""
         if cached:
             import json
             return json.loads(cached), -2  # -2 = using stale cache
-        return [f'âš ï¸ Could not generate insights: {str(e)[:100]}'], -1
+        return [f'Ã¢Å¡Ã¯ Could not generate insights: {str(e)[:100]}'], -1
 
 
 # SQLAlchemy Database Configuration
@@ -301,7 +301,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 
-# Auto-create any missing tables on startup (safe â€” checkfirst=True skips existing tables)
+# Auto-create any missing tables on startup (safe Ã¢â‚¬â€ checkfirst=True skips existing tables)
 with app.app_context():
     db.create_all()
     if os.environ.get('DATABASE_URL'):
@@ -496,7 +496,7 @@ except Exception as e:
     bulk_tanks_ws = None
     products_ws = None
 
-# â”€â”€ Default products list (fallback if Products sheet not found) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Default products list (fallback if Products sheet not found) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 DEFAULT_PRODUCTS_CONFIG = [
     {'id': 'arg_pura',     'name': 'ARG Pura',      'gas_type': 'ARG', 'cylinder_type': 'Standard', 'gas_per_cyl': 7.0,    'unit': 'Cum', 'is_virtual': False},
     {'id': 'acm_90_10',   'name': 'ACM (90.10)_',  'gas_type': 'ACM', 'cylinder_type': 'Standard', 'gas_per_cyl': 6.3512, 'unit': 'Cum', 'is_virtual': False},
@@ -740,7 +740,7 @@ def rename_customer_in_sheets(old_name, new_name):
         print("Error renaming customer in Scan Log:", e)
 
 
-# â”€â”€ System Settings helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ System Settings helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 SETTINGS_SHEET_NAME = "Settings"
 
 def get_setting(key, default_value):
@@ -821,7 +821,7 @@ def set_setting(key, value):
     async_sheets_write(background_save_setting_sheets)
 
 
-# â”€â”€ Cylinder Registry helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Cylinder Registry helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 def get_all_cylinders():
     """Returns list of dicts from Cylinders table, falling back to Sheets."""
     global cyl_ws
@@ -975,7 +975,7 @@ def merge_cylinder_data():
     cylinders   = get_all_cylinders()
     maintenance = get_all_maintenance()
     
-    # Load last customer mappings â€” use an optimised query that only fetches
+    # Load last customer mappings Ã¢â‚¬â€ use an optimised query that only fetches
     # the most-recent scan per cylinder instead of loading all scan rows.
     last_customers = {}
     try:
@@ -1008,7 +1008,7 @@ def merge_cylinder_data():
     except Exception as e:
         print("Error building last_customers map:", e)
 
-    # Load latest DuraGasHistory mappings â€” same approach, only most-recent row per UID
+    # Load latest DuraGasHistory mappings Ã¢â‚¬â€ same approach, only most-recent row per UID
     latest_history = {}
     try:
         if os.environ.get('DATABASE_URL'):
@@ -1096,7 +1096,7 @@ def find_cylinder_rows(uid):
 
 
 # In-memory TTL data cache configurations
-# TTL is 60 s â€” all write routes call clear_cache() immediately after mutating
+# TTL is 60 s Ã¢â‚¬â€ all write routes call clear_cache() immediately after mutating
 # data, so the dashboard is never stale after an intentional change.
 _data_cache = {
     'scans'              : None, 'scans_time'          : 0,
@@ -1106,7 +1106,7 @@ _data_cache = {
     'customer_names'     : None, 'customer_names_time' : 0,
     'customer_emails'    : None, 'customer_emails_time': 0,
 }
-CACHE_TTL = 60  # seconds (was 10 â€” safe to raise because writes always clear the cache)
+CACHE_TTL = 60  # seconds (was 10 Ã¢â‚¬â€ safe to raise because writes always clear the cache)
 
 def clear_cache():
     """Wipes every cached value so the next read fetches fresh data from Sheets."""
@@ -1125,7 +1125,7 @@ def sheets_write_with_retry(fn, *args, retries=3, **kwargs):
             return fn(*args, **kwargs)
         except Exception as e:
             if attempt < retries - 1:
-                wait = 2 ** attempt  # 1 s â†’ 2 s â†’ 4 s
+                wait = 2 ** attempt  # 1 s Ã¢â€ â€™ 2 s Ã¢â€ â€™ 4 s
                 print(f"[sheets_write] error on attempt {attempt + 1}/{retries}, "
                       f"retrying in {wait}s: {e}")
                 time.sleep(wait)
@@ -1157,7 +1157,7 @@ def admin_required(f):
     return decorated
 
 
-# â”€â”€ AI Insights API routes (placed after admin_required is defined) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ AI Insights API routes (placed after admin_required is defined) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/api/ai_insights')
 @admin_required
 def admin_ai_insights():
@@ -1183,7 +1183,7 @@ def admin_ai_chat():
 
     client = _get_groq()
     if not client:
-        return jsonify({'answer': 'âš ï¸ Groq API key not configured.'}), 503
+        return jsonify({'answer': 'Ã¢Å¡Ã¯ Groq API key not configured.'}), 503
 
     try:
         uid = _detect_uid_in_question(question)
@@ -1221,7 +1221,7 @@ Answer:"""
         return jsonify({'answer': answer})
     except Exception as e:
         print(f"[Groq] Chat error: {e}")
-        return jsonify({'answer': f'âš ï¸ Error generating response: {str(e)[:120]}'}), 500
+        return jsonify({'answer': f'Ã¢Å¡Ã¯ Error generating response: {str(e)[:120]}'}), 500
 
 
 def accounts_required(f):
@@ -1409,7 +1409,7 @@ def get_map_rows():
         return []
 
 def build_batch_map():
-    """dict: 'date||time||driver||action' â†’ customer"""
+    """dict: 'date||time||driver||action' Ã¢â€ â€™ customer"""
     result = {}
     for r in get_map_rows():
         key = f"{r['date']}||{r['time']}||{r['driver']}||{r['action']}"
@@ -1444,7 +1444,7 @@ def get_activity_events():
                     driver = s.driver or ''
                     action = s.action
                     customer = s.customer or ''
-                    cust_display = customer if customer else ('Depot' if action == 'Filling' else 'â€”')
+                    cust_display = customer if customer else ('Depot' if action == 'Filling' else 'Ã¢â‚¬â€')
                     
                     group_key = (date_str, time_str, driver, action, cust_display)
                     if group_key not in grouped:
@@ -1495,7 +1495,7 @@ def get_activity_events():
                     customer = batch_map.get(key, '')
                 
                 # Standardize Customer name display
-                cust_display = customer if customer else ('Depot' if action == 'Filling' else 'â€”')
+                cust_display = customer if customer else ('Depot' if action == 'Filling' else 'Ã¢â‚¬â€')
                 
                 group_key = (date_str, time_str, driver, action, cust_display)
                 if group_key not in grouped:
@@ -1599,8 +1599,8 @@ def build_outstanding():
             'total_delivered': stats['total_delivered'],
             'total_collected': stats['total_collected'],
             'outstanding'    : len(uid_list),
-            'cylinder_uids'  : uid_list,              # list â€” for template iteration
-            'uids'           : ', '.join(uid_list) if uid_list else 'â€”',  # string fallback
+            'cylinder_uids'  : uid_list,              # list Ã¢â‚¬â€ for template iteration
+            'uids'           : ', '.join(uid_list) if uid_list else 'Ã¢â‚¬â€',  # string fallback
             'last_activity'  : stats['last_activity']
         })
 
@@ -1645,7 +1645,7 @@ def build_aging():
     return result
 
 def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter='', direction_filter=''):
-    """Builds cylinder rotation data â€” every in/out movement event in a date range.
+    """Builds cylinder rotation data Ã¢â‚¬â€ every in/out movement event in a date range.
 
     Direction logic:
       'out'  = Delivery (cylinder left depot to customer)
@@ -1668,7 +1668,7 @@ def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter=
 
     movements = []
 
-    # â”€â”€ Delivery + Collection from events (have customer) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Delivery + Collection from events (have customer) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     for ev in events:
         d = ev.get('date_obj')
         if from_date and d and d < from_date:
@@ -1756,7 +1756,7 @@ def build_cylinder_journey(uid):
         d = parse_date(r.get('date', ''))
         journey.append({
             'action'  : 'Filling',
-            'customer': 'â€” Depot â€”',
+            'customer': 'Ã¢â‚¬â€ Depot Ã¢â‚¬â€',
             'driver'  : r.get('driver', ''),
             'date'    : r.get('date', ''),
             'time'    : r.get('time', ''),
@@ -1883,7 +1883,7 @@ def service_worker():
     return send_from_directory('static', 'sw.js', mimetype='application/javascript')
 
 @app.route('/login', methods=['GET', 'POST'])
-@app.route('/admin/login', methods=['GET', 'POST'])   # alias â€” login.html posts here
+@app.route('/admin/login', methods=['GET', 'POST'])   # alias Ã¢â‚¬â€ login.html posts here
 def login():
     if 'user' in session:
         if session['user']['role'] in ['manager', 'owner']:
@@ -1967,7 +1967,7 @@ def admin_dashboard():
 
     top_customers = [c for c in outstanding if c['outstanding'] > 0][:5]
 
-    # â”€â”€ Hover-insight hints (derived in-memory, no extra DB queries) â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Hover-insight hints (derived in-memory, no extra DB queries) Ã¢â€â‚¬Ã¢â€â‚¬
 
     # Card 1: top 3 customers by outstanding count
     hint_top_cylinders = [
@@ -1991,7 +1991,7 @@ def admin_dashboard():
         for c in outstanding if c['outstanding'] > 10
     ][:5]
 
-    # Card 4: today's breakdown â€” Deliveries / Collections / Fillings
+    # Card 4: today's breakdown Ã¢â‚¬â€ Deliveries / Collections / Fillings
     hint_today_split = {
         'deliveries' : sum(1 for r in today_rows if r.get('action') == 'Delivery'),
         'collections': sum(1 for r in today_rows if r.get('action') == 'Collection'),
@@ -2074,7 +2074,7 @@ def delete_activity():
             matched_scans = []
             for s in scans_to_delete:
                 s_cust = s.customer or ''
-                s_cust_display = s_cust if s_cust else ('Depot' if s.action == 'Filling' else 'â€”')
+                s_cust_display = s_cust if s_cust else ('Depot' if s.action == 'Filling' else 'Ã¢â‚¬â€')
                 if s_cust_display.lower() == customer.lower() or s_cust.lower() == customer.lower():
                     matched_scans.append(s)
                     
@@ -2135,7 +2135,7 @@ def delete_activity():
             cmaps = cmap_query.all()
             for cmap in cmaps:
                 cmap_cust = cmap.customer or ''
-                cmap_cust_display = cmap_cust if cmap_cust else ('Depot' if cmap.action == 'Filling' else 'â€”')
+                cmap_cust_display = cmap_cust if cmap_cust else ('Depot' if cmap.action == 'Filling' else 'Ã¢â‚¬â€')
                 if cmap_cust_display.lower() == customer.lower() or cmap_cust.lower() == customer.lower():
                     db.session.delete(cmap)
 
@@ -2206,7 +2206,7 @@ def delete_activity():
                         uid_matches = (not d_row['uid'] or r_uid.lower() == d_row['uid'].lower())
                         
                         if date_matches and action_matches and time_matches and driver_matches and uid_matches:
-                            r_cust_display = r_cust if r_cust else ('Depot' if r_action == 'Filling' else 'â€”')
+                            r_cust_display = r_cust if r_cust else ('Depot' if r_action == 'Filling' else 'Ã¢â‚¬â€')
                             if r_cust_display.lower() == customer.lower() or r_cust.lower() == customer.lower():
                                 rows_to_delete_indices.append(idx + 1)
                                 break
@@ -2271,7 +2271,7 @@ def admin_daily_summary():
     scan_rows = get_scan_rows()
     today_rows = [r for r in scan_rows if r['date'] == selected_date_str]
 
-    # Group by driver â€” track counts AND UID lists per action
+    # Group by driver Ã¢â‚¬â€ track counts AND UID lists per action
     driver_stats = {}
     for r in today_rows:
         d = r['driver'].strip()
@@ -2399,11 +2399,11 @@ def admin_rotation_journey(uid):
         j.pop('date_obj', None)
     return jsonify(journey)
 
-# â”€â”€ Products Config Editor â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Products Config Editor Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/products')
 @admin_required
 def admin_products():
-    """Show the Products Config editor â€” lets admin edit Table 1 rows."""
+    """Show the Products Config editor Ã¢â‚¬â€ lets admin edit Table 1 rows."""
     config = get_products_config()
     source = 'sheet' if products_ws is not None else 'default'
     return render_template('products_config.html',
@@ -2426,7 +2426,7 @@ def admin_products_save():
     cyl_types= request.form.getlist('cylinder_type[]')
     gas_vals = request.form.getlist('gas_per_cyl[]')
     units    = request.form.getlist('unit[]')
-    virtuals = request.form.getlist('is_virtual[]')   # checkboxes â€” only present if checked
+    virtuals = request.form.getlist('is_virtual[]')   # checkboxes Ã¢â‚¬â€ only present if checked
 
     # Build a set of checked virtual product IDs
     virtual_set = set(virtuals)
@@ -2995,7 +2995,7 @@ def admin_receipt_status():
         return jsonify({'status': 'Error', 'message': str(e)})
 
 
-# â”€â”€ Inventory & Bulk Tanks Calculations â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Inventory & Bulk Tanks Calculations Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 def parse_mix_ratio(mix_ratio_str, gas_type):
     """Parses mix ratio percentages from a string."""
@@ -3267,7 +3267,7 @@ def calculate_fleet_sizes():
     return fleet
 
 def calculate_table1_filled_inventory():
-    """Calculates Table 1 â€” Filled Cylinder Inventory."""
+    """Calculates Table 1 Ã¢â‚¬â€ Filled Cylinder Inventory."""
     cylinders = get_all_cylinders()
     maintenance = get_all_maintenance()
     
@@ -3345,7 +3345,7 @@ def calculate_table1_filled_inventory():
     }
 
 def calculate_table2_bulk_inventory(target_date_str):
-    """Calculates Table 2 â€” Bulk Tank Inventory."""
+    """Calculates Table 2 Ã¢â‚¬â€ Bulk Tank Inventory."""
     tanks = get_tank_data_for_date(target_date_str)
     used = calculate_used_today(target_date_str)
     fleet = calculate_fleet_sizes()
@@ -3578,9 +3578,9 @@ def calculate_daily_dispatch_report(target_date_str):
             if col_key == 'Dura':
                 row_dict['Dura']['count'] += 1
                 gas_symbol = 'Ar'
-                if gas_type == 'N2': gas_symbol = 'NÂ²'
-                elif gas_type == 'OXY': gas_symbol = 'OÂ²'
-                elif gas_type == 'CO2': gas_symbol = 'COÂ²'
+                if gas_type == 'N2': gas_symbol = 'NÃ‚'
+                elif gas_type == 'OXY': gas_symbol = 'OÃ‚'
+                elif gas_type == 'CO2': gas_symbol = 'COÃ‚'
                 
                 row_dict['Dura']['gases'][gas_symbol] = row_dict['Dura']['gases'].get(gas_symbol, 0) + 1
             else:
@@ -4751,7 +4751,7 @@ def build_customer_outstanding_detail(customer_name):
         days_out = (today - d_date).days if d_date else None
         result.append({
             'uid'         : uid,
-            'gas_type'    : gas_map.get(uid.upper(), 'â€”'),
+            'gas_type'    : gas_map.get(uid.upper(), 'Ã¢â‚¬â€'),
             'delivered_on': fmt_date(d_date),
             'days_out'    : days_out,
             'overdue'     : days_out is not None and days_out > 30,
@@ -4804,11 +4804,11 @@ def build_customer_history(customer_name):
 
 def build_customer_statement(customer_name):
     """
-    Running balance statement for a customer â€” like a bank statement for cylinders.
+    Running balance statement for a customer Ã¢â‚¬â€ like a bank statement for cylinders.
     Returns list of dicts: {date, time, driver, action, change, balance, uids_str}
     """
     history = build_customer_history(customer_name)
-    # history is newest first â€” reverse for running balance
+    # history is newest first Ã¢â‚¬â€ reverse for running balance
     history_asc = list(reversed(history))
     balance = 0
     statement = []
@@ -4834,7 +4834,7 @@ def build_gas_type_breakdown(outstanding_detail):
     """
     breakdown = {}
     for c in outstanding_detail:
-        gt = c.get('gas_type') or 'â€”'
+        gt = c.get('gas_type') or 'Ã¢â‚¬â€'
         breakdown[gt] = breakdown.get(gt, 0) + 1
     return dict(sorted(breakdown.items()))
 
@@ -5075,7 +5075,7 @@ def admin_customers():
                 'outstanding'    : 0,
                 'total_delivered': 0,
                 'total_collected': 0,
-                'last_activity'  : 'â€”',
+                'last_activity'  : 'Ã¢â‚¬â€',
                 'has_overdue'    : False,
             })
 
@@ -5548,7 +5548,7 @@ def admin_api_dura_fill():
                 if fill_new and new_gas:
                     cyl.gas_type = new_gas
             else:
-                # Cylinder not in DB yet â€” get old gas from Sheets for history, then insert cylinder row
+                # Cylinder not in DB yet Ã¢â‚¬â€ get old gas from Sheets for history, then insert cylinder row
                 if cyl_ws is None and doc:
                     try:
                         cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
@@ -5591,10 +5591,10 @@ def admin_api_dura_fill():
         except Exception as e:
             db.session.rollback()
             print("[db] Error updating Dura refill in DB:", e)
-            # Return error immediately â€” don't pretend success if DB write failed
+            # Return error immediately Ã¢â‚¬â€ don't pretend success if DB write failed
             return jsonify({'success': False, 'error': f'Database write failed: {str(e)}'}), 500
 
-    # 2. Sync to Sheets (best-effort â€” DB is source of truth)
+    # 2. Sync to Sheets (best-effort Ã¢â‚¬â€ DB is source of truth)
     try:
         if cyl_ws is None and doc:
             cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
@@ -5616,7 +5616,7 @@ def admin_api_dura_fill():
                 print(f"[sheets] Updated cylinder {uid} Gas Type to {target_gas} on Sheet row {row_num}.")
     except Exception as e:
         print("[sheets] Error updating Dura refill on Sheets:", e)
-        # Don't fail â€” DB is already updated successfully
+        # Don't fail Ã¢â‚¬â€ DB is already updated successfully
 
     clear_cache()
     return jsonify({'success': True})
@@ -5687,11 +5687,11 @@ def admin_customer_offer_form(customer_name):
     )
 
 
-# â”€â”€ Standalone offer routes (no customer required) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Standalone offer routes (no customer required) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/offer/new')
 @admin_required
 def admin_offer_new():
-    """Standalone Commercial Offer form â€” not tied to a registered customer."""
+    """Standalone Commercial Offer form Ã¢â‚¬â€ not tied to a registered customer."""
     # Generate sequential Quotation Number: NAG/26-27/XXXX
     try:
         curr_num = int(get_setting('last_quotation_number', '6674'))
@@ -5777,7 +5777,7 @@ def admin_offer_generate_standalone():
     """Generates PDF for standalone offer (customer name comes from form)."""
     customer_name = request.form.get('customer_name', 'Customer').strip()
     return _generate_offer_pdf(customer_name)
-# â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 @app.route('/admin/customers/<path:customer_name>/offer/generate', methods=['POST'])
 @admin_required
@@ -5893,14 +5893,14 @@ def _generate_offer_pdf(customer_name, saved_data=None):
     
     footer_text_style = ParagraphStyle('FooterText', fontName='Helvetica', fontSize=9.5, leading=14, textColor=colors.black, alignment=0)
     
-    # 1. Noble Air Gases Header Layout â€” use actual logo image
+    # 1. Noble Air Gases Header Layout Ã¢â‚¬â€ use actual logo image
     import os as _os
     from reportlab.platypus import Image as RLImage
 
     logo_path = _os.path.join(_os.path.dirname(__file__), 'static', 'img', 'noble_logo.png')
 
     if _os.path.exists(logo_path):
-        # Centre the logo: fit within 240pt wide Ã— 60pt tall, keep aspect ratio
+        # Centre the logo: fit within 240pt wide Ãƒâ€” 60pt tall, keep aspect ratio
         logo_img = RLImage(logo_path, width=240, height=60, kind='proportional')
         logo_img.hAlign = 'CENTER'
         story.append(logo_img)
@@ -6003,7 +6003,7 @@ def _generate_offer_pdf(customer_name, saved_data=None):
     story.append(prod_table)
     story.append(Spacer(1, 10))
     
-    # 6. Terms and conditions â€” dynamic labels and values from form
+    # 6. Terms and conditions Ã¢â‚¬â€ dynamic labels and values from form
     story.append(Paragraph("<b>TERMS &amp; CONDITIONS:</b>", terms_title_style))
     for label, value in terms_pairs:
         if label.strip():
@@ -6417,7 +6417,7 @@ def submit():
             gas_val
         ])
     
-    # â”€â”€ VALIDATE SCANS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ VALIDATE SCANS Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     if os.environ.get('DATABASE_URL'):
         # Database-first validation: Check if we are collecting a cylinder that is already in stock/empty at the Depot
         for row_data in rows_to_append:
@@ -6457,7 +6457,7 @@ def submit():
                             return f"Validation Error: Cylinder '{row_data[4]}' is already at the Depot (status: {status}). Cannot collect twice.", 400
             except Exception as se:
                 print("[validation] Error validating against Google Sheets registry:", se)
-    # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
     db_written = False
     # Write to database (PostgreSQL) first
@@ -6527,7 +6527,7 @@ def submit():
 
             if cyl_ws and rows_to_append:
                 cyl_rows = cyl_ws.get_all_values()
-                # Build UID â†’ row index map
+                # Build UID Ã¢â€ â€™ row index map
                 uid_row_map = {}
                 for idx, r in enumerate(cyl_rows):
                     if idx == 0:
@@ -6543,7 +6543,7 @@ def submit():
                     scan_cust   = row_data[5].strip() if len(row_data) > 5 else ''
                     row_num = uid_row_map.get(scan_uid)
                     if not row_num:
-                        continue  # UID not in registry â€” skip silently
+                        continue  # UID not in registry Ã¢â‚¬â€ skip silently
                     if scan_action == 'Delivery':
                         new_status   = 'Delivered'
                         new_location = scan_cust or 'Customer'
@@ -6692,7 +6692,7 @@ def export_excel():
     
     wb = Workbook()
     
-    # â”€â”€ Tab 1: Inventory Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Tab 1: Inventory Report Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     ws1 = wb.active
     ws1.title = "Inventory Report"
     ws1.views.sheetView[0].showGridLines = True
@@ -6794,7 +6794,7 @@ def export_excel():
         col_letter = col[0].column_letter
         ws1.column_dimensions[col_letter].width = max(max_len + 3, 12)
         
-    # â”€â”€ Tab 2: Dispatch Report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Tab 2: Dispatch Report Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     ws2 = wb.create_sheet(title="Dispatch Report")
     ws2.views.sheetView[0].showGridLines = True
     
@@ -7042,7 +7042,7 @@ def export_pdf():
     )
     
     # Page 1: Stock Status & Bulk Tanks
-    story.append(Paragraph("Cylinder Tracker â€” Daily Inventory & Tanks Report", title_style))
+    story.append(Paragraph("Cylinder Tracker Ã¢â‚¬â€ Daily Inventory & Tanks Report", title_style))
     story.append(Paragraph(f"Report Generated for Date: {target_date}", subtitle_style))
     
     story.append(Paragraph("Cyl Status Dispatch Stock (Filled Cylinder Inventory)", section_style))
@@ -7121,7 +7121,7 @@ def export_pdf():
     
     # Page 2: Daily Dispatch Report Matrix
     story.append(PageBreak())
-    story.append(Paragraph("Cylinder Tracker â€” Daily Dispatch Report", title_style))
+    story.append(Paragraph("Cylinder Tracker Ã¢â‚¬â€ Daily Dispatch Report", title_style))
     story.append(Paragraph(f"Report Generated for Date: {target_date}", subtitle_style))
     story.append(Paragraph("Today Dispatch & Empty Collection Party-wise Matrix", section_style))
     
@@ -7318,13 +7318,13 @@ def start_scheduler():
             try:
                 sync_db_to_sheets(doc)
             except Exception as e:
-                print("Scheduler DBâ†’Sheets sync error:", e)
-    # Mirror DB â†’ Sheets every 5 minutes
+                print("Scheduler DBÃ¢â€ â€™Sheets sync error:", e)
+    # Mirror DB Ã¢â€ â€™ Sheets every 5 minutes
     scheduler.add_job(run_sync, 'interval', minutes=5)
     scheduler.start()
-    print("Background DBâ†’Sheets scheduler started successfully.")
+    print("Background DBÃ¢â€ â€™Sheets scheduler started successfully.")
 
-# â”€â”€ Admin Scanning (Internal Logs) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Admin Scanning (Internal Logs) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/scanner')
 @admin_required
 def admin_scanner_page():
@@ -7532,7 +7532,7 @@ def admin_scanner_submit():
 
 @app.route('/accounts/login', methods=['GET', 'POST'])
 def accounts_login():
-    # No separate login â€” use the single main login page
+    # No separate login Ã¢â‚¬â€ use the single main login page
     return redirect('/login')
 
 @app.route('/accounts/logout')
@@ -7854,7 +7854,7 @@ def admin_get_driver_jobs(username):
 @app.route('/api/driver/active_job')
 @login_required
 def api_driver_active_job():
-    """Returns the driver's current active job â€” customer name intentionally excluded."""
+    """Returns the driver's current active job Ã¢â‚¬â€ customer name intentionally excluded."""
     username = session.get('user', {}).get('username', '')
     if not os.environ.get('DATABASE_URL') or not username:
         return jsonify({'job': None})
@@ -8003,7 +8003,7 @@ def admin_spares_use(item_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@def _sync_refuelling_to_sheets(vehicle_number, refuelling_dict):
+def _sync_refuelling_to_sheets(vehicle_number, refuelling_dict):
     """Append a refuelling row to the 'Vehicle Fuel Register' tab (best-effort)."""
     try:
         if doc is None:
@@ -8036,9 +8036,9 @@ def admin_spares_use(item_id):
         ]
         fuel_ws.append_row(row)
     except Exception as e:
-        print(f"[Sheets] Vehicle fuel sync failed: {e}")•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+        print(f"[Sheets] Vehicle fuel sync failed: {e}")
 
-# â”€â”€ Sheets sync helper (fire-and-forget) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+#  Sheets sync helper (fire-and-forget) 
 def _sync_refuelling_to_sheets(vehicle_number, refuelling):
     """Append a refuelling row to the 'Vehicle Fuel Register' tab (best-effort)."""
     try:
@@ -8075,7 +8075,7 @@ def _sync_refuelling_to_sheets(vehicle_number, refuelling):
         print(f"[Sheets] Vehicle fuel sync failed: {e}")
 
 
-# â”€â”€ Validation helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Validation helper Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 def _validate_refuelling_form(form):
     """Returns (errors list, parsed values dict)."""
     errors = []
@@ -8138,7 +8138,7 @@ def _validate_refuelling_form(form):
     except (ValueError, TypeError):
         errors.append("Ending odometer must be a valid number.")
 
-    # cross-field: ending > starting â†’ calculate distance + mileage
+    # cross-field: ending > starting Ã¢â€ â€™ calculate distance + mileage
     if 'starting_odometer_km' in vals and 'ending_odometer_km' in vals:
         if vals['ending_odometer_km'] <= vals['starting_odometer_km']:
             errors.append("Ending odometer must be greater than starting odometer.")
@@ -8154,7 +8154,7 @@ def _validate_refuelling_form(form):
     return errors, vals
 
 
-# â”€â”€ Route: Vehicle List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Vehicle List Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles')
 @admin_required
 def admin_vehicles_list():
@@ -8176,7 +8176,7 @@ def admin_vehicles_list():
     )
 
 
-# â”€â”€ Route: New Vehicle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: New Vehicle Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/new', methods=['GET', 'POST'])
 @admin_required
 def admin_vehicles_new():
@@ -8211,7 +8211,7 @@ def admin_vehicles_new():
     )
 
 
-# â”€â”€ Route: Reports (must be before <int:vehicle_id>) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Reports (must be before <int:vehicle_id>) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/reports')
 @admin_required
 def admin_vehicles_reports():
@@ -8283,7 +8283,7 @@ def admin_vehicles_reports():
     )
 
 
-# â”€â”€ Route: Vehicle Detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Vehicle Detail Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>')
 @admin_required
 def admin_vehicle_detail(vehicle_id):
@@ -8292,7 +8292,7 @@ def admin_vehicle_detail(vehicle_id):
     records = VehicleRefuelling.query.filter_by(vehicle_id=vehicle_id)\
                 .order_by(VehicleRefuelling.fuel_date.asc(), VehicleRefuelling.id.asc()).all()
 
-    # â”€â”€ Summary stats â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Summary stats Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     total_entries   = len(records)
     total_litres    = round(sum(float(r.fuel_quantity_litres) for r in records), 2)
     total_cost      = round(sum(float(r.fuel_price_total) for r in records), 2)
@@ -8309,7 +8309,7 @@ def admin_vehicle_detail(vehicle_id):
         if r.fuel_date and r.fuel_date[3:] == curr_month_str
     ), 2)
 
-    # â”€â”€ Recent Performance â€” last 2 entries â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Recent Performance Ã¢â‚¬â€ last 2 entries Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     recent_perf = None
     if len(records) >= 2:
         r1, r2 = records[-2], records[-1]
@@ -8323,13 +8323,13 @@ def admin_vehicle_detail(vehicle_id):
             'comb_cost': comb_cost, 'comb_mileage': comb_mileage,
         }
 
-    # â”€â”€ Last 5 avg mileage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Last 5 avg mileage Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     last5 = records[-5:] if len(records) >= 5 else records
     last5_litres   = sum(float(r.fuel_quantity_litres) for r in last5)
     last5_distance = sum(float(r.distance_km) for r in last5)
     last5_avg_mileage = round(last5_distance / last5_litres, 2) if last5_litres > 0 else 0
 
-    # â”€â”€ Current month avg mileage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # Ã¢â€â‚¬Ã¢â€â‚¬ Current month avg mileage Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     month_records = [r for r in records if r.fuel_date and r.fuel_date[3:] == curr_month_str]
     month_litres   = sum(float(r.fuel_quantity_litres) for r in month_records)
     month_distance = sum(float(r.distance_km) for r in month_records)
@@ -8358,7 +8358,7 @@ def admin_vehicle_detail(vehicle_id):
     )
 
 
-# â”€â”€ Route: Edit Vehicle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Edit Vehicle Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>/edit', methods=['GET', 'POST'])
 @admin_required
 def admin_vehicle_edit(vehicle_id):
@@ -8398,7 +8398,7 @@ def admin_vehicle_edit(vehicle_id):
     )
 
 
-# â”€â”€ Route: Delete / Deactivate Vehicle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Delete / Deactivate Vehicle Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>/delete', methods=['POST'])
 @admin_required
 def admin_vehicle_delete(vehicle_id):
@@ -8419,7 +8419,7 @@ def admin_vehicle_delete(vehicle_id):
         return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
-# â”€â”€ Route: New Refuelling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: New Refuelling Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/new', methods=['GET', 'POST'])
 @admin_required
 def admin_refuelling_new(vehicle_id):
@@ -8467,7 +8467,7 @@ def admin_refuelling_new(vehicle_id):
     )
 
 
-# â”€â”€ Route: Edit Refuelling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Edit Refuelling Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/edit',
            methods=['GET', 'POST'])
 @admin_required
@@ -8513,7 +8513,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
     )
 
 
-# â”€â”€ Route: Delete Refuelling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# Ã¢â€â‚¬Ã¢â€â‚¬ Route: Delete Refuelling Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/delete',
            methods=['POST'])
 @admin_required
@@ -8526,5 +8526,7 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
         db.session.rollback()
     return redirect(f'/admin/vehicles/{vehicle_id}')
 
-# â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-
+# Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢Ã¢â€¢
+
+
+
