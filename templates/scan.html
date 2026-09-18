@@ -1782,6 +1782,8 @@ function renderManualResults() {
         } else if (item.is_duplicate) {
             statusHtml = `<span style="color: #ea580c; font-weight: 500;">Duplicate Entry</span>`;
             hasErrors = true;
+        } else if (item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
+            statusHtml = `<span style="color: #ea580c; font-weight: 500;">${item.status === 'Unmatched' ? 'Unregistered' : 'Mapped'}</span><br><small>${item.status === 'Unmatched' ? 'Will be created' : 'Mapped to Master'}</small>`;
         } else {
             statusHtml = `<span style="color: var(--green-700); font-weight: 500;">OK</span>`;
         }
@@ -1905,4 +1907,6 @@ async function submitManualScans() {
 
 </body>
 </html>
+
+
 

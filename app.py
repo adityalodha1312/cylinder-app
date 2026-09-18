@@ -8661,32 +8661,30 @@ def api_admin_scan_submit_manual():
             transaction_gas = item.get('transaction_gas', '').strip()
             update_registry_gas = item.get('update_registry_gas', False)
             
-            c = Cylinder.query.filter(Cylinder.uid.ilike(master_id)).first()
-            if not c:
-                return jsonify({'error': f"Cylinder {master_id} not found."}), 400
-                
-            if entered_id != master_id:
-                # Check if alias already exists
-                alias = CylinderAlias.query.filter_by(alias_name=entered_id).first()
-                if not alias:
-                    new_alias = CylinderAlias(
+                        c = Cylinder.query.filter(Cylinder.uid.ilike(master_id)).first()
+            if c:
+                if entered_id != master_id:
+                    # Check if alias already exists
+                    alias = CylinderAlias.query.filter_by(alias_name=entered_id).first()
+                    if not alias:
+                        new_alias = CylinderAlias(
+                            cylinder_id=c.id,
+                            alias_name=entered_id,
+                            created_by=admin_name
+                        )
+                        db.session.add(new_alias)
+                        
+                if update_registry_gas and c.gas_type != transaction_gas:
+                    old_gas = c.gas_type
+                    c.gas_type = transaction_gas
+                    history = GasTypeHistory(
                         cylinder_id=c.id,
-                        alias_name=entered_id,
-                        created_by=admin_name
+                        old_gas_type=old_gas,
+                        new_gas_type=transaction_gas,
+                        changed_by=admin_name
                     )
-                    db.session.add(new_alias)
-                    
-            if update_registry_gas and c.gas_type != transaction_gas:
-                old_gas = c.gas_type
-                c.gas_type = transaction_gas
-                history = GasTypeHistory(
-                    cylinder_id=c.id,
-                    old_gas_type=old_gas,
-                    new_gas_type=transaction_gas,
-                    changed_by=admin_name
-                )
-                db.session.add(history)
-                
+                    db.session.add(history)
+            
             db.session.commit()
             
             # The core processing function expects a dict per scan
@@ -8713,3 +8711,5 @@ def api_admin_scan_submit_manual():
         return jsonify({'success': True, 'message': msg})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
