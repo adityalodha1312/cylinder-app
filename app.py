@@ -8323,6 +8323,8 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
 def process_cylinder_action(parsed_scans, driver_username, source='qr'):
     from datetime import datetime
     now = datetime.now()
+    driver = driver_username or 'Admin'
+    rows_to_append = []
     # Resolve gas types for all scanned UIDs in a single batch lookup
     uids_to_lookup = list(set(s['uid'].strip().upper() for s in parsed_scans))
     cyl_gas_map = {}
@@ -8437,6 +8439,20 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr'):
                             c_db.status = 'Filled'
                             c_db.location = 'Depot'
                         c_db.last_activity_date = s_date
+                    else:
+                        # Auto-register unregistered cylinder into database
+                        new_status = 'Delivered' if scan_action == 'Delivery' else ('Filled' if scan_action == 'Filling' else 'Empty')
+                        new_loc = scan_cust or 'Customer' if scan_action == 'Delivery' else 'Depot'
+                        c_db = Cylinder(
+                            uid=scan_uid.strip().upper(),
+                            gas_type=scan_gas or 'Oxygen',
+                            cylinder_type='Domestic',
+                            status=new_status,
+                            location=new_loc,
+                            owner='Depot',
+                            last_activity_date=s_date
+                        )
+                        db.session.add(c_db)
             db.session.commit()
             db_written = True
             print(f"[db] Logged {len(rows_to_append)} scans and updated cylinder registries in DB.")
@@ -8621,9 +8637,9 @@ def api_admin_scan_verify():
                 status = "Billing-ready"
                 result_msg = "Ready to submit."
         else:
-            status = "Unmatched"
-            result_msg = "Cylinder not found in registry."
-            error = True
+            status = "Unregistered"
+            result_msg = "Not in registry. Will be auto-registered upon submission."
+            error = False
             
         results.append({
             'entered_id': entered_id,
@@ -8664,7 +8680,6 @@ def api_admin_scan_submit_manual():
             c = Cylinder.query.filter(Cylinder.uid.ilike(master_id)).first()
             if c:
                 if entered_id != master_id:
-                    # Check if alias already exists
                     alias = CylinderAlias.query.filter_by(alias_name=entered_id).first()
                     if not alias:
                         new_alias = CylinderAlias(
@@ -8684,7 +8699,30 @@ def api_admin_scan_submit_manual():
                         changed_by=admin_name
                     )
                     db.session.add(history)
-            
+            else:
+                # Auto-register unregistered cylinder into database
+                new_status = 'Delivered' if action == 'Delivery' else ('Filled' if action == 'Filling' else 'Empty')
+                new_loc = customer if action == 'Delivery' else 'Depot'
+                c = Cylinder(
+                    uid=master_id,
+                    gas_type=transaction_gas or 'Oxygen',
+                    cylinder_type='Domestic',
+                    status=new_status,
+                    location=new_loc,
+                    owner='Depot',
+                    last_activity_date=datetime.now().strftime('%d-%m-%Y')
+                )
+                db.session.add(c)
+                db.session.flush()
+
+                if entered_id != master_id:
+                    new_alias = CylinderAlias(
+                        cylinder_id=c.id,
+                        alias_name=entered_id,
+                        created_by=admin_name
+                    )
+                    db.session.add(new_alias)
+
             db.session.commit()
             
             # The core processing function expects a dict per scan

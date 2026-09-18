@@ -2369,12 +2369,12 @@ function renderManualResults() {
             statusText = 'Duplicate Entry';
             detailMsg = 'Duplicate cylinder in submission';
             err++;
-        } else if (item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
+        } else if (item.status === 'Unregistered' || item.status === 'Unmatched' || item.status === 'Found through manual mapping') {
             category = 'warning';
             statusBadgeClass = 'badge-warn';
             cardStatusClass = 'status-warn';
-            statusText = item.status === 'Unmatched' ? 'Unregistered ℹ' : 'Mapped ✓';
-            detailMsg = item.status === 'Unmatched' ? 'Will create new record' : 'Mapped to Master UID';
+            statusText = (item.status === 'Unregistered' || item.status === 'Unmatched') ? 'Unregistered ℹ' : 'Mapped ✓';
+            detailMsg = (item.status === 'Unregistered' || item.status === 'Unmatched') ? 'Will be auto-registered upon submission' : 'Mapped to Master UID';
             warn++;
         } else {
             ready++;
@@ -2398,7 +2398,7 @@ function renderManualResults() {
         let actionDisplay = '';
         if (!item.error && !item.is_duplicate) {
             actionDisplay = getGasSelectHtml(idx, item.registry_gas);
-            if (item.status === 'Unmatched') {
+            if (item.status === 'Unmatched' || item.status === 'Unregistered') {
                 actionDisplay += `
                     <div style="margin-top: 8px; display: flex; gap: 4px;">
                         <input type="text" id="map-master-${idx}" placeholder="Map to Master UID" style="flex: 1; padding: 5px; border: 1.5px solid var(--gray-200); border-radius: 4px; font-size: 12px;">
@@ -2435,7 +2435,7 @@ function renderManualResults() {
                     ${getGasSelectHtml(idx + '_mob', item.registry_gas)}
                 </div>
             `;
-            if (item.status === 'Unmatched') {
+            if (item.status === 'Unmatched' || item.status === 'Unregistered') {
                 cardContent += `
                     <div style="margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e8e9e4;">
                         <label style="font-size: 11px; font-weight: 700; color: var(--gray-700); display: block; margin-bottom: 4px;">Map to Existing Master Cylinder?</label>
