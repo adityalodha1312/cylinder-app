@@ -8786,28 +8786,44 @@ def admin_vehicles_pumps_export():
 @app.route('/admin/vehicles/refuellings/<int:refuelling_id>/toggle_paid', methods=['POST'])
 @admin_required
 def admin_refuelling_toggle_paid(refuelling_id):
-    from datetime import date
+    from datetime import date, datetime
     ref = VehicleRefuelling.query.get_or_404(refuelling_id)
+    data = (request.get_json(silent=True) or {}) if request.is_json else request.form.to_dict()
+
     curr_status = ref.payment_status or 'unpaid'
-    new_status = 'unpaid' if curr_status == 'paid' else 'paid'
+    explicit_status = (data.get('status') or '').strip().lower()
+    if explicit_status in ('paid', 'unpaid'):
+        new_status = explicit_status
+    else:
+        new_status = 'unpaid' if curr_status == 'paid' else 'paid'
+
     ref.payment_status = new_status
     if new_status == 'paid':
-        req_date = request.form.get('paid_date') or (request.json.get('paid_date') if request.is_json else None)
+        req_date = data.get('paid_date')
+        if req_date:
+            try:
+                # If HTML5 date input format YYYY-MM-DD, convert to DD-MM-YYYY
+                if '-' in req_date and len(req_date.split('-')[0]) == 4:
+                    req_date = datetime.strptime(req_date, '%Y-%m-%d').strftime('%d-%m-%Y')
+            except Exception:
+                pass
         ref.paid_date = req_date or date.today().strftime('%d-%m-%Y')
-        p_ref = request.form.get('payment_ref') or (request.json.get('payment_ref') if request.is_json else '')
-        ref.payment_ref = (p_ref or '').strip() or None
+        p_ref = data.get('payment_ref') or ''
+        ref.payment_ref = p_ref.strip() or None
     else:
         ref.paid_date = None
         ref.payment_ref = None
     db.session.commit()
 
-    if request.is_json:
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
             'success': True,
             'refuelling_id': ref.id,
             'payment_status': ref.payment_status,
             'paid_date': ref.paid_date or '',
-            'payment_ref': ref.payment_ref or ''
+            'payment_ref': ref.payment_ref or '',
+            'amount': float(ref.fuel_price_total or 0),
+            'receipt_number': ref.receipt_number or ''
         })
 
     flash(f"Refuelling #{ref.id} marked as {new_status.upper()}.", "success")
@@ -8818,8 +8834,8 @@ def admin_refuelling_toggle_paid(refuelling_id):
 @app.route('/admin/vehicles/pumps/mark_paid', methods=['POST'])
 @admin_required
 def admin_vehicles_pumps_mark_paid():
-    from datetime import date
-    data = request.get_json() if request.is_json else request.form.to_dict()
+    from datetime import date, datetime
+    data = (request.get_json(silent=True) or {}) if request.is_json else request.form.to_dict()
     ref_ids_raw = data.get('ref_ids', '')
     if isinstance(ref_ids_raw, str):
         ref_ids = [int(i.strip()) for i in ref_ids_raw.split(',') if i.strip().isdigit()]
@@ -8828,10 +8844,19 @@ def admin_vehicles_pumps_mark_paid():
     else:
         ref_ids = []
 
-    paid_date = data.get('paid_date') or date.today().strftime('%d-%m-%Y')
+    req_date = data.get('paid_date')
+    if req_date:
+        try:
+            if '-' in req_date and len(req_date.split('-')[0]) == 4:
+                req_date = datetime.strptime(req_date, '%Y-%m-%d').strftime('%d-%m-%Y')
+        except Exception:
+            pass
+    paid_date = req_date or date.today().strftime('%d-%m-%Y')
     payment_ref = (data.get('payment_ref') or '').strip() or None
     mark_as = data.get('status', 'paid')
 
+    updated_ids = []
+    total_amount = 0.0
     if ref_ids:
         refs = VehicleRefuelling.query.filter(VehicleRefuelling.id.in_(ref_ids)).all()
         for r in refs:
@@ -8842,10 +8867,20 @@ def admin_vehicles_pumps_mark_paid():
             else:
                 r.paid_date = None
                 r.payment_ref = None
+            updated_ids.append(r.id)
+            total_amount += float(r.fuel_price_total or 0)
         db.session.commit()
 
-    if request.is_json:
-        return jsonify({'success': True, 'count': len(ref_ids), 'status': mark_as})
+    if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        return jsonify({
+            'success': True,
+            'count': len(updated_ids),
+            'ref_ids': updated_ids,
+            'status': mark_as,
+            'paid_date': paid_date,
+            'payment_ref': payment_ref or '',
+            'total_amount': total_amount
+        })
 
     flash(f"Successfully marked {len(ref_ids)} fuel slip(s) as {mark_as.upper()}.", "success")
     return redirect(request.referrer or '/admin/vehicles/pumps')

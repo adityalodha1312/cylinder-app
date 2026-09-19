@@ -472,6 +472,36 @@
     background: #e2e0d8;
   }
 
+  /* Toast Notification */
+  .recon-toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: #04342C;
+    color: #ffffff;
+    padding: 12px 20px;
+    border-radius: 10px;
+    border: 1.5px solid #1D9E75;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.25);
+    font-size: 13.5px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(14px);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+    pointer-events: none;
+  }
+  .recon-toast.show {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  .row-transition {
+    transition: opacity 0.25s ease, transform 0.25s ease;
+  }
+
   /* Empty state */
   .empty-state {
     padding: 48px 24px;
@@ -644,26 +674,26 @@
     </div>
 
     <!-- Pending to Pay -->
-    <div class="kpi-card" style="{% if kpis.unpaid_amount > 0 %}border-color:#f59e0b;background:#fffdfa;{% endif %}">
+    <div class="kpi-card" id="kpiPendingCard" style="{% if kpis.unpaid_amount > 0 %}border-color:#f59e0b;background:#fffdfa;{% endif %}">
       <div class="kpi-icon-wrap kpi-icon-amber">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
       <div>
-        <div class="kpi-label" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;font-weight:700;{% endif %}">Pending to Pay</div>
-        <div class="kpi-val" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;{% endif %}">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</div>
-        <div class="kpi-sub">{{ kpis.unpaid_count }} unpaid slip(s)</div>
+        <div class="kpi-label" id="kpiPendingLabel" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;font-weight:700;{% endif %}">Pending to Pay</div>
+        <div class="kpi-val" id="kpiPendingVal" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;{% endif %}">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</div>
+        <div class="kpi-sub" id="kpiPendingSub">{{ kpis.unpaid_count }} unpaid slip(s)</div>
       </div>
     </div>
 
     <!-- Paid to Dealer -->
-    <div class="kpi-card" style="{% if kpis.paid_amount > 0 %}border-color:#10b981;background:#fbfdfc;{% endif %}">
+    <div class="kpi-card" id="kpiPaidCard" style="{% if kpis.paid_amount > 0 %}border-color:#10b981;background:#fbfdfc;{% endif %}">
       <div class="kpi-icon-wrap kpi-icon-green">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       </div>
       <div>
         <div class="kpi-label">Paid to Dealer</div>
-        <div class="kpi-val" style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.paid_amount) }}</div>
-        <div class="kpi-sub">{{ kpis.paid_count }} cleared slip(s)</div>
+        <div class="kpi-val" id="kpiPaidVal" style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.paid_amount) }}</div>
+        <div class="kpi-sub" id="kpiPaidSub">{{ kpis.paid_count }} cleared slip(s)</div>
       </div>
     </div>
 
@@ -706,12 +736,10 @@
             All Time Records
           {% endif %}
         </div>
-        {% if kpis.unpaid_count > 0 %}
-        <button type="button" class="btn-clear-statement" onclick="openBulkPayModal()">
+        <button type="button" class="btn-clear-statement" id="btnBulkPay" onclick="openBulkPayModal()" style="{% if kpis.unpaid_count == 0 %}display:none;{% endif %}">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
-          <span>Mark Cycle as Paid (&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }})</span>
+          <span id="btnBulkPayText">Mark Cycle as Paid (&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }})</span>
         </button>
-        {% endif %}
       </div>
     </div>
 
@@ -721,23 +749,23 @@
         <thead>
           <tr>
             <th>#</th>
-            <th>Date</th>
-            <th>Fuel Pump / Dealer</th>
+            <th>Fuel Date</th>
+            <th>Dealer / Pump</th>
             <th>Vehicle</th>
-            <th>Slip / Bill No.</th>
-            <th style="text-align:right;">Quantity (L)</th>
+            <th>Slip / Receipt No</th>
+            <th style="text-align:right;">Volume (L)</th>
             <th style="text-align:right;">Rate (&#8377;/L)</th>
             <th style="text-align:right;">Total (&#8377;)</th>
             <th>Payment Status</th>
             <th>Odometer (Start &rarr; End)</th>
             <th style="text-align:right;">Distance</th>
             <th style="text-align:right;">Mileage</th>
-            <th>Action</th>
+            <th>Actions</th>
           </tr>
         </thead>
-        <tbody>
+        <tbody id="reconTableBody">
           {% for ref, veh, dt in records %}
-          <tr>
+          <tr id="row-ref-{{ ref.id }}" class="row-transition" data-ref-id="{{ ref.id }}" data-amount="{{ ref.fuel_price_total|float }}" data-status="{{ ref.payment_status or 'unpaid' }}" data-slip="{{ ref.receipt_number or '' }}">
             <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
             <td style="font-weight:600;white-space:nowrap;">{{ ref.fuel_date }}</td>
             <td>
@@ -768,15 +796,13 @@
             <td style="text-align:right;">
               <span class="amount-val">&#8377;{{ "{:,.2f}".format(ref.fuel_price_total|float) }}</span>
             </td>
-            <td>
+            <td id="status-cell-{{ ref.id }}">
               {% if (ref.payment_status or 'unpaid') == 'paid' %}
                 <span class="badge-paid">Paid</span>
                 {% if ref.paid_date %}
                   <div class="paid-sub">{{ ref.paid_date }}{% if ref.payment_ref %} &middot; {{ ref.payment_ref }}{% endif %}</div>
                 {% endif %}
-                <form method="POST" action="/admin/vehicles/refuellings/{{ ref.id }}/toggle_paid" style="display:inline;" onsubmit="return confirm('Undo payment for Slip #{{ ref.receipt_number or ref.id }}?');">
-                  <button type="submit" class="btn-xs-link">Undo</button>
-                </form>
+                <button type="button" class="btn-xs-link" onclick="handleUndoPaid({{ ref.id }})">Undo</button>
               {% else %}
                 <span class="badge-unpaid">Pending</span>
                 <div>
@@ -804,8 +830,8 @@
             <td></td>
             <td style="text-align:right;color:#0F6E56;font-size:15px;font-weight:700;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</td>
             <td style="font-size:12px;">
-              <span style="color:#0F6E56;font-weight:700;">&#8377;{{ "{:,.0f}".format(kpis.paid_amount) }} Paid</span><br>
-              <span style="color:#b45309;font-weight:700;">&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }} Due</span>
+              <span style="color:#0F6E56;font-weight:700;" id="tfootPaidAmt">&#8377;{{ "{:,.0f}".format(kpis.paid_amount) }} Paid</span><br>
+              <span style="color:#b45309;font-weight:700;" id="tfootDueAmt">&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }} Due</span>
             </td>
             <td colspan="4"></td>
           </tr>
@@ -824,12 +850,18 @@
 
 </div>
 
+<!-- ── Toast Notification ── -->
+<div class="recon-toast" id="reconToast">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+  <span id="reconToastMsg">Status updated successfully</span>
+</div>
+
 <!-- ── Single Slip Pay Modal ── -->
 <div class="pay-modal-bg" id="singlePayModal">
   <div class="pay-modal-box">
     <h3 style="margin:0 0 6px;color:var(--dark-text);font-size:16px;">Mark Slip as Paid</h3>
     <p style="margin:0 0 16px;font-size:13px;color:var(--gray-text);" id="singlePayInfo"></p>
-    <form method="POST" id="singlePayForm">
+    <form id="singlePayForm">
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px;">
         <div>
           <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Date *</label>
@@ -837,12 +869,12 @@
         </div>
         <div>
           <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Reference / Mode (Optional)</label>
-          <input type="text" name="payment_ref" placeholder="e.g. Bank Transfer / UTR / Cheque / Cash" class="filter-input" style="width:100%;box-sizing:border-box;">
+          <input type="text" name="payment_ref" id="singlePaymentRef" placeholder="e.g. Bank Transfer / UTR / Cheque / Cash" class="filter-input" style="width:100%;box-sizing:border-box;">
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;">
         <button type="button" class="btn-reset" onclick="closeSinglePayModal()">Cancel</button>
-        <button type="submit" class="btn-apply" style="padding:8px 16px;">Confirm Payment</button>
+        <button type="submit" id="btnSinglePaySubmit" class="btn-apply" style="padding:8px 16px;">Confirm Payment</button>
       </div>
     </form>
   </div>
@@ -852,11 +884,10 @@
 <div class="pay-modal-bg" id="bulkPayModal">
   <div class="pay-modal-box">
     <h3 style="margin:0 0 6px;color:var(--dark-text);font-size:16px;">Clear Statement / Mark Cycle as Paid</h3>
-    <p style="margin:0 0 16px;font-size:13px;color:var(--gray-text);">
-      Mark all <strong>{{ kpis.unpaid_count }} unpaid fuel slip(s)</strong> totaling <strong style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</strong> as Paid for <strong>{{ selected_pump }}</strong>.
+    <p style="margin:0 0 16px;font-size:13px;color:var(--gray-text);" id="bulkPayInfo">
+      Mark all unpaid fuel slips as Paid for <strong>{{ selected_pump }}</strong>.
     </p>
-    <form method="POST" action="/admin/vehicles/pumps/mark_paid">
-      <input type="hidden" name="ref_ids" value="{% for r, v, dt in records %}{% if (r.payment_status or 'unpaid') != 'paid' %}{{ r.id }},{% endif %}{% endfor %}">
+    <form id="bulkPayForm">
       <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px;">
         <div>
           <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Date *</label>
@@ -864,49 +895,344 @@
         </div>
         <div>
           <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Reference / UTR (Optional)</label>
-          <input type="text" name="payment_ref" placeholder="e.g. NEFT UTR # / Cheque #1234 / ATC Bill Cleared" class="filter-input" style="width:100%;box-sizing:border-box;">
+          <input type="text" name="payment_ref" id="bulkPaymentRef" placeholder="e.g. NEFT UTR # / Cheque #1234 / ATC Bill Cleared" class="filter-input" style="width:100%;box-sizing:border-box;">
         </div>
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;">
         <button type="button" class="btn-reset" onclick="closeBulkPayModal()">Cancel</button>
-        <button type="submit" class="btn-apply" style="padding:8px 16px;">Confirm Payment (&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }})</button>
+        <button type="submit" id="btnBulkPaySubmit" class="btn-apply" style="padding:8px 16px;">Confirm Payment</button>
       </div>
     </form>
   </div>
 </div>
 
 <script>
+  // Dynamic State
+  let statePendingAmt = parseFloat('{{ kpis.unpaid_amount|float }}') || 0;
+  let statePendingCount = parseInt('{{ kpis.unpaid_count|int }}') || 0;
+  let statePaidAmt = parseFloat('{{ kpis.paid_amount|float }}') || 0;
+  let statePaidCount = parseInt('{{ kpis.paid_count|int }}') || 0;
+  let activeSingleRefId = null;
+  let toastTimer = null;
+
+  function fmt(n) {
+    return Number(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function fmt0(n) {
+    return Number(n).toLocaleString('en-IN', { maximumFractionDigits: 0 });
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+
+  function showToast(msg) {
+    const toast = document.getElementById('reconToast');
+    const msgEl = document.getElementById('reconToastMsg');
+    if (!toast || !msgEl) return;
+    msgEl.textContent = msg;
+    toast.classList.add('show');
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      toast.classList.remove('show');
+    }, 3200);
+  }
+
+  function updateKpiDisplay() {
+    // Pending KPI
+    const pendingVal = document.getElementById('kpiPendingVal');
+    const pendingSub = document.getElementById('kpiPendingSub');
+    const pendingCard = document.getElementById('kpiPendingCard');
+    const pendingLabel = document.getElementById('kpiPendingLabel');
+    if (pendingVal) pendingVal.innerHTML = '&#8377;' + fmt(statePendingAmt);
+    if (pendingSub) pendingSub.innerText = `${statePendingCount} unpaid slip(s)`;
+    if (pendingCard) {
+      if (statePendingCount > 0) {
+        pendingCard.style.borderColor = '#f59e0b';
+        pendingCard.style.background = '#fffdfa';
+        if (pendingLabel) { pendingLabel.style.color = '#b45309'; pendingLabel.style.fontWeight = '700'; }
+        if (pendingVal) pendingVal.style.color = '#b45309';
+      } else {
+        pendingCard.style.borderColor = '';
+        pendingCard.style.background = '';
+        if (pendingLabel) { pendingLabel.style.color = ''; pendingLabel.style.fontWeight = ''; }
+        if (pendingVal) pendingVal.style.color = '';
+      }
+    }
+
+    // Paid KPI
+    const paidVal = document.getElementById('kpiPaidVal');
+    const paidSub = document.getElementById('kpiPaidSub');
+    const paidCard = document.getElementById('kpiPaidCard');
+    if (paidVal) paidVal.innerHTML = '&#8377;' + fmt(statePaidAmt);
+    if (paidSub) paidSub.innerText = `${statePaidCount} cleared slip(s)`;
+    if (paidCard && statePaidCount > 0) {
+      paidCard.style.borderColor = '#10b981';
+      paidCard.style.background = '#fbfdfc';
+    }
+
+    // Table Footer
+    const footPaid = document.getElementById('tfootPaidAmt');
+    const footDue = document.getElementById('tfootDueAmt');
+    if (footPaid) footPaid.innerHTML = '&#8377;' + fmt0(statePaidAmt) + ' Paid';
+    if (footDue) footDue.innerHTML = '&#8377;' + fmt0(statePendingAmt) + ' Due';
+
+    // Bulk Pay Button
+    const bulkBtn = document.getElementById('btnBulkPay');
+    const bulkText = document.getElementById('btnBulkPayText');
+    if (bulkBtn) {
+      if (statePendingCount > 0) {
+        bulkBtn.style.display = 'inline-flex';
+        if (bulkText) bulkText.innerText = `Mark Cycle as Paid (₹${fmt0(statePendingAmt)})`;
+      } else {
+        bulkBtn.style.display = 'none';
+      }
+    }
+  }
+
+  function applyRowPaymentUpdate(refId, newStatus, paidDate, paymentRef) {
+    const row = document.getElementById(`row-ref-${refId}`);
+    if (!row) return;
+
+    const oldStatus = row.getAttribute('data-status') || 'unpaid';
+    if (oldStatus === newStatus) return;
+
+    const amount = parseFloat(row.getAttribute('data-amount') || 0);
+    const slipNo = row.getAttribute('data-slip') || '';
+    const cell = document.getElementById(`status-cell-${refId}`);
+
+    row.setAttribute('data-status', newStatus);
+
+    if (newStatus === 'paid') {
+      const subInfo = paidDate ? `<div class="paid-sub">${paidDate}${paymentRef ? ' &middot; ' + escapeHtml(paymentRef) : ''}</div>` : '';
+      cell.innerHTML = `
+        <span class="badge-paid">Paid</span>
+        ${subInfo}
+        <button type="button" class="btn-xs-link" onclick="handleUndoPaid(${refId})">Undo</button>
+      `;
+
+      statePendingAmt = Math.max(0, statePendingAmt - amount);
+      statePendingCount = Math.max(0, statePendingCount - 1);
+      statePaidAmt += amount;
+      statePaidCount += 1;
+    } else {
+      const formattedAmt = fmt(amount);
+      cell.innerHTML = `
+        <span class="badge-unpaid">Pending</span>
+        <div>
+          <button type="button" class="btn-pay-slip" onclick="openSinglePayModal(${refId}, '${formattedAmt}', '${escapeHtml(slipNo)}')">
+            Mark Paid
+          </button>
+        </div>
+      `;
+
+      statePendingAmt += amount;
+      statePendingCount += 1;
+      statePaidAmt = Math.max(0, statePaidAmt - amount);
+      statePaidCount = Math.max(0, statePaidCount - 1);
+    }
+
+    updateKpiDisplay();
+
+    // Handle view filtering smoothly without reload
+    const currentPayFilter = '{{ pay_status }}';
+    if (currentPayFilter === 'unpaid' && newStatus === 'paid') {
+      row.style.opacity = '0';
+      row.style.transform = 'scale(0.98)';
+      setTimeout(() => { row.style.display = 'none'; }, 260);
+    } else if (currentPayFilter === 'paid' && newStatus === 'unpaid') {
+      row.style.opacity = '0';
+      row.style.transform = 'scale(0.98)';
+      setTimeout(() => { row.style.display = 'none'; }, 260);
+    }
+  }
+
   function openSinglePayModal(id, amount, slipNo) {
+    activeSingleRefId = id;
     const modal = document.getElementById('singlePayModal');
-    const form = document.getElementById('singlePayForm');
     const info = document.getElementById('singlePayInfo');
     const dateInp = document.getElementById('singlePaidDate');
+    const refInp = document.getElementById('singlePaymentRef');
     
-    form.action = '/admin/vehicles/refuellings/' + id + '/toggle_paid';
     info.innerHTML = 'Slip: <strong>' + (slipNo || ('#' + id)) + '</strong> &middot; Amount: <strong style="color:#0F6E56;">&#8377;' + amount + '</strong>';
     dateInp.value = new Date().toISOString().slice(0, 10);
+    if (refInp) refInp.value = '';
     modal.classList.add('open');
   }
 
   function closeSinglePayModal() {
-    document.getElementById('singlePayModal').classList.remove('open');
+    activeSingleRefId = null;
+    const modal = document.getElementById('singlePayModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  // Handle Single Slip Mark Paid submit (Dynamic AJAX)
+  const singlePayForm = document.getElementById('singlePayForm');
+  if (singlePayForm) {
+    singlePayForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      if (!activeSingleRefId) return;
+
+      const btn = document.getElementById('btnSinglePaySubmit');
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'Saving...';
+
+      const refId = activeSingleRefId;
+      const paidDate = document.getElementById('singlePaidDate').value;
+      const paymentRef = document.getElementById('singlePaymentRef').value;
+
+      try {
+        const res = await fetch(`/admin/vehicles/refuellings/${refId}/toggle_paid`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            status: 'paid',
+            paid_date: paidDate,
+            payment_ref: paymentRef
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeSinglePayModal();
+          applyRowPaymentUpdate(refId, 'paid', data.paid_date, data.payment_ref);
+          showToast(`Slip ${data.receipt_number ? '#' + data.receipt_number : '#' + refId} marked as Paid!`);
+        } else {
+          alert(data.error || 'Failed to update payment status.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error updating payment status. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+      }
+    });
+  }
+
+  // Handle Single Slip Undo (Dynamic AJAX)
+  async function handleUndoPaid(refId) {
+    const row = document.getElementById(`row-ref-${refId}`);
+    const slipNo = row ? (row.getAttribute('data-slip') || `#${refId}`) : `#${refId}`;
+    if (!confirm(`Undo payment for Slip ${slipNo}? It will return to Pending status.`)) {
+      return;
+    }
+
+    try {
+      const res = await fetch(`/admin/vehicles/refuellings/${refId}/toggle_paid`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        body: JSON.stringify({
+          status: 'unpaid'
+        })
+      });
+      const data = await res.json();
+      if (data.success) {
+        applyRowPaymentUpdate(refId, 'unpaid', '', '');
+        showToast(`Slip ${slipNo} reverted to Pending.`);
+      } else {
+        alert(data.error || 'Failed to undo payment.');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error undoing payment. Please try again.');
+    }
   }
 
   function openBulkPayModal() {
     const modal = document.getElementById('bulkPayModal');
     const dateInp = document.getElementById('bulkPaidDate');
+    const refInp = document.getElementById('bulkPaymentRef');
+    const info = document.getElementById('bulkPayInfo');
+    const submitBtn = document.getElementById('btnBulkPaySubmit');
+
     dateInp.value = new Date().toISOString().slice(0, 10);
+    if (refInp) refInp.value = '';
+    info.innerHTML = `Mark all <strong>${statePendingCount} unpaid fuel slip(s)</strong> totaling <strong style="color:#0F6E56;">&#8377;${fmt(statePendingAmt)}</strong> as Paid for <strong>{{ selected_pump }}</strong>.`;
+    if (submitBtn) submitBtn.innerHTML = `Confirm Payment (&#8377;${fmt0(statePendingAmt)})`;
     modal.classList.add('open');
   }
 
   function closeBulkPayModal() {
-    document.getElementById('bulkPayModal').classList.remove('open');
+    const modal = document.getElementById('bulkPayModal');
+    if (modal) modal.classList.remove('open');
+  }
+
+  // Handle Bulk Mark Cycle as Paid (Dynamic AJAX)
+  const bulkPayForm = document.getElementById('bulkPayForm');
+  if (bulkPayForm) {
+    bulkPayForm.addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const unpaidRows = Array.from(document.querySelectorAll('tr[data-status="unpaid"]'));
+      const unpaidIds = unpaidRows.map(tr => parseInt(tr.getAttribute('data-ref-id'))).filter(Boolean);
+
+      if (!unpaidIds.length) {
+        alert('No pending slips found to settle.');
+        closeBulkPayModal();
+        return;
+      }
+
+      const btn = document.getElementById('btnBulkPaySubmit');
+      const origText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = 'Clearing Cycle...';
+
+      const paidDate = document.getElementById('bulkPaidDate').value;
+      const paymentRef = document.getElementById('bulkPaymentRef').value;
+
+      try {
+        const res = await fetch('/admin/vehicles/pumps/mark_paid', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest'
+          },
+          body: JSON.stringify({
+            ref_ids: unpaidIds,
+            paid_date: paidDate,
+            payment_ref: paymentRef,
+            status: 'paid'
+          })
+        });
+        const data = await res.json();
+        if (data.success) {
+          closeBulkPayModal();
+          // Update each row dynamically!
+          unpaidIds.forEach(id => {
+            applyRowPaymentUpdate(id, 'paid', data.paid_date, data.payment_ref);
+          });
+          showToast(`Cleared cycle! ${data.count} slips marked as Paid.`);
+        } else {
+          alert(data.error || 'Failed to mark cycle as paid.');
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Error clearing cycle. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+      }
+    });
   }
 
   // Close modals on outside click
   window.addEventListener('click', function(e) {
     if (e.target.classList.contains('pay-modal-bg')) {
-      e.target.classList.remove('open');
+      closeSinglePayModal();
+      closeBulkPayModal();
     }
   });
 </script>
