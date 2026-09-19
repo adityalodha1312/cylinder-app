@@ -137,6 +137,121 @@
   .spin {
     animation: spin 0.9s linear infinite;
   }
+
+  /* Excel Performance Table matching reference */
+  .perf-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .perf-pills {
+    display: inline-flex;
+    gap: 6px;
+    background: #f1efe8;
+    padding: 3px;
+    border-radius: 20px;
+    border: 1px solid var(--gray-bd);
+  }
+  .perf-pill-btn {
+    padding: 4px 12px;
+    border: none;
+    background: transparent;
+    color: var(--gray-text);
+    border-radius: 16px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .perf-pill-btn:hover {
+    color: var(--dark-text);
+  }
+  .perf-pill-btn.active {
+    background: #ffffff;
+    color: var(--green-700);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  .excel-perf-wrapper {
+    margin-top: 20px;
+    border: 2px solid #000000;
+    border-radius: 4px;
+    background: #ffffff;
+    overflow: hidden;
+  }
+  .excel-veh-banner {
+    background: #FFE600;
+    color: #000000;
+    font-family: 'DM Sans', -apple-system, sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    text-align: center;
+    padding: 9px 14px;
+    border-bottom: 2px solid #000000;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+  }
+  .excel-table-scroll {
+    overflow-x: auto;
+  }
+  .excel-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: 'DM Sans', monospace, sans-serif;
+    font-size: 13px;
+    text-align: center;
+  }
+  .excel-table th {
+    background: #ffffff;
+    color: #000000;
+    font-weight: 800;
+    padding: 8px 10px;
+    border: 1.5px solid #000000;
+    white-space: nowrap;
+    font-size: 12.5px;
+  }
+  .excel-table td {
+    padding: 8px 10px;
+    border: 1.5px solid #000000;
+    color: #000000;
+    white-space: nowrap;
+    font-size: 13px;
+    background: #ffffff;
+  }
+  .excel-table tbody tr:nth-child(even) td {
+    background: #fafaf8;
+  }
+  .excel-table tfoot td {
+    background: #FFE600 !important;
+    color: #000000;
+    font-weight: 800;
+    border: 1.5px solid #000000;
+    font-size: 13px;
+  }
+
+  .btn-snapshot-secondary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    background: #ffffff;
+    color: var(--gray-text);
+    border: 1.5px solid var(--gray-bd);
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-snapshot-secondary:hover {
+    background: #f1efe8;
+    color: var(--dark-text);
+  }
 </style>
 {% endblock %}
 
@@ -186,22 +301,83 @@
 </div>
 
 <div class="perf-card" id="perfAnalysisCard">
-  <div class="perf-section-title">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
-    Recent Performance &middot; <span style="color:var(--dark-text);">{{ vehicle.vehicle_number }}</span>
+  <div class="perf-header-row">
+    <div class="perf-section-title" style="margin-bottom:0;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/></svg>
+      Recent Performance &middot; <span style="color:var(--dark-text);">{{ vehicle.vehicle_number }}</span>
+    </div>
+    {% if recent_perf_options and recent_perf_options|length > 1 %}
+    <div class="perf-pills">
+      {% for n in [2, 3, 4] %}
+        {% if n in recent_perf_options %}
+        <button type="button" class="perf-pill-btn {% if n == default_n %}active{% endif %}" onclick="setPerfEntries({{ n }})">Last {{ n }} Entries</button>
+        {% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
   </div>
+
   {% if recent_perf %}
-  <p style="font-size:13px;color:var(--gray-text);margin-bottom:16px;">Combined last 2 refuelling entries</p>
+  <p id="perfCardSub" style="font-size:13px;color:var(--gray-text);margin-bottom:16px;">Combined last {{ default_n }} refuelling entries</p>
   <div class="perf-grid">
-    <div class="perf-stat"><div class="p-label">Combined Distance</div><div class="p-value">{{ "{:,.2f}".format(recent_perf.comb_distance) }}<span class="p-unit">km</span></div></div>
-    <div class="perf-stat"><div class="p-label">Combined Fuel</div><div class="p-value">{{ "{:,.3f}".format(recent_perf.comb_litres) }}<span class="p-unit">l</span></div></div>
-    <div class="perf-stat"><div class="p-label">Combined Cost</div><div class="p-value">&#8377;{{ "{:,.0f}".format(recent_perf.comb_cost) }}</div></div>
-    <div class="perf-stat"><div class="p-label">Combined Mileage</div><div class="p-value" style="color:var(--green-700);">{{ recent_perf.comb_mileage }}<span class="p-unit">km/l</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Distance</div><div class="p-value"><span id="perfCombDist">{{ "{:,.2f}".format(recent_perf.comb_distance) }}</span><span class="p-unit">km</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Fuel</div><div class="p-value"><span id="perfCombFuel">{{ "{:,.3f}".format(recent_perf.comb_litres) }}</span><span class="p-unit">l</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Cost</div><div class="p-value">&#8377;<span id="perfCombCost">{{ "{:,.0f}".format(recent_perf.comb_cost) }}</span></div></div>
+    <div class="perf-stat"><div class="p-label">Combined Mileage</div><div class="p-value" style="color:var(--green-700);"><span id="perfCombMil">{{ recent_perf.comb_mileage }}</span><span class="p-unit">km/l</span></div></div>
   </div>
   <div class="perf-sub-grid">
     <div class="perf-sub-stat"><div class="ps-label">Last 5 Entries Avg</div><div class="ps-value">{{ stats.last5_avg_mileage }} km/l</div></div>
     <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Avg</div><div class="ps-value">{{ stats.month_avg_mileage }} km/l</div></div>
     <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Cost</div><div class="ps-value">&#8377;{{ "{:,.0f}".format(stats.month_cost) }}</div></div>
+  </div>
+
+  <!-- Excel-Style Table matching Reference -->
+  <div class="excel-perf-wrapper">
+    <div class="excel-veh-banner">{{ vehicle.vehicle_number }}</div>
+    <div class="excel-table-scroll">
+      <table class="excel-table">
+        <thead>
+          <tr>
+            <th>Sr-no</th>
+            <th>Fule Date</th>
+            <th>Fule LTR</th>
+            <th>Fule Prices</th>
+            <th>Start KM</th>
+            <th>To</th>
+            <th>End KM</th>
+            <th>Total (KM)</th>
+            <th>Pre Kmpl Average</th>
+          </tr>
+        </thead>
+        <tbody id="excelTableBody">
+          {% for r in recent_perf.entries %}
+          <tr>
+            <td>{{ r.sr }}</td>
+            <td>{{ r.fuel_date }}</td>
+            <td>{{ "%.3f"|format(r.fuel_quantity_litres) }}</td>
+            <td>&#8377;{{ "{:,.0f}".format(r.fuel_price_total) }}</td>
+            <td>{{ "{:,.1f}".format(r.starting_odometer_km) }}</td>
+            <td style="font-weight:700;">To</td>
+            <td>{{ "{:,.1f}".format(r.ending_odometer_km) }}</td>
+            <td style="font-weight:700;">{{ "{:,.1f}".format(r.distance_km) }}</td>
+            <td style="font-weight:700;color:var(--green-700);">{{ "%.2f"|format(r.mileage_km_per_litre) }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot id="excelTableFoot">
+          <tr>
+            <td id="excelFootLabel" colspan="2">Total Last {{ default_n }} Time</td>
+            <td id="excelFootLtr">{{ "%.3f"|format(recent_perf.comb_litres) }}</td>
+            <td id="excelFootPrice">&#8377;{{ "{:,.0f}".format(recent_perf.comb_cost) }}</td>
+            <td id="excelFootStart">{{ "{:,.1f}".format(recent_perf.start_km) }}</td>
+            <td>-</td>
+            <td id="excelFootEnd">{{ "{:,.1f}".format(recent_perf.end_km) }}</td>
+            <td id="excelFootDist">{{ "{:,.1f}".format(recent_perf.comb_distance) }}</td>
+            <td id="excelFootMil">{{ "%.2f"|format(recent_perf.comb_mileage) }}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
   </div>
   {% else %}
   <div style="text-align:center;padding:28px 0;color:var(--gray-text);font-size:14px;">At least 2 refuelling records needed to calculate combined performance.</div>
@@ -209,10 +385,14 @@
 </div>
 
 {% if recent_perf %}
-<div class="perf-actions-bar">
-  <button type="button" class="btn-snapshot" id="btnSnapshot" onclick="savePerformanceSnapshot()">
-    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-    <span>Save Snapshot as Image</span>
+<div class="perf-actions-bar" style="display:flex;gap:10px;align-items:center;justify-content:flex-end;">
+  <button type="button" class="btn-snapshot" id="btnCopyImage" onclick="copyPerformanceImage()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+    <span>Copy Image</span>
+  </button>
+  <button type="button" class="btn-snapshot-secondary" id="btnSnapshot" onclick="savePerformanceSnapshot()">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+    <span>Download PNG</span>
   </button>
 </div>
 {% endif %}
@@ -302,7 +482,70 @@
   function closeDeleteModal() { document.getElementById("deleteModal").classList.remove("open"); }
   document.getElementById("deleteModal").addEventListener("click", function(e){ if(e.target===this) closeDeleteModal(); });
 
-  // --- Snapshot Functionality ---
+  // --- Performance Entry Switcher & Snapshot Functionality ---
+  const perfOptions = {{ recent_perf_options|tojson if recent_perf_options else '{}' }};
+  let currentN = {{ default_n or 2 }};
+
+  function setPerfEntries(n) {
+    if (!perfOptions || !perfOptions[n]) return;
+    currentN = n;
+    const data = perfOptions[n];
+
+    // Update pill button active states
+    document.querySelectorAll('.perf-pill-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.includes(n));
+    });
+
+    // Update subtitle
+    const sub = document.getElementById('perfCardSub');
+    if (sub) sub.textContent = 'Combined last ' + n + ' refuelling entries';
+
+    // Update KPIs
+    const distEl = document.getElementById('perfCombDist');
+    const fuelEl = document.getElementById('perfCombFuel');
+    const costEl = document.getElementById('perfCombCost');
+    const milEl = document.getElementById('perfCombMil');
+    if (distEl) distEl.textContent = data.comb_distance.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 2});
+    if (fuelEl) fuelEl.textContent = data.comb_litres.toFixed(3);
+    if (costEl) costEl.textContent = data.comb_cost.toLocaleString('en-IN', {maximumFractionDigits: 0});
+    if (milEl) milEl.textContent = data.comb_mileage.toFixed(2);
+
+    // Update Excel tbody
+    const tbody = document.getElementById('excelTableBody');
+    if (tbody) {
+      tbody.innerHTML = data.entries.map(e => `
+        <tr>
+          <td>${e.sr}</td>
+          <td>${e.fuel_date}</td>
+          <td>${e.fuel_quantity_litres.toFixed(3)}</td>
+          <td>&#8377;${e.fuel_price_total.toLocaleString('en-IN', {maximumFractionDigits: 0})}</td>
+          <td>${e.starting_odometer_km.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1})}</td>
+          <td style="font-weight:700;">To</td>
+          <td>${e.ending_odometer_km.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1})}</td>
+          <td style="font-weight:700;">${e.distance_km.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1})}</td>
+          <td style="font-weight:700;color:var(--green-700);">${e.mileage_km_per_litre.toFixed(2)}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Update Excel tfoot
+    const footLabel = document.getElementById('excelFootLabel');
+    const footLtr = document.getElementById('excelFootLtr');
+    const footPrice = document.getElementById('excelFootPrice');
+    const footStart = document.getElementById('excelFootStart');
+    const footEnd = document.getElementById('excelFootEnd');
+    const footDist = document.getElementById('excelFootDist');
+    const footMil = document.getElementById('excelFootMil');
+
+    if (footLabel) footLabel.textContent = 'Total Last ' + n + ' Time';
+    if (footLtr) footLtr.textContent = data.comb_litres.toFixed(3);
+    if (footPrice) footPrice.innerHTML = '&#8377;' + data.comb_cost.toLocaleString('en-IN', {maximumFractionDigits: 0});
+    if (footStart) footStart.textContent = data.start_km.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+    if (footEnd) footEnd.textContent = data.end_km.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+    if (footDist) footDist.textContent = data.comb_distance.toLocaleString('en-IN', {minimumFractionDigits: 1, maximumFractionDigits: 1});
+    if (footMil) footMil.textContent = data.comb_mileage.toFixed(2);
+  }
+
   function loadHtml2Canvas() {
     if (window.html2canvas) return Promise.resolve(window.html2canvas);
     return new Promise(function(resolve, reject) {
@@ -313,15 +556,15 @@
         var s2 = document.createElement('script');
         s2.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
         s2.onload = function() { resolve(window.html2canvas); };
-        s2.onerror = function() { reject(new Error('Unable to load html2canvas library. Please check your network connection.')); };
+        s2.onerror = function() { reject(new Error('Unable to load screenshot library. Please check your network connection.')); };
         document.head.appendChild(s2);
       };
       document.head.appendChild(s);
     });
   }
 
-  async function savePerformanceSnapshot() {
-    var btn = document.getElementById('btnSnapshot');
+  async function copyPerformanceImage() {
+    var btn = document.getElementById('btnCopyImage');
     var card = document.getElementById('perfAnalysisCard');
     if (!card) {
       alert('Performance analysis card not found.');
@@ -331,7 +574,7 @@
     var originalHtml = btn ? btn.innerHTML : '';
     if (btn) {
       btn.disabled = true;
-      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y1="12"/><line x1="18" y1="12" x2="22" y1="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Saving Image...</span>';
+      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y1="12"/><line x1="18" y1="12" x2="22" y1="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Copying...</span>';
     }
 
     try {
@@ -347,12 +590,90 @@
             clonedCard.style.backgroundColor = '#ffffff';
             clonedCard.style.boxShadow = 'none';
           }
+          var pills = clonedDoc.querySelector('.perf-pills');
+          if (pills) pills.style.display = 'none';
+        }
+      });
+
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Direct clipboard copy is not supported in this browser. Falling back to download.');
+      }
+
+      await new Promise(function(resolve, reject) {
+        canvas.toBlob(async function(blob) {
+          if (!blob) {
+            reject(new Error('Failed to create image blob.'));
+            return;
+          }
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            resolve();
+          } catch (writeErr) {
+            reject(writeErr);
+          }
+        }, 'image/png');
+      });
+
+      if (btn) {
+        btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied to Clipboard!</span>';
+        btn.style.background = '#04342C';
+        btn.style.borderColor = '#04342C';
+        setTimeout(function() {
+          btn.innerHTML = originalHtml;
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.disabled = false;
+        }, 2500);
+      }
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+      if (confirm('Could not write directly to clipboard (' + (err.message || 'Permission denied') + '). Would you like to download the PNG image instead?')) {
+        savePerformanceSnapshot();
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+  }
+
+  async function savePerformanceSnapshot() {
+    var btn = document.getElementById('btnSnapshot');
+    var card = document.getElementById('perfAnalysisCard');
+    if (!card) {
+      alert('Performance analysis card not found.');
+      return;
+    }
+
+    var originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y1="12"/><line x1="18" y1="12" x2="22" y1="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Saving PNG...</span>';
+    }
+
+    try {
+      var h2c = await loadHtml2Canvas();
+      var canvas = await h2c(card, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        onclone: function(clonedDoc) {
+          var clonedCard = clonedDoc.getElementById('perfAnalysisCard');
+          if (clonedCard) {
+            clonedCard.style.backgroundColor = '#ffffff';
+            clonedCard.style.boxShadow = 'none';
+          }
+          var pills = clonedDoc.querySelector('.perf-pills');
+          if (pills) pills.style.display = 'none';
         }
       });
 
       var vehNum = '{{ vehicle.vehicle_number }}'.replace(/[^a-zA-Z0-9_-]/g, '_');
       var dateStr = new Date().toISOString().slice(0, 10);
-      var filename = vehNum + '_Performance_' + dateStr + '.png';
+      var filename = vehNum + '_Performance_Last' + currentN + 'Entries_' + dateStr + '.png';
 
       if (canvas.toBlob) {
         canvas.toBlob(function(blob) {

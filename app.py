@@ -8167,18 +8167,44 @@ def admin_vehicle_detail(vehicle_id):
     ), 2)
 
     # ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Recent Performance ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â  last 2 entries ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
-    recent_perf = None
-    if len(records) >= 2:
-        r1, r2 = records[-2], records[-1]
-        comb_litres   = round(float(r1.fuel_quantity_litres) + float(r2.fuel_quantity_litres), 3)
-        comb_distance = round(float(r1.distance_km) + float(r2.distance_km), 2)
-        comb_cost     = round(float(r1.fuel_price_total) + float(r2.fuel_price_total), 2)
-        comb_mileage  = round(comb_distance / comb_litres, 2) if comb_litres > 0 else 0
-        recent_perf = {
-            'entry1': r1, 'entry2': r2,
-            'comb_litres': comb_litres, 'comb_distance': comb_distance,
-            'comb_cost': comb_cost, 'comb_mileage': comb_mileage,
-        }
+    # ── Recent Performance: 2, 3, 4 entries ───────────────────────
+    recent_perf_options = {}
+    for n in [2, 3, 4]:
+        if len(records) >= n:
+            slice_n = records[-n:]
+            s_litres = round(sum(float(r.fuel_quantity_litres) for r in slice_n), 3)
+            s_cost = round(sum(float(r.fuel_price_total) for r in slice_n), 2)
+            s_dist = round(sum(float(r.distance_km) for r in slice_n), 2)
+            s_start_km = float(slice_n[0].starting_odometer_km)
+            s_end_km = float(slice_n[-1].ending_odometer_km)
+            s_mileage = round(s_dist / s_litres, 2) if s_litres > 0 else 0
+            
+            entries_list = []
+            for idx, r in enumerate(slice_n, start=1):
+                entries_list.append({
+                    'sr': idx,
+                    'fuel_date': r.fuel_date,
+                    'fuel_quantity_litres': float(r.fuel_quantity_litres),
+                    'fuel_price_total': float(r.fuel_price_total),
+                    'starting_odometer_km': float(r.starting_odometer_km),
+                    'ending_odometer_km': float(r.ending_odometer_km),
+                    'distance_km': float(r.distance_km),
+                    'mileage_km_per_litre': float(r.mileage_km_per_litre),
+                })
+
+            recent_perf_options[n] = {
+                'count': n,
+                'entries': entries_list,
+                'comb_litres': s_litres,
+                'comb_cost': s_cost,
+                'comb_distance': s_dist,
+                'start_km': s_start_km,
+                'end_km': s_end_km,
+                'comb_mileage': s_mileage,
+            }
+
+    default_n = 3 if 3 in recent_perf_options else (4 if 4 in recent_perf_options else (2 if 2 in recent_perf_options else None))
+    recent_perf = recent_perf_options.get(default_n) or recent_perf_options.get(2)
 
     # ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Last 5 avg mileage ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
     last5 = records[-5:] if len(records) >= 5 else records
@@ -8213,6 +8239,8 @@ def admin_vehicle_detail(vehicle_id):
         display_records=list(reversed(records)),
         stats=stats,
         recent_perf=recent_perf,
+        recent_perf_options=recent_perf_options,
+        default_n=default_n,
     )
 
 
