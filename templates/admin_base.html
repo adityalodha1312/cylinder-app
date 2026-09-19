@@ -221,10 +221,18 @@
       display: flex !important;
       align-items: center !important;
       justify-content: space-between !important;
-      user-select: none;
-      -webkit-user-select: none;
+      user-select: none !important;
+      -webkit-user-select: none !important;
+      -webkit-touch-callout: none !important; /* CRITICAL FOR iOS: Prevents iOS text search / look up / callout */
       cursor: pointer;
       position: relative;
+    }
+    .nav-draggable *,
+    #moreReportsContainer,
+    #moreReportsContainer * {
+      -webkit-touch-callout: none !important; /* Prevents iOS text search / look up callout */
+      -webkit-user-select: none !important;   /* Prevents text selection on iOS */
+      user-select: none !important;
     }
     .nav-item-title {
       flex: 1;
@@ -237,9 +245,9 @@
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      width: 20px;
-      height: 20px;
-      opacity: 0.3;
+      width: 24px;
+      height: 24px;
+      opacity: 0.35;
       color: #ffffff;
       cursor: grab;
       border-radius: 4px;
@@ -247,9 +255,10 @@
       flex-shrink: 0;
       margin-left: 6px;
       touch-action: none;
+      -webkit-touch-callout: none !important;
     }
     .sidebar-nav a:hover .drag-handle {
-      opacity: 0.8;
+      opacity: 0.85;
     }
     .drag-handle:hover {
       opacity: 1 !important;
@@ -259,10 +268,13 @@
       cursor: grabbing;
     }
     .nav-draggable.dragging {
-      opacity: 0.45 !important;
-      background: rgba(29, 158, 117, 0.35) !important;
+      opacity: 0.5 !important;
+      background: rgba(29, 158, 117, 0.4) !important;
       outline: 1.5px dashed #9FE1CB;
       outline-offset: -1px;
+      transform: scale(1.02);
+      transition: transform 0.15s ease;
+      z-index: 10;
     }
     .reset-nav-btn {
       background: rgba(255, 255, 255, 0.1);
@@ -1488,6 +1500,22 @@
       updateResetBtnVisibility();
     };
 
+    // Prevent context menu (long press popup) on draggable items
+    container.addEventListener('contextmenu', function(e) {
+      if (e.target.closest('.nav-draggable')) {
+        e.preventDefault();
+        e.stopPropagation();
+        return false;
+      }
+    });
+
+    // Disable native HTML5 draggable on touch devices so iOS Safari doesn't initiate system text-search/drag sessions
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      container.querySelectorAll('.nav-draggable').forEach(function(el) {
+        el.setAttribute('draggable', 'false');
+      });
+    }
+
     // --- HTML5 Desktop Drag and Drop ---
     var draggedItem = null;
 
@@ -1528,61 +1556,93 @@
       }, 250);
     });
 
-    // --- Touch Support for Mobile / Tablets ---
+    // --- Touch Support for Mobile / Tablets (iOS Safari & Android) ---
     var touchItem = null;
     var touchStartY = 0;
-    var hasMoved = false;
+    var touchStartX = 0;
+    var isTouchDragging = false;
+    var longPressTimer = null;
+
+    function cleanupTouch() {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+      if (touchItem) {
+        touchItem.classList.remove('dragging');
+      }
+      if (isTouchDragging) {
+        saveCurrentOrder();
+        window.isNavDraggingRecently = true;
+        setTimeout(function() {
+          window.isNavDraggingRecently = false;
+        }, 300);
+      }
+      touchItem = null;
+      isTouchDragging = false;
+    }
 
     container.addEventListener('touchstart', function(e) {
-      var handle = e.target.closest('.drag-handle');
-      if (!handle) return;
-      var item = handle.closest('.nav-draggable');
+      var item = e.target.closest('.nav-draggable');
       if (!item) return;
 
+      var handle = e.target.closest('.drag-handle');
       touchItem = item;
       touchStartY = e.touches[0].clientY;
-      hasMoved = false;
+      touchStartX = e.touches[0].clientX;
+      isTouchDragging = false;
+
+      if (handle) {
+        isTouchDragging = true;
+        touchItem.classList.add('dragging');
+        window.isNavDraggingRecently = true;
+        if (navigator.vibrate) navigator.vibrate(25);
+      } else {
+        // Holding the row for 250ms enters reorder drag mode with haptic cue instead of triggering iOS search
+        longPressTimer = setTimeout(function() {
+          isTouchDragging = true;
+          if (touchItem) {
+            touchItem.classList.add('dragging');
+            window.isNavDraggingRecently = true;
+            if (navigator.vibrate) navigator.vibrate(40);
+          }
+        }, 250);
+      }
     }, { passive: true });
 
     container.addEventListener('touchmove', function(e) {
       if (!touchItem) return;
       var currentY = e.touches[0].clientY;
-      if (Math.abs(currentY - touchStartY) > 6) {
-        hasMoved = true;
-        window.isNavDraggingRecently = true;
-        e.preventDefault(); // prevent scrolling sidebar while dragging item
-        touchItem.classList.add('dragging');
+      var currentX = e.touches[0].clientX;
+      var deltaY = Math.abs(currentY - touchStartY);
+      var deltaX = Math.abs(currentX - touchStartX);
 
-        var clientX = e.touches[0].clientX;
-        var elemUnder = document.elementFromPoint(clientX, currentY);
-        if (elemUnder) {
-          var target = elemUnder.closest('.nav-draggable');
-          if (target && target !== touchItem && target.parentNode === container) {
-            var rect = target.getBoundingClientRect();
-            var next = (currentY - rect.top) / (rect.bottom - rect.top) > 0.5;
-            container.insertBefore(touchItem, next ? target.nextSibling : target);
+      if (!isTouchDragging) {
+        // If moved before 250ms elapsed, cancel long-press (user is scrolling sidebar)
+        if (deltaY > 8 || deltaX > 8) {
+          if (longPressTimer) {
+            clearTimeout(longPressTimer);
+            longPressTimer = null;
           }
+        }
+        return;
+      }
+
+      // We are in drag reorder mode: prevent scrolling and reorder live
+      e.preventDefault();
+      var elemUnder = document.elementFromPoint(currentX, currentY);
+      if (elemUnder) {
+        var target = elemUnder.closest('.nav-draggable');
+        if (target && target !== touchItem && target.parentNode === container) {
+          var rect = target.getBoundingClientRect();
+          var next = (currentY - rect.top) / (rect.bottom - rect.top) > 0.5;
+          container.insertBefore(touchItem, next ? target.nextSibling : target);
         }
       }
     }, { passive: false });
 
-    function endTouch() {
-      if (touchItem) {
-        touchItem.classList.remove('dragging');
-        if (hasMoved) {
-          saveCurrentOrder();
-          window.isNavDraggingRecently = true;
-          setTimeout(function() {
-            window.isNavDraggingRecently = false;
-          }, 250);
-        }
-        touchItem = null;
-        hasMoved = false;
-      }
-    }
-
-    container.addEventListener('touchend', endTouch);
-    container.addEventListener('touchcancel', endTouch);
+    container.addEventListener('touchend', cleanupTouch);
+    container.addEventListener('touchcancel', cleanupTouch);
 
     // Apply custom order on page load
     applySavedOrder();
