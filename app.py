@@ -8354,8 +8354,19 @@ def admin_refuelling_new(vehicle_id):
             form_data['fuel_pump'] = last.fuel_pump if last.fuel_pump in ['ATC', 'Other'] else 'ATC'
             if last.fuel_rate_per_litre and float(last.fuel_rate_per_litre) > 0:
                 form_data['fuel_rate_per_litre'] = f"{float(last.fuel_rate_per_litre):.2f}"
+            elif last.fuel_price_total and last.fuel_quantity_litres and float(last.fuel_quantity_litres) > 0:
+                form_data['fuel_rate_per_litre'] = f"{float(last.fuel_price_total) / float(last.fuel_quantity_litres):.2f}"
         else:
             form_data['fuel_pump'] = 'ATC'
+
+        if not form_data.get('fuel_rate_per_litre'):
+            fleet_last = VehicleRefuelling.query.filter(
+                VehicleRefuelling.fuel_rate_per_litre.isnot(None),
+                VehicleRefuelling.fuel_rate_per_litre > 0
+            ).order_by(VehicleRefuelling.id.desc()).first()
+            if fleet_last and fleet_last.fuel_rate_per_litre:
+                form_data['fuel_rate_per_litre'] = f"{float(fleet_last.fuel_rate_per_litre):.2f}"
+
         from datetime import date
         form_data['fuel_date'] = date.today().strftime('%Y-%m-%d')
     return render_template('refuelling_form.html',
