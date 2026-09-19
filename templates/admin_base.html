@@ -216,6 +216,74 @@
     details summary svg { transition: transform 0.2s ease; }
     details[open] summary svg { transform: rotate(90deg); }
 
+    /* Draggable Nav Items in More Reports & Config */
+    .nav-draggable {
+      display: flex !important;
+      align-items: center !important;
+      justify-content: space-between !important;
+      user-select: none;
+      -webkit-user-select: none;
+      cursor: pointer;
+      position: relative;
+    }
+    .nav-item-title {
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      pointer-events: none;
+    }
+    .drag-handle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 20px;
+      height: 20px;
+      opacity: 0.3;
+      color: #ffffff;
+      cursor: grab;
+      border-radius: 4px;
+      transition: opacity 0.15s, background 0.15s;
+      flex-shrink: 0;
+      margin-left: 6px;
+      touch-action: none;
+    }
+    .sidebar-nav a:hover .drag-handle {
+      opacity: 0.8;
+    }
+    .drag-handle:hover {
+      opacity: 1 !important;
+      background: rgba(255, 255, 255, 0.18);
+    }
+    .drag-handle:active {
+      cursor: grabbing;
+    }
+    .nav-draggable.dragging {
+      opacity: 0.45 !important;
+      background: rgba(29, 158, 117, 0.35) !important;
+      outline: 1.5px dashed #9FE1CB;
+      outline-offset: -1px;
+    }
+    .reset-nav-btn {
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(159, 225, 203, 0.45);
+      color: #9FE1CB;
+      font-size: 10.5px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      padding: 2px 7px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .reset-nav-btn:hover {
+      background: rgba(159, 225, 203, 0.25);
+      border-color: #9FE1CB;
+      color: #ffffff;
+    }
+
     /* User area at bottom */
     .sidebar-user {
       padding: 16px 14px;
@@ -797,29 +865,80 @@
       Driver Scan App
     </a>
     
-    <!-- Collapsible Advanced Reports -->
-    <details open style="margin-top: 8px;">
-      <summary style="cursor: pointer; padding: 10px 16px; font-size: 13.5px; font-weight: 600; color: #9FE1CB; list-style: none; display: flex; align-items: center; gap: 8px;">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
-        More Reports & config
+    <!-- Collapsible Advanced Reports with Drag-and-Drop Reordering -->
+    <details open id="moreReportsDetails" style="margin-top: 8px;">
+      <summary style="cursor: pointer; padding: 10px 12px 10px 16px; font-size: 13.5px; font-weight: 600; color: #9FE1CB; list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg>
+          <span>More Reports & config</span>
+        </div>
+        <button type="button" class="reset-nav-btn" id="resetNavOrderBtn" title="Reset menu order to default" onclick="resetMoreNavOrder(event)" style="display: none;">Reset</button>
       </summary>
-      <div style="padding-left: 12px; margin-top: 4px;">
-        <a href="/admin/receipts" class="nav-secondary {{ 'active' if request.path == '/admin/receipts' else '' }}">Receipts</a>
-        <a href="/admin/activity" class="nav-secondary {{ 'active' if request.path == '/admin/activity' else '' }}">Activity Log</a>
-        <a href="/admin/aging" class="nav-secondary {{ 'active' if request.path == '/admin/aging' else '' }}">Aging</a>
-        <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">Rotation</a>
-        <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">Drivers</a>
-        <a href="/admin/movement" class="nav-secondary {{ 'active' if request.path == '/admin/movement' else '' }}">Movement</a>
-        <a href="/admin/inventory" class="nav-secondary {{ 'active' if '/admin/inventory' in request.path else '' }}">Inventory</a>
-        <a href="/admin/spares" class="nav-secondary {{ 'active' if '/admin/spares' in request.path else '' }}">Spare Parts</a>
-        <a href="/admin/products" class="nav-secondary {{ 'active' if request.path == '/admin/products' else '' }}">Products</a>
-        <a href="/admin/cold_calls" class="nav-secondary {{ 'active' if request.path == '/admin/cold_calls' else '' }}">Cold Calls</a>
-        <a href="/admin/orders/new" class="nav-secondary {{ 'active' if request.path == '/admin/orders/new' else '' }}">Create Order</a>
-        <a href="/admin/users" class="nav-secondary {{ 'active' if '/admin/users' in request.path else '' }}">Manage Users</a>
-        <a href="/admin/scanner" class="nav-secondary {{ 'active' if request.path == '/admin/scanner' else '' }}">Scanner (Internal)</a>
-        <a href="/admin/scanner/logs" class="nav-secondary {{ 'active' if request.path == '/admin/scanner/logs' else '' }}">Scan Logs (Internal)</a>
-        <a href="/admin/accounts_batches" class="nav-secondary {{ 'active' if '/admin/accounts_batches' in request.path else '' }}">Accounts Batches</a>
-        <a href="/admin/vehicles" class="nav-secondary {{ 'active' if '/admin/vehicles' in request.path else '' }}">Vehicle Fuel</a>
+      <div id="moreReportsContainer" style="padding-left: 12px; margin-top: 4px;">
+        <a href="/admin/receipts" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/receipts' else '' }}" data-nav-id="receipts" draggable="true">
+          <span class="nav-item-title">Receipts</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/activity" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/activity' else '' }}" data-nav-id="activity" draggable="true">
+          <span class="nav-item-title">Activity Log</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/aging" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/aging' else '' }}" data-nav-id="aging" draggable="true">
+          <span class="nav-item-title">Aging</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/rotation" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/rotation' else '' }}" data-nav-id="rotation" draggable="true">
+          <span class="nav-item-title">Rotation</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/drivers" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/drivers' else '' }}" data-nav-id="drivers" draggable="true">
+          <span class="nav-item-title">Drivers</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/movement" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/movement' else '' }}" data-nav-id="movement" draggable="true">
+          <span class="nav-item-title">Movement</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/inventory" class="nav-secondary nav-draggable {{ 'active' if '/admin/inventory' in request.path else '' }}" data-nav-id="inventory" draggable="true">
+          <span class="nav-item-title">Inventory</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/spares" class="nav-secondary nav-draggable {{ 'active' if '/admin/spares' in request.path else '' }}" data-nav-id="spares" draggable="true">
+          <span class="nav-item-title">Spare Parts</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/products" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/products' else '' }}" data-nav-id="products" draggable="true">
+          <span class="nav-item-title">Products</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/cold_calls" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/cold_calls' else '' }}" data-nav-id="cold_calls" draggable="true">
+          <span class="nav-item-title">Cold Calls</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/orders/new" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/orders/new' else '' }}" data-nav-id="orders_new" draggable="true">
+          <span class="nav-item-title">Create Order</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/users" class="nav-secondary nav-draggable {{ 'active' if '/admin/users' in request.path else '' }}" data-nav-id="users" draggable="true">
+          <span class="nav-item-title">Manage Users</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/scanner" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/scanner' else '' }}" data-nav-id="scanner" draggable="true">
+          <span class="nav-item-title">Scanner (Internal)</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/scanner/logs" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/scanner/logs' else '' }}" data-nav-id="scanner_logs" draggable="true">
+          <span class="nav-item-title">Scan Logs (Internal)</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/accounts_batches" class="nav-secondary nav-draggable {{ 'active' if '/admin/accounts_batches' in request.path else '' }}" data-nav-id="accounts_batches" draggable="true">
+          <span class="nav-item-title">Accounts Batches</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
+        <a href="/admin/vehicles" class="nav-secondary nav-draggable {{ 'active' if '/admin/vehicles' in request.path else '' }}" data-nav-id="vehicles" draggable="true">
+          <span class="nav-item-title">Vehicle Fuel</span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
       </div>
     </details>
   </nav>
@@ -1245,6 +1364,11 @@
 
     // Intercept all internal link clicks
     document.addEventListener('click', function(e) {
+      if (window.isNavDraggingRecently) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
       var anchor = e.target.closest('a');
       if (!anchor) return;
       var href = anchor.getAttribute('href');
@@ -1275,6 +1399,193 @@
 
     // Complete bar when new page has fully loaded
     window.addEventListener('pageshow', finishProgress);
+  })();
+
+  // ── Drag-and-Drop Reordering for "More Reports & config" ──
+  (function initMoreReportsReordering() {
+    var container = document.getElementById('moreReportsContainer');
+    var resetBtn = document.getElementById('resetNavOrderBtn');
+    if (!container) return;
+
+    var STORAGE_KEY = 'noble_more_nav_order';
+    var defaultOrder = Array.prototype.slice.call(container.querySelectorAll('.nav-draggable')).map(function(el) {
+      return el.getAttribute('data-nav-id');
+    });
+
+    function isDifferentFromDefault(currentOrder) {
+      if (currentOrder.length !== defaultOrder.length) return true;
+      for (var i = 0; i < currentOrder.length; i++) {
+        if (currentOrder[i] !== defaultOrder[i]) return true;
+      }
+      return false;
+    }
+
+    function updateResetBtnVisibility() {
+      if (!resetBtn) return;
+      var currentOrder = Array.prototype.slice.call(container.querySelectorAll('.nav-draggable')).map(function(el) {
+        return el.getAttribute('data-nav-id');
+      });
+      resetBtn.style.display = isDifferentFromDefault(currentOrder) ? 'inline-block' : 'none';
+    }
+
+    function applySavedOrder() {
+      try {
+        var savedJson = localStorage.getItem(STORAGE_KEY);
+        if (!savedJson) {
+          updateResetBtnVisibility();
+          return;
+        }
+        var savedOrder = JSON.parse(savedJson);
+        if (!Array.isArray(savedOrder)) return;
+
+        var itemsById = {};
+        container.querySelectorAll('.nav-draggable').forEach(function(el) {
+          itemsById[el.getAttribute('data-nav-id')] = el;
+        });
+
+        savedOrder.forEach(function(id) {
+          if (itemsById[id]) {
+            container.appendChild(itemsById[id]);
+            delete itemsById[id];
+          }
+        });
+        // Append any items that weren't in savedOrder (e.g. newly added pages)
+        Object.keys(itemsById).forEach(function(id) {
+          container.appendChild(itemsById[id]);
+        });
+      } catch (e) {
+        console.warn('Could not apply nav order:', e);
+      }
+      updateResetBtnVisibility();
+    }
+
+    function saveCurrentOrder() {
+      var currentOrder = Array.prototype.slice.call(container.querySelectorAll('.nav-draggable')).map(function(el) {
+        return el.getAttribute('data-nav-id');
+      });
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentOrder));
+      } catch (e) {}
+      updateResetBtnVisibility();
+    }
+
+    window.resetMoreNavOrder = function(e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+      try {
+        localStorage.removeItem(STORAGE_KEY);
+      } catch (e) {}
+      
+      var itemsById = {};
+      container.querySelectorAll('.nav-draggable').forEach(function(el) {
+        itemsById[el.getAttribute('data-nav-id')] = el;
+      });
+      defaultOrder.forEach(function(id) {
+        if (itemsById[id]) container.appendChild(itemsById[id]);
+      });
+      updateResetBtnVisibility();
+    };
+
+    // --- HTML5 Desktop Drag and Drop ---
+    var draggedItem = null;
+
+    container.addEventListener('dragstart', function(e) {
+      var target = e.target.closest('.nav-draggable');
+      if (!target) return;
+      draggedItem = target;
+      window.isNavDraggingRecently = true;
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', target.getAttribute('data-nav-id'));
+      setTimeout(function() {
+        if (draggedItem) draggedItem.classList.add('dragging');
+      }, 0);
+    });
+
+    container.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      if (!draggedItem) return;
+      e.dataTransfer.dropEffect = 'move';
+
+      var target = e.target.closest('.nav-draggable');
+      if (target && target !== draggedItem && target.parentNode === container) {
+        var rect = target.getBoundingClientRect();
+        var next = (e.clientY - rect.top) / (rect.bottom - rect.top) > 0.5;
+        container.insertBefore(draggedItem, next ? target.nextSibling : target);
+      }
+    });
+
+    container.addEventListener('dragend', function(e) {
+      if (draggedItem) {
+        draggedItem.classList.remove('dragging');
+        draggedItem = null;
+      }
+      saveCurrentOrder();
+      window.isNavDraggingRecently = true;
+      setTimeout(function() {
+        window.isNavDraggingRecently = false;
+      }, 250);
+    });
+
+    // --- Touch Support for Mobile / Tablets ---
+    var touchItem = null;
+    var touchStartY = 0;
+    var hasMoved = false;
+
+    container.addEventListener('touchstart', function(e) {
+      var handle = e.target.closest('.drag-handle');
+      if (!handle) return;
+      var item = handle.closest('.nav-draggable');
+      if (!item) return;
+
+      touchItem = item;
+      touchStartY = e.touches[0].clientY;
+      hasMoved = false;
+    }, { passive: true });
+
+    container.addEventListener('touchmove', function(e) {
+      if (!touchItem) return;
+      var currentY = e.touches[0].clientY;
+      if (Math.abs(currentY - touchStartY) > 6) {
+        hasMoved = true;
+        window.isNavDraggingRecently = true;
+        e.preventDefault(); // prevent scrolling sidebar while dragging item
+        touchItem.classList.add('dragging');
+
+        var clientX = e.touches[0].clientX;
+        var elemUnder = document.elementFromPoint(clientX, currentY);
+        if (elemUnder) {
+          var target = elemUnder.closest('.nav-draggable');
+          if (target && target !== touchItem && target.parentNode === container) {
+            var rect = target.getBoundingClientRect();
+            var next = (currentY - rect.top) / (rect.bottom - rect.top) > 0.5;
+            container.insertBefore(touchItem, next ? target.nextSibling : target);
+          }
+        }
+      }
+    }, { passive: false });
+
+    function endTouch() {
+      if (touchItem) {
+        touchItem.classList.remove('dragging');
+        if (hasMoved) {
+          saveCurrentOrder();
+          window.isNavDraggingRecently = true;
+          setTimeout(function() {
+            window.isNavDraggingRecently = false;
+          }, 250);
+        }
+        touchItem = null;
+        hasMoved = false;
+      }
+    }
+
+    container.addEventListener('touchend', endTouch);
+    container.addEventListener('touchcancel', endTouch);
+
+    // Apply custom order on page load
+    applySavedOrder();
   })();
 </script>
 
