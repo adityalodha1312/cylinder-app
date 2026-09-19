@@ -8322,13 +8322,17 @@ def admin_refuelling_new(vehicle_id):
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
-        # Pre-fill starting odometer from last record
+        # Pre-fill starting odometer, pump, and fuel price/rate from last record
         last = VehicleRefuelling.query.filter_by(vehicle_id=vehicle_id)\
                 .order_by(VehicleRefuelling.id.desc()).first()
         if last:
             form_data['starting_odometer_km'] = float(last.ending_odometer_km)
             if last.fuel_pump:
                 form_data['fuel_pump'] = last.fuel_pump
+            if last.fuel_price_total and float(last.fuel_price_total) > 0:
+                form_data['fuel_price_total'] = f"{float(last.fuel_price_total):.2f}"
+            if last.fuel_rate_per_litre and float(last.fuel_rate_per_litre) > 0:
+                form_data['fuel_rate_per_litre'] = f"{float(last.fuel_rate_per_litre):.2f}"
         from datetime import date
         form_data['fuel_date'] = date.today().strftime('%Y-%m-%d')
     return render_template('refuelling_form.html',

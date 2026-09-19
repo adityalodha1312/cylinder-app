@@ -121,12 +121,17 @@
 {% block scripts %}
 <script>
   document.addEventListener('DOMContentLoaded', function() {
-    const qtyInp = document.getElementById('inp-qty');
+    const qtyInp   = document.getElementById('inp-qty');
     const startInp = document.getElementById('inp-start');
-    const endInp = document.getElementById('inp-end');
+    const endInp   = document.getElementById('inp-end');
+    const rateInp  = document.getElementById('inp-rate');
+    const priceInp = document.getElementById('inp-price');
     const previewBox = document.getElementById('calc-preview');
-    const distEl = document.getElementById('prev-dist');
-    const milEl = document.getElementById('prev-mil');
+    const distEl   = document.getElementById('prev-dist');
+    const milEl    = document.getElementById('prev-mil');
+
+    // Track which field was explicitly edited last by the user
+    let lastEdited = null;
 
     function updatePreview() {
       const q = parseFloat(qtyInp.value);
@@ -144,41 +149,92 @@
       }
     }
 
-    const rateInp = document.getElementById('inp-rate');
-    const priceInp = document.getElementById('inp-price');
+    // 1. User edits Rate (₹/L)
+    if (rateInp) {
+      rateInp.addEventListener('input', function() {
+        lastEdited = 'rate';
+        const r = parseFloat(rateInp.value);
+        const q = parseFloat(qtyInp.value);
+        const p = parseFloat(priceInp.value);
 
-    // 3-way sync: Qty + Rate -> Price
-    function syncPrice() {
-      const q = parseFloat(qtyInp.value);
-      const r = parseFloat(rateInp.value);
-      if (!isNaN(q) && !isNaN(r) && q > 0 && r > 0) {
-        priceInp.value = (q * r).toFixed(2);
-      }
-      updatePreview();
+        if (!isNaN(r) && r > 0) {
+          if (!isNaN(q) && q > 0) {
+            // Qty exists -> recalculate Total Price
+            if (document.activeElement !== priceInp) {
+              priceInp.value = (q * r).toFixed(2);
+            }
+          } else if (!isNaN(p) && p > 0 && (!qtyInp.value || isNaN(q) || q <= 0)) {
+            // Total Price exists but Qty is empty -> calculate Qty
+            if (document.activeElement !== qtyInp) {
+              qtyInp.value = (p / r).toFixed(3);
+            }
+          }
+        }
+        updatePreview();
+      });
     }
 
-    // Qty + Price -> Rate
-    function syncRate() {
-      const q = parseFloat(qtyInp.value);
-      const p = parseFloat(priceInp.value);
-      if (!isNaN(q) && !isNaN(p) && q > 0 && p > 0) {
-        rateInp.value = (p / q).toFixed(2);
-      }
-      updatePreview();
+    // 2. User edits Total Fuel Price (₹)
+    if (priceInp) {
+      priceInp.addEventListener('input', function() {
+        lastEdited = 'price';
+        const p = parseFloat(priceInp.value);
+        const q = parseFloat(qtyInp.value);
+        const r = parseFloat(rateInp.value);
+
+        if (!isNaN(p) && p > 0) {
+          if (!isNaN(q) && q > 0) {
+            // Qty exists -> recalculate Rate per Litre
+            if (document.activeElement !== rateInp) {
+              rateInp.value = (p / q).toFixed(2);
+            }
+          } else if (!isNaN(r) && r > 0 && (!qtyInp.value || isNaN(q) || q <= 0)) {
+            // Rate exists but Qty is empty -> calculate Qty
+            if (document.activeElement !== qtyInp) {
+              qtyInp.value = (p / r).toFixed(3);
+            }
+          }
+        }
+        updatePreview();
+      });
     }
 
-    if (rateInp) rateInp.addEventListener('input', syncPrice);
-    if (priceInp) priceInp.addEventListener('input', syncRate);
+    // 3. User edits Quantity (Litres)
+    if (qtyInp) {
+      qtyInp.addEventListener('input', function() {
+        const q = parseFloat(qtyInp.value);
+        const r = parseFloat(rateInp.value);
+        const p = parseFloat(priceInp.value);
 
-    qtyInp.addEventListener('input', function() {
-      const r = parseFloat(rateInp ? rateInp.value : 0);
-      if (!isNaN(r) && r > 0) syncPrice();
-      else syncRate();
-    });
+        if (!isNaN(q) && q > 0) {
+          // If user specifically edited Price last, keep Price and adjust Rate
+          if (lastEdited === 'price' && !isNaN(p) && p > 0) {
+            if (document.activeElement !== rateInp) {
+              rateInp.value = (p / q).toFixed(2);
+            }
+          }
+          // Otherwise standard: Rate × Qty = Price
+          else if (!isNaN(r) && r > 0) {
+            if (document.activeElement !== priceInp) {
+              priceInp.value = (q * r).toFixed(2);
+            }
+          }
+          // If only Price is present and Rate is empty
+          else if (!isNaN(p) && p > 0) {
+            if (document.activeElement !== rateInp) {
+              rateInp.value = (p / q).toFixed(2);
+            }
+          }
+        }
+        updatePreview();
+      });
+    }
 
     startInp.addEventListener('input', updatePreview);
     endInp.addEventListener('input', updatePreview);
-    updatePreview(); // initial check if pre-filled
+
+    // Initial check if pre-filled values are present
+    updatePreview();
   });
 </script>
 {% endblock %}
