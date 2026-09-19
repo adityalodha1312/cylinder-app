@@ -77,14 +77,11 @@
       <input type="number" step="0.01" min="0" name="ending_odometer_km" id="inp-end" value="{{ form_data.get('ending_odometer_km', '') }}" required>
     </div>
     <div class="form-group">
-      <label>Fuel Pump / Dealer</label>
-      <input type="text" name="fuel_pump" list="fuel-pump-options" value="{{ form_data.get('fuel_pump', '') }}" placeholder="e.g. XYZ Petrol Pump">
-      <datalist id="fuel-pump-options">
-        {% for p in fuel_pumps %}
-          <option value="{{ p }}"></option>
-        {% endfor %}
-      </datalist>
-      <span class="hint">Type or select dealer</span>
+      <label>Fuel Dealer / Pump *</label>
+      <select name="fuel_pump" id="sel-fuel-pump" required>
+        <option value="ATC" {% if form_data.get('fuel_pump', 'ATC') == 'ATC' or not form_data.get('fuel_pump') %}selected{% endif %}>ATC</option>
+        <option value="Other" {% if form_data.get('fuel_pump') == 'Other' or (form_data.get('fuel_pump') and form_data.get('fuel_pump') != 'ATC') %}selected{% endif %}>Other</option>
+      </select>
     </div>
     <div class="form-group">
       <label>Driver Name</label>

@@ -8285,11 +8285,7 @@ def admin_refuelling_new(vehicle_id):
     errors = []
     form_data = {}
 
-    pumps_q = db.session.query(VehicleRefuelling.fuel_pump).filter(
-        VehicleRefuelling.fuel_pump.isnot(None),
-        VehicleRefuelling.fuel_pump != ''
-    ).distinct().all()
-    fuel_pumps = sorted([p[0] for p in pumps_q if p[0]])
+    fuel_pumps = ['ATC', 'Other']
 
     if request.method == 'POST':
         form_data = request.form.to_dict()
@@ -8307,7 +8303,7 @@ def admin_refuelling_new(vehicle_id):
                     distance_km          = vals['distance_km'],
                     mileage_km_per_litre = vals['mileage_km_per_litre'],
                     driver_name          = (form_data.get('driver_name') or '').strip() or None,
-                    fuel_pump            = (form_data.get('fuel_pump') or '').strip() or None,
+                    fuel_pump            = (form_data.get('fuel_pump') or '').strip() or 'ATC',
                     receipt_number       = (form_data.get('receipt_number') or '').strip() or None,
                     notes                = (form_data.get('notes') or '').strip() or None,
                 )
@@ -8322,17 +8318,16 @@ def admin_refuelling_new(vehicle_id):
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
-        # Pre-fill starting odometer, pump, and fuel price/rate from last record
+        # Pre-fill starting odometer, pump, and fuel rate from last record (only rate, not price)
         last = VehicleRefuelling.query.filter_by(vehicle_id=vehicle_id)\
                 .order_by(VehicleRefuelling.id.desc()).first()
         if last:
             form_data['starting_odometer_km'] = float(last.ending_odometer_km)
-            if last.fuel_pump:
-                form_data['fuel_pump'] = last.fuel_pump
-            if last.fuel_price_total and float(last.fuel_price_total) > 0:
-                form_data['fuel_price_total'] = f"{float(last.fuel_price_total):.2f}"
+            form_data['fuel_pump'] = last.fuel_pump if last.fuel_pump in ['ATC', 'Other'] else 'ATC'
             if last.fuel_rate_per_litre and float(last.fuel_rate_per_litre) > 0:
                 form_data['fuel_rate_per_litre'] = f"{float(last.fuel_rate_per_litre):.2f}"
+        else:
+            form_data['fuel_pump'] = 'ATC'
         from datetime import date
         form_data['fuel_date'] = date.today().strftime('%Y-%m-%d')
     return render_template('refuelling_form.html',
@@ -8340,7 +8335,7 @@ def admin_refuelling_new(vehicle_id):
     )
 
 
-# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Route: Edit Refuelling ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
+# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Route: Edit Refuelling ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/edit',
            methods=['GET', 'POST'])
 @admin_required
@@ -8492,20 +8487,11 @@ def admin_vehicles_pumps():
             end_date_str = end_date.strftime('%Y-%m-%d')
         elif start_date or end_date:
             cycle = 'custom'
-
-    # Fetch distinct pumps for selector
-    pumps_q = db.session.query(VehicleRefuelling.fuel_pump).filter(
-        VehicleRefuelling.fuel_pump.isnot(None),
-        VehicleRefuelling.fuel_pump != ''
-    ).distinct().all()
-    all_pumps = sorted([p[0] for p in pumps_q if p[0]])
+    all_pumps = ['ATC', 'Other']
 
     selected_pump = request.args.get('pump', '').strip()
     if not selected_pump and request.args.get('filter') != '1':
-        if len(all_pumps) == 1:
-            selected_pump = all_pumps[0]
-        else:
-            selected_pump = 'all'
+        selected_pump = 'ATC'
 
     vehicle_id = request.args.get('vehicle_id', type=int)
     all_vehicles = Vehicle.query.order_by(Vehicle.vehicle_number).all()
@@ -8513,8 +8499,10 @@ def admin_vehicles_pumps():
     # Query refuellings
     q = db.session.query(VehicleRefuelling, Vehicle).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
     if selected_pump and selected_pump != 'all':
-        if selected_pump == '__none__':
-            q = q.filter((VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
+        if selected_pump == 'ATC':
+            q = q.filter(VehicleRefuelling.fuel_pump == 'ATC')
+        elif selected_pump == 'Other':
+            q = q.filter((VehicleRefuelling.fuel_pump == 'Other') | (VehicleRefuelling.fuel_pump != 'ATC') | (VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
         else:
             q = q.filter(VehicleRefuelling.fuel_pump == selected_pump)
     if vehicle_id:
@@ -8628,12 +8616,16 @@ def admin_vehicles_pumps_export():
                 pass
 
     selected_pump = request.args.get('pump', '').strip()
+    if not selected_pump:
+        selected_pump = 'ATC'
     vehicle_id = request.args.get('vehicle_id', type=int)
 
     q = db.session.query(VehicleRefuelling, Vehicle).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
     if selected_pump and selected_pump != 'all':
-        if selected_pump == '__none__':
-            q = q.filter((VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
+        if selected_pump == 'ATC':
+            q = q.filter(VehicleRefuelling.fuel_pump == 'ATC')
+        elif selected_pump == 'Other':
+            q = q.filter((VehicleRefuelling.fuel_pump == 'Other') | (VehicleRefuelling.fuel_pump != 'ATC') | (VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
         else:
             q = q.filter(VehicleRefuelling.fuel_pump == selected_pump)
     if vehicle_id:

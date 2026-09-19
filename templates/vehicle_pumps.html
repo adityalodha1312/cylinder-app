@@ -445,15 +445,13 @@
     <input type="hidden" name="filter" value="1">
     
     <div class="filter-row-top">
-      <!-- Fuel Pump Selector -->
+      <!-- Fuel Dealer Selector -->
       <div class="filter-group">
-        <label>Fuel Pump / Dealer</label>
+        <label>Fuel Dealer</label>
         <select name="pump" class="filter-select">
-          <option value="all" {% if selected_pump == 'all' %}selected{% endif %}>All Pumps / Dealers</option>
-          {% for p in all_pumps %}
-            <option value="{{ p }}" {% if selected_pump == p %}selected{% endif %}>{{ p }}</option>
-          {% endfor %}
-          <option value="__none__" {% if selected_pump == '__none__' %}selected{% endif %}>Unassigned Dealer</option>
+          <option value="ATC" {% if selected_pump == 'ATC' or not selected_pump %}selected{% endif %}>ATC (Primary Dealer)</option>
+          <option value="Other" {% if selected_pump == 'Other' %}selected{% endif %}>Other</option>
+          <option value="all" {% if selected_pump == 'all' %}selected{% endif %}>All Dealers</option>
         </select>
       </div>
 
@@ -569,10 +567,10 @@
     <div class="statement-header">
       <div>
         <span class="statement-title">
-          {% if selected_pump and selected_pump != 'all' and selected_pump != '__none__' %}
-            Dealer Statement: {{ selected_pump }}
-          {% elif selected_pump == '__none__' %}
-            Unassigned Dealer Slips
+          {% if selected_pump == 'ATC' or not selected_pump %}
+            Dealer Statement: ATC
+          {% elif selected_pump == 'Other' %}
+            Dealer Statement: Other Dealers
           {% else %}
             Consolidated Fuel Slips (All Dealers)
           {% endif %}
