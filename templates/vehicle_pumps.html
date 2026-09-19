@@ -1,0 +1,681 @@
+{% extends "admin_base.html" %}
+{% block title %}Fuel Pumps & Dealer Reconciliation{% endblock %}
+{% block head %}
+<style>
+  .recon-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-bottom: 60px;
+  }
+
+  /* Header */
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    background: #f1efe8;
+    color: var(--gray-text, #5F5E5A);
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 9px;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: 0.15s;
+  }
+  .back-btn:hover {
+    background: var(--gray-bd, #d8d9d4);
+    color: var(--dark-text, #2C2C2A);
+  }
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    margin: 0 0 4px;
+    letter-spacing: -0.3px;
+  }
+  .page-sub {
+    font-size: 13.5px;
+    color: var(--gray-text, #5F5E5A);
+    margin: 0;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .btn-action-outline {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    background: #ffffff;
+    color: #0F6E56;
+    border: 1.5px solid #0F6E56;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .btn-action-outline:hover {
+    background: #E1F5EE;
+  }
+
+  /* Filters Card */
+  .filter-card {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 14px;
+    padding: 20px 22px;
+    margin-bottom: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .filter-row-top {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+    margin-bottom: 16px;
+  }
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .filter-group label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .filter-select, .filter-input {
+    padding: 8px 12px;
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    color: var(--dark-text, #2C2C2A);
+    background: #ffffff;
+    outline: none;
+    min-width: 170px;
+    transition: border-color 0.15s;
+  }
+  .filter-select:focus, .filter-input:focus {
+    border-color: #0F6E56;
+  }
+  .btn-apply {
+    padding: 9px 18px;
+    background: #0F6E56;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+    align-self: flex-end;
+  }
+  .btn-apply:hover {
+    background: #0c5945;
+  }
+  .btn-reset {
+    padding: 9px 14px;
+    background: #f1efe8;
+    color: var(--gray-text, #5F5E5A);
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    text-decoration: none;
+    cursor: pointer;
+    align-self: flex-end;
+  }
+  .btn-reset:hover {
+    background: var(--gray-bd, #d8d9d4);
+    color: var(--dark-text, #2C2C2A);
+  }
+
+  /* 10-Day Cycle Quick Filter Bar */
+  .cycle-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1.5px dashed #e2e8f0;
+  }
+  .cycle-bar-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--gray-text, #5F5E5A);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-right: 4px;
+  }
+  .cycle-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 13px;
+    border-radius: 20px;
+    font-size: 12.5px;
+    font-weight: 600;
+    text-decoration: none;
+    border: 1.5px solid #cbd5e1;
+    background: #ffffff;
+    color: #334155;
+    transition: all 0.15s ease;
+  }
+  .cycle-pill:hover {
+    border-color: #0F6E56;
+    color: #0F6E56;
+    background: #f4fbf8;
+  }
+  .cycle-pill.active {
+    background: #0F6E56;
+    color: #ffffff;
+    border-color: #0F6E56;
+    box-shadow: 0 1px 4px rgba(15,110,86,0.25);
+  }
+
+  /* KPI Summary Strip */
+  .kpi-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .kpi-card {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 12px;
+    padding: 16px 18px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .kpi-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .kpi-icon-green { background: #E1F5EE; color: #0F6E56; }
+  .kpi-icon-blue { background: #e0f2fe; color: #0284c7; }
+  .kpi-icon-purple { background: #f3e8ff; color: #7e22ce; }
+  .kpi-icon-amber { background: #fef3c7; color: #d97706; }
+
+  .kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-text, #5F5E5A);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 3px;
+  }
+  .kpi-val {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    line-height: 1.2;
+  }
+  .kpi-sub {
+    font-size: 11.5px;
+    color: var(--gray-text, #5F5E5A);
+    margin-top: 2px;
+  }
+
+  /* Statement Details Card */
+  .statement-card {
+    background: #ffffff;
+    border: 1.5px solid var(--gray-bd, #d8d9d4);
+    border-radius: 14px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .statement-header {
+    padding: 16px 22px;
+    background: #fafaf8;
+    border-bottom: 1.5px solid var(--gray-bd, #d8d9d4);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .statement-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+  }
+  .statement-period {
+    font-size: 12.5px;
+    color: var(--green-700, #0F6E56);
+    font-weight: 600;
+    background: #E1F5EE;
+    padding: 4px 10px;
+    border-radius: 6px;
+  }
+
+  /* Table */
+  .recon-table-wrap {
+    overflow-x: auto;
+  }
+  .recon-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    text-align: left;
+  }
+  .recon-table th {
+    padding: 11px 14px;
+    background: #f8fafc;
+    color: #475569;
+    font-weight: 600;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1.5px solid #e2e8f0;
+    white-space: nowrap;
+  }
+  .recon-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f1f5f9;
+    color: #1e293b;
+    vertical-align: middle;
+  }
+  .recon-table tr:hover {
+    background: #f8fafc;
+  }
+  .recon-table tfoot td {
+    background: #f8fafc;
+    font-weight: 700;
+    border-top: 2px solid #cbd5e1;
+    border-bottom: none;
+    color: #0f172a;
+    font-size: 14px;
+  }
+
+  .plate-chip {
+    background: #f1f5f9;
+    border: 1px solid #cbd5e1;
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-family: monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #0f172a;
+    display: inline-block;
+    white-space: nowrap;
+  }
+  .slip-badge {
+    background: #eef2ff;
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-family: monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: inline-block;
+  }
+  .amount-val {
+    font-weight: 700;
+    color: #0F6E56;
+    font-size: 14px;
+  }
+  .btn-sm-edit {
+    padding: 4px 9px;
+    background: #f1efe8;
+    color: var(--dark-text, #2C2C2A);
+    border: 1px solid var(--gray-bd, #d8d9d4);
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: 0.15s;
+  }
+  .btn-sm-edit:hover {
+    background: #e2e0d8;
+  }
+
+  /* Empty state */
+  .empty-state {
+    padding: 48px 24px;
+    text-align: center;
+    color: var(--gray-text, #5F5E5A);
+  }
+
+  /* Print specific formatting */
+  @media print {
+    aside, .sidebar, .top-bar, .header-actions, .filter-card, .btn-sm-edit, .back-btn {
+      display: none !important;
+    }
+    body, .main-content, .recon-container {
+      margin: 0 !important;
+      padding: 0 !important;
+      max-width: 100% !important;
+      background: #ffffff !important;
+    }
+    .statement-card {
+      border: 1px solid #000 !important;
+      box-shadow: none !important;
+    }
+    .recon-table th, .recon-table td, .recon-table tfoot td {
+      padding: 8px 10px !important;
+      font-size: 11px !important;
+      border: 1px solid #ddd !important;
+    }
+    .kpi-strip {
+      grid-template-columns: repeat(4, 1fr) !important;
+      gap: 10px !important;
+      margin-bottom: 16px !important;
+    }
+    .kpi-card {
+      border: 1px solid #ccc !important;
+      padding: 10px !important;
+    }
+  }
+
+  @media (max-width: 1024px) {
+    .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 640px) {
+    .kpi-strip { grid-template-columns: 1fr; }
+    .filter-row-top { flex-direction: column; align-items: stretch; }
+    .filter-select, .filter-input, .btn-apply, .btn-reset { width: 100%; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="recon-container">
+
+  <!-- ── 1. Page Header ── -->
+  <div class="page-header">
+    <div class="header-left">
+      <a href="/admin/vehicles" class="back-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Vehicles
+      </a>
+      <div>
+        <h1 class="page-title">Fuel Pumps &amp; 10-Day Bill Reconciliation</h1>
+        <p class="page-sub">Match vendor fuel invoices, verify refuelling slips, litres, rates, and clearing totals</p>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button type="button" onclick="window.print()" class="btn-action-outline">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>Print Statement</span>
+      </button>
+      <a href="/admin/vehicles/pumps/export?pump={{ selected_pump }}&cycle={{ cycle }}&month={{ month_str }}&start_date={{ start_date_str }}&end_date={{ end_date_str }}&vehicle_id={{ selected_vehicle_id or '' }}" class="btn-action-outline">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span>Export CSV</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- ── 2. Filter Controls Card ── -->
+  <form method="GET" action="/admin/vehicles/pumps" class="filter-card">
+    <input type="hidden" name="filter" value="1">
+    
+    <div class="filter-row-top">
+      <!-- Fuel Pump Selector -->
+      <div class="filter-group">
+        <label>Fuel Pump / Dealer</label>
+        <select name="pump" class="filter-select">
+          <option value="all" {% if selected_pump == 'all' %}selected{% endif %}>All Pumps / Dealers</option>
+          {% for p in all_pumps %}
+            <option value="{{ p }}" {% if selected_pump == p %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+          <option value="__none__" {% if selected_pump == '__none__' %}selected{% endif %}>Unassigned Dealer</option>
+        </select>
+      </div>
+
+      <!-- Month Selector -->
+      <div class="filter-group">
+        <label>Month</label>
+        <input type="month" name="month" class="filter-input" value="{{ month_str }}">
+      </div>
+
+      <!-- Vehicle Filter -->
+      <div class="filter-group">
+        <label>Vehicle</label>
+        <select name="vehicle_id" class="filter-select">
+          <option value="">All Vehicles</option>
+          {% for v in all_vehicles %}
+            <option value="{{ v.id }}" {% if selected_vehicle_id == v.id %}selected{% endif %}>{{ v.vehicle_number }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Custom Date Range -->
+      <div class="filter-group">
+        <label>From Date</label>
+        <input type="date" name="start_date" class="filter-input" value="{{ start_date_str }}">
+      </div>
+
+      <div class="filter-group">
+        <label>To Date</label>
+        <input type="date" name="end_date" class="filter-input" value="{{ end_date_str }}">
+      </div>
+
+      <button type="submit" class="btn-apply">Filter Records</button>
+      <a href="/admin/vehicles/pumps" class="btn-reset">Reset</a>
+    </div>
+
+    <!-- 10-Day Cycle Quick Select Pills -->
+    <div class="cycle-bar">
+      <span class="cycle-bar-label">10-Day Cycles ({{ month_str }}):</span>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=1-10&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '1-10' %}active{% endif %}">
+        <span>1st – 10th</span>
+      </a>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=11-20&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '11-20' %}active{% endif %}">
+        <span>11th – 20th</span>
+      </a>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=21-end&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '21-end' %}active{% endif %}">
+        <span>21st – End of Month</span>
+      </a>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=last10&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'last10' %}active{% endif %}">
+        <span>Last 10 Days</span>
+      </a>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=this_month&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'this_month' %}active{% endif %}">
+        <span>Entire Month</span>
+      </a>
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=all&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'all' %}active{% endif %}">
+        <span>All Time</span>
+      </a>
+    </div>
+  </form>
+
+  <!-- ── 3. Summary KPIs Strip ── -->
+  <div class="kpi-strip">
+    <!-- Total Amount to Pay / Clear -->
+    <div class="kpi-card">
+      <div class="kpi-icon-wrap kpi-icon-green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label">Total Bill Amount</div>
+        <div class="kpi-val" style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</div>
+        <div class="kpi-sub">{{ kpis.total_fills }} refuelling slip(s)</div>
+      </div>
+    </div>
+
+    <!-- Total Litres -->
+    <div class="kpi-card">
+      <div class="kpi-icon-wrap kpi-icon-blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label">Total Volume</div>
+        <div class="kpi-val">{{ "{:,.3f}".format(kpis.total_litres) }} <span style="font-size:14px;font-weight:500;color:var(--gray-text);">L</span></div>
+        <div class="kpi-sub">Fuel delivered across fleet</div>
+      </div>
+    </div>
+
+    <!-- Average Rate -->
+    <div class="kpi-card">
+      <div class="kpi-icon-wrap kpi-icon-purple">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label">Average Rate</div>
+        <div class="kpi-val">&#8377;{{ "{:,.2f}".format(kpis.avg_rate) }} <span style="font-size:13px;font-weight:500;color:var(--gray-text);">/ L</span></div>
+        <div class="kpi-sub">Effective purchase price</div>
+      </div>
+    </div>
+
+    <!-- Total Distance & Mileage -->
+    <div class="kpi-card">
+      <div class="kpi-icon-wrap kpi-icon-amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label">Fleet Distance</div>
+        <div class="kpi-val">{{ "{:,.1f}".format(kpis.total_distance) }} <span style="font-size:13px;font-weight:500;color:var(--gray-text);">km</span></div>
+        <div class="kpi-sub">Avg {{ "{:,.2f}".format(kpis.avg_mileage) }} km/L</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 4. Detailed Statement Table ── -->
+  <div class="statement-card">
+    <div class="statement-header">
+      <div>
+        <span class="statement-title">
+          {% if selected_pump and selected_pump != 'all' and selected_pump != '__none__' %}
+            Dealer Statement: {{ selected_pump }}
+          {% elif selected_pump == '__none__' %}
+            Unassigned Dealer Slips
+          {% else %}
+            Consolidated Fuel Slips (All Dealers)
+          {% endif %}
+        </span>
+      </div>
+      <div class="statement-period">
+        {% if start_date_str and end_date_str %}
+          Period: {{ start_date_str }} to {{ end_date_str }}
+        {% elif start_date_str %}
+          Since {{ start_date_str }}
+        {% elif end_date_str %}
+          Until {{ end_date_str }}
+        {% else %}
+          All Time Records
+        {% endif %}
+      </div>
+    </div>
+
+    {% if records %}
+    <div class="recon-table-wrap">
+      <table class="recon-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Fuel Pump / Dealer</th>
+            <th>Vehicle</th>
+            <th>Slip / Bill No.</th>
+            <th>Driver</th>
+            <th style="text-align:right;">Quantity (L)</th>
+            <th style="text-align:right;">Rate (&#8377;/L)</th>
+            <th style="text-align:right;">Total (&#8377;)</th>
+            <th>Odometer (Start &rarr; End)</th>
+            <th style="text-align:right;">Distance</th>
+            <th style="text-align:right;">Mileage</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for ref, veh, dt in records %}
+          <tr>
+            <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
+            <td style="font-weight:600;white-space:nowrap;">{{ ref.fuel_date }}</td>
+            <td>
+              {% if ref.fuel_pump %}
+                <span style="font-weight:600;color:var(--dark-text);">{{ ref.fuel_pump }}</span>
+              {% else %}
+                <span style="color:var(--gray-text);font-style:italic;">Unassigned</span>
+              {% endif %}
+            </td>
+            <td>
+              <a href="/admin/vehicles/{{ veh.id }}" class="plate-chip" style="text-decoration:none;">{{ veh.vehicle_number }}</a>
+            </td>
+            <td>
+              {% if ref.receipt_number %}
+                <span class="slip-badge">{{ ref.receipt_number }}</span>
+              {% else %}
+                <span style="color:var(--gray-text);font-size:12px;">—</span>
+              {% endif %}
+            </td>
+            <td style="color:var(--gray-text);font-size:13px;">{{ ref.driver_name or "—" }}</td>
+            <td style="text-align:right;font-family:monospace;font-weight:600;">{{ "%.3f"|format(ref.fuel_quantity_litres|float) }}</td>
+            <td style="text-align:right;color:var(--gray-text);font-size:12.5px;">
+              {% if ref.fuel_rate_per_litre %}
+                &#8377;{{ "%.2f"|format(ref.fuel_rate_per_litre|float) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+            <td style="text-align:right;">
+              <span class="amount-val">&#8377;{{ "{:,.2f}".format(ref.fuel_price_total|float) }}</span>
+            </td>
+            <td style="font-family:monospace;font-size:12.5px;color:#475569;white-space:nowrap;">
+              {{ "{:,.0f}".format(ref.starting_odometer_km|float) }} &rarr; {{ "{:,.0f}".format(ref.ending_odometer_km|float) }}
+            </td>
+            <td style="text-align:right;font-weight:600;white-space:nowrap;">{{ "{:,.1f}".format(ref.distance_km|float) }} km</td>
+            <td style="text-align:right;font-size:12.5px;color:var(--gray-text);">{{ "%.2f"|format(ref.mileage_km_per_litre|float) }}</td>
+            <td>
+              <a href="/admin/vehicles/{{ veh.id }}/refuellings/{{ ref.id }}/edit" class="btn-sm-edit">Edit</a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align:right;text-transform:uppercase;letter-spacing:0.5px;">Total ({{ records|length }} Fills):</td>
+            <td style="text-align:right;font-family:monospace;">{{ "{:,.3f}".format(kpis.total_litres) }} L</td>
+            <td></td>
+            <td style="text-align:right;color:#0F6E56;font-size:16px;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</td>
+            <td colspan="4"></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    {% else %}
+    <div class="empty-state">
+      <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="color:#94a3b8;margin-bottom:12px;"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <h3 style="margin:0 0 6px;color:var(--dark-text);font-size:16px;">No refuelling records found</h3>
+      <p style="margin:0 0 16px;font-size:13.5px;">There are no fuel entries matching the selected fuel pump, vehicle, or date cycle.</p>
+      <a href="/admin/vehicles/pumps?filter=1&pump=all&cycle=all" class="btn-action-outline" style="display:inline-flex;">View All Records</a>
+    </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endblock %}

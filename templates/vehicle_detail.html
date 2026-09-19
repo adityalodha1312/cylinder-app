@@ -231,7 +231,7 @@
       <thead><tr>
         <th>#</th><th>Date</th><th>Qty (L)</th><th>Price</th>
         <th>Start KM</th><th>End KM</th><th>Distance</th><th>KMPL</th>
-        <th class="hide-md">Driver</th><th class="hide-md">Receipt</th><th>Actions</th>
+        <th class="hide-md">Pump / Driver</th><th class="hide-md">Receipt</th><th>Actions</th>
       </tr></thead>
       <tbody>
         {% for r in (display_records if display_records is defined else records|reverse) %}
@@ -249,7 +249,12 @@
           <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.ending_odometer_km|float) }}</td>
           <td style="font-weight:600;">{{ "{:,.1f}".format(r.distance_km|float) }} km</td>
           <td>{% set m = r.mileage_km_per_litre|float %}<span class="{% if m >= 12 %}mileage-good{% elif m >= 8 %}mileage-ok{% else %}mileage-low{% endif %}">{{ "%.2f"|format(m) }}</span></td>
-          <td class="hide-md" style="color:var(--gray-text);">{{ r.driver_name or "—" }}</td>
+          <td class="hide-md">
+            {% if r.fuel_pump %}
+              <div style="font-weight:600;color:var(--green-700);font-size:12.5px;">{{ r.fuel_pump }}</div>
+            {% endif %}
+            <div style="color:var(--gray-text);font-size:11.5px;">{{ r.driver_name or ("—" if not r.fuel_pump else "") }}</div>
+          </td>
           <td class="hide-md" style="color:var(--gray-text);font-size:12px;">{{ r.receipt_number or "—" }}</td>
           <td>
             <div class="action-btns">

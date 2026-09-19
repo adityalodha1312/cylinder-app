@@ -1,4 +1,4 @@
-﻿{% extends "admin_base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}{{ 'Add Refuelling' if mode == 'add' else 'Edit Refuelling' }}{% endblock %}
 {% block head %}
 <style>
@@ -77,12 +77,22 @@
       <input type="number" step="0.01" min="0" name="ending_odometer_km" id="inp-end" value="{{ form_data.get('ending_odometer_km', '') }}" required>
     </div>
     <div class="form-group">
+      <label>Fuel Pump / Dealer</label>
+      <input type="text" name="fuel_pump" list="fuel-pump-options" value="{{ form_data.get('fuel_pump', '') }}" placeholder="e.g. XYZ Petrol Pump">
+      <datalist id="fuel-pump-options">
+        {% for p in fuel_pumps %}
+          <option value="{{ p }}"></option>
+        {% endfor %}
+      </datalist>
+      <span class="hint">Type or select dealer</span>
+    </div>
+    <div class="form-group">
       <label>Driver Name</label>
       <input type="text" name="driver_name" value="{{ form_data.get('driver_name', '') }}" placeholder="e.g. Ramesh (optional)">
     </div>
     <div class="form-group">
-      <label>Receipt / Bill No.</label>
-      <input type="text" name="receipt_number" value="{{ form_data.get('receipt_number', '') }}" placeholder="Optional">
+      <label>Receipt / Slip No.</label>
+      <input type="text" name="receipt_number" value="{{ form_data.get('receipt_number', '') }}" placeholder="e.g. Slip #1042">
     </div>
   </div>
 

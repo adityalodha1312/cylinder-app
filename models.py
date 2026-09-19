@@ -1,4 +1,4 @@
-﻿from db import db
+from db import db
 from datetime import datetime
 
 class User(db.Model):
@@ -459,6 +459,7 @@ class VehicleRefuelling(db.Model):
     distance_km          = db.Column(db.Numeric(10, 2), nullable=False)   # server-calculated
     mileage_km_per_litre = db.Column(db.Numeric(8, 3), nullable=False)   # server-calculated
     driver_name          = db.Column(db.String(100))   # free text
+    fuel_pump            = db.Column(db.String(150), index=True)  # fuel dealer / petrol pump name
     receipt_number       = db.Column(db.String(100))
     notes                = db.Column(db.Text)
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
@@ -476,6 +477,7 @@ class VehicleRefuelling(db.Model):
             'distance_km': float(self.distance_km),
             'mileage_km_per_litre': float(self.mileage_km_per_litre),
             'driver_name': self.driver_name or '',
+            'fuel_pump': self.fuel_pump or '',
             'receipt_number': self.receipt_number or '',
             'notes': self.notes or '',
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',

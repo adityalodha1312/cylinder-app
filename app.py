@@ -316,6 +316,7 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(100);"))
             db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Registered';"))
             db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS fuel_rate_per_litre NUMERIC(10, 2);"))
+            db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS fuel_pump VARCHAR(150);"))
             # Auto-create cylinder_aliases and gas_type_history if missing
             db.session.execute(text("""
                 CREATE TABLE IF NOT EXISTS cylinder_aliases (
@@ -7813,7 +7814,7 @@ def admin_spares_use(item_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-def _sync_refuelling_to_sheets(vehicle_number, refuelling_dict):
+def _sync_refuelling_to_sheets(vehicle_number, ref_data):
     """Append a refuelling row to the 'Vehicle Fuel Register' tab (best-effort)."""
     try:
         if doc is None:
@@ -7821,64 +7822,56 @@ def _sync_refuelling_to_sheets(vehicle_number, refuelling_dict):
         try:
             fuel_ws = doc.worksheet('Vehicle Fuel Register')
         except Exception:
-            fuel_ws = doc.add_worksheet(title='Vehicle Fuel Register', rows=1000, cols=15)
+            fuel_ws = doc.add_worksheet(title='Vehicle Fuel Register', rows=1000, cols=16)
             fuel_ws.append_row([
                 'Vehicle', 'Sr No', 'Fuel Date', 'Fuel QTY LTR', 'Fuel Prices',
                 'Starting KM', 'To', 'Ending KM', 'Total KM', 'Fuel KMPL',
-                'Driver', 'Receipt No', 'Notes'
+                'Fuel Pump', 'Driver', 'Receipt No', 'Notes'
             ])
         all_rows = fuel_ws.get_all_values()
         sr_no = max(len(all_rows), 1)  # header = row 1
-        row = [
-            vehicle_number,
-            sr_no,
-            refuelling_dict.get('fuel_date'),
-            float(refuelling_dict.get('fuel_quantity_litres', 0)),
-            float(refuelling_dict.get('fuel_price_total', 0)),
-            float(refuelling_dict.get('starting_odometer_km', 0)),
-            'To',
-            float(refuelling_dict.get('ending_odometer_km', 0)),
-            float(refuelling_dict.get('distance_km', 0)),
-            float(refuelling_dict.get('mileage_km_per_litre', 0)),
-            refuelling_dict.get('driver_name', ''),
-            refuelling_dict.get('receipt_number', ''),
-            refuelling_dict.get('notes', '')
-        ]
-        fuel_ws.append_row(row)
-    except Exception as e:
-        print(f"[Sheets] Vehicle fuel sync failed: {e}")
+        
+        # Support both dict and model object
+        if isinstance(ref_data, dict):
+            f_date   = ref_data.get('fuel_date')
+            f_qty    = float(ref_data.get('fuel_quantity_litres', 0))
+            f_price  = float(ref_data.get('fuel_price_total', 0))
+            f_start  = float(ref_data.get('starting_odometer_km', 0))
+            f_end    = float(ref_data.get('ending_odometer_km', 0))
+            f_dist   = float(ref_data.get('distance_km', 0))
+            f_mile   = float(ref_data.get('mileage_km_per_litre', 0))
+            f_pump   = ref_data.get('fuel_pump', '')
+            f_driver = ref_data.get('driver_name', '')
+            f_rcpt   = ref_data.get('receipt_number', '')
+            f_notes  = ref_data.get('notes', '')
+        else:
+            f_date   = ref_data.fuel_date
+            f_qty    = float(ref_data.fuel_quantity_litres or 0)
+            f_price  = float(ref_data.fuel_price_total or 0)
+            f_start  = float(ref_data.starting_odometer_km or 0)
+            f_end    = float(ref_data.ending_odometer_km or 0)
+            f_dist   = float(ref_data.distance_km or 0)
+            f_mile   = float(ref_data.mileage_km_per_litre or 0)
+            f_pump   = getattr(ref_data, 'fuel_pump', '') or ''
+            f_driver = ref_data.driver_name or ''
+            f_rcpt   = ref_data.receipt_number or ''
+            f_notes  = ref_data.notes or ''
 
-#  Sheets sync helper (fire-and-forget) 
-def _sync_refuelling_to_sheets(vehicle_number, refuelling):
-    """Append a refuelling row to the 'Vehicle Fuel Register' tab (best-effort)."""
-    try:
-        if doc is None:
-            return
-        try:
-            fuel_ws = doc.worksheet('Vehicle Fuel Register')
-        except Exception:
-            fuel_ws = doc.add_worksheet(title='Vehicle Fuel Register', rows=1000, cols=15)
-            fuel_ws.append_row([
-                'Vehicle', 'Sr No', 'Fuel Date', 'Fuel QTY LTR', 'Fuel Prices',
-                'Starting KM', 'To', 'Ending KM', 'Total KM', 'Fuel KMPL',
-                'Driver', 'Receipt No', 'Notes'
-            ])
-        all_rows = fuel_ws.get_all_values()
-        sr_no = max(len(all_rows), 1)  # header = row 1
         row = [
             vehicle_number,
             sr_no,
-            refuelling.fuel_date,
-            float(refuelling.fuel_quantity_litres),
-            float(refuelling.fuel_price_total),
-            float(refuelling.starting_odometer_km),
+            f_date,
+            f_qty,
+            f_price,
+            f_start,
             'To',
-            float(refuelling.ending_odometer_km),
-            float(refuelling.distance_km),
-            float(refuelling.mileage_km_per_litre),
-            refuelling.driver_name or '',
-            refuelling.receipt_number or '',
-            refuelling.notes or '',
+            f_end,
+            f_dist,
+            f_mile,
+            f_pump,
+            f_driver,
+            f_rcpt,
+            f_notes
         ]
         fuel_ws.append_row(row)
     except Exception as e:
@@ -7970,6 +7963,10 @@ def _validate_refuelling_form(form):
                 vals['distance_km'] = dist
                 if 'fuel_quantity_litres' in vals and vals['fuel_quantity_litres'] > 0:
                     vals['mileage_km_per_litre'] = round(dist / vals['fuel_quantity_litres'], 3)
+
+    fuel_pump = (form.get('fuel_pump') or '').strip()
+    if fuel_pump:
+        vals['fuel_pump'] = fuel_pump
 
     return errors, vals
 
@@ -8287,6 +8284,13 @@ def admin_refuelling_new(vehicle_id):
     v = Vehicle.query.get_or_404(vehicle_id)
     errors = []
     form_data = {}
+
+    pumps_q = db.session.query(VehicleRefuelling.fuel_pump).filter(
+        VehicleRefuelling.fuel_pump.isnot(None),
+        VehicleRefuelling.fuel_pump != ''
+    ).distinct().all()
+    fuel_pumps = sorted([p[0] for p in pumps_q if p[0]])
+
     if request.method == 'POST':
         form_data = request.form.to_dict()
         errors, vals = _validate_refuelling_form(form_data)
@@ -8303,6 +8307,7 @@ def admin_refuelling_new(vehicle_id):
                     distance_km          = vals['distance_km'],
                     mileage_km_per_litre = vals['mileage_km_per_litre'],
                     driver_name          = (form_data.get('driver_name') or '').strip() or None,
+                    fuel_pump            = (form_data.get('fuel_pump') or '').strip() or None,
                     receipt_number       = (form_data.get('receipt_number') or '').strip() or None,
                     notes                = (form_data.get('notes') or '').strip() or None,
                 )
@@ -8322,14 +8327,16 @@ def admin_refuelling_new(vehicle_id):
                 .order_by(VehicleRefuelling.id.desc()).first()
         if last:
             form_data['starting_odometer_km'] = float(last.ending_odometer_km)
+            if last.fuel_pump:
+                form_data['fuel_pump'] = last.fuel_pump
         from datetime import date
         form_data['fuel_date'] = date.today().strftime('%Y-%m-%d')
     return render_template('refuelling_form.html',
-        user=session['user'], mode='add', vehicle=v, errors=errors, form_data=form_data
+        user=session['user'], mode='add', vehicle=v, errors=errors, form_data=form_data, fuel_pumps=fuel_pumps
     )
 
 
-# ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Route: Edit Refuelling ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Route: Edit Refuelling ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/edit',
            methods=['GET', 'POST'])
 @admin_required
@@ -8338,6 +8345,13 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
     ref = VehicleRefuelling.query.filter_by(id=refuelling_id, vehicle_id=vehicle_id).first_or_404()
     errors = []
     form_data = {}
+
+    pumps_q = db.session.query(VehicleRefuelling.fuel_pump).filter(
+        VehicleRefuelling.fuel_pump.isnot(None),
+        VehicleRefuelling.fuel_pump != ''
+    ).distinct().all()
+    fuel_pumps = sorted([p[0] for p in pumps_q if p[0]])
+
     if request.method == 'POST':
         form_data = request.form.to_dict()
         errors, vals = _validate_refuelling_form(form_data)
@@ -8352,6 +8366,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 ref.distance_km          = vals['distance_km']
                 ref.mileage_km_per_litre = vals['mileage_km_per_litre']
                 ref.driver_name          = (form_data.get('driver_name') or '').strip() or None
+                ref.fuel_pump            = (form_data.get('fuel_pump') or '').strip() or None
                 ref.receipt_number       = (form_data.get('receipt_number') or '').strip() or None
                 ref.notes                = (form_data.get('notes') or '').strip() or None
                 db.session.commit()
@@ -8372,11 +8387,11 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 pass
     return render_template('refuelling_form.html',
         user=session['user'], mode='edit', vehicle=v, refuelling=ref,
-        errors=errors, form_data=form_data
+        errors=errors, form_data=form_data, fuel_pumps=fuel_pumps
     )
 
 
-# ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Route: Delete Refuelling ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Route: Delete Refuelling ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
 @app.route('/admin/vehicles/<int:vehicle_id>/refuellings/<int:refuelling_id>/delete',
            methods=['POST'])
 @admin_required
@@ -8388,6 +8403,299 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
     except Exception as e:
         db.session.rollback()
     return redirect(f'/admin/vehicles/{vehicle_id}')
+
+
+# ── Route: Fuel Pumps & 10-Day Bill Reconciliation ───────────────────
+@app.route('/admin/vehicles/pumps')
+@admin_required
+def admin_vehicles_pumps():
+    import calendar
+    from datetime import date, datetime, timedelta
+
+    today = date.today()
+    month_str = request.args.get('month', today.strftime('%Y-%m')).strip()
+    try:
+        y, m = map(int, month_str.split('-'))
+    except Exception:
+        y, m = today.year, today.month
+        month_str = today.strftime('%Y-%m')
+
+    _, last_day = calendar.monthrange(y, m)
+
+    cycle = request.args.get('cycle', '').strip()
+    start_date_str = request.args.get('start_date', '').strip()
+    end_date_str = request.args.get('end_date', '').strip()
+
+    start_date = None
+    end_date = None
+
+    if cycle == '1-10':
+        start_date = date(y, m, 1)
+        end_date = date(y, m, 10)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif cycle == '11-20':
+        start_date = date(y, m, 11)
+        end_date = date(y, m, 20)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif cycle == '21-end':
+        start_date = date(y, m, 21)
+        end_date = date(y, m, last_day)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif cycle == 'last10':
+        start_date = today - timedelta(days=9)
+        end_date = today
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif cycle == 'this_month':
+        start_date = date(y, m, 1)
+        end_date = date(y, m, last_day)
+        start_date_str = start_date.strftime('%Y-%m-%d')
+        end_date_str = end_date.strftime('%Y-%m-%d')
+    elif cycle == 'all':
+        start_date = None
+        end_date = None
+        start_date_str = ''
+        end_date_str = ''
+    else:
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if not cycle and not start_date and not end_date:
+            # Default to current 10-day cycle of this month
+            if today.day <= 10:
+                cycle = '1-10'
+                start_date = date(y, m, 1)
+                end_date = date(y, m, 10)
+            elif today.day <= 20:
+                cycle = '11-20'
+                start_date = date(y, m, 11)
+                end_date = date(y, m, 20)
+            else:
+                cycle = '21-end'
+                start_date = date(y, m, 21)
+                end_date = date(y, m, last_day)
+            start_date_str = start_date.strftime('%Y-%m-%d')
+            end_date_str = end_date.strftime('%Y-%m-%d')
+        elif start_date or end_date:
+            cycle = 'custom'
+
+    # Fetch distinct pumps for selector
+    pumps_q = db.session.query(VehicleRefuelling.fuel_pump).filter(
+        VehicleRefuelling.fuel_pump.isnot(None),
+        VehicleRefuelling.fuel_pump != ''
+    ).distinct().all()
+    all_pumps = sorted([p[0] for p in pumps_q if p[0]])
+
+    selected_pump = request.args.get('pump', '').strip()
+    if not selected_pump and request.args.get('filter') != '1':
+        if len(all_pumps) == 1:
+            selected_pump = all_pumps[0]
+        else:
+            selected_pump = 'all'
+
+    vehicle_id = request.args.get('vehicle_id', type=int)
+    all_vehicles = Vehicle.query.order_by(Vehicle.vehicle_number).all()
+
+    # Query refuellings
+    q = db.session.query(VehicleRefuelling, Vehicle).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
+    if selected_pump and selected_pump != 'all':
+        if selected_pump == '__none__':
+            q = q.filter((VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
+        else:
+            q = q.filter(VehicleRefuelling.fuel_pump == selected_pump)
+    if vehicle_id:
+        q = q.filter(VehicleRefuelling.vehicle_id == vehicle_id)
+
+    raw_records = q.all()
+
+    # Filter in Python for robust date comparisons
+    filtered_records = []
+    for ref, veh in raw_records:
+        r_date = None
+        if ref.fuel_date:
+            try:
+                r_date = datetime.strptime(ref.fuel_date, '%d-%m-%Y').date()
+            except ValueError:
+                try:
+                    r_date = datetime.strptime(ref.fuel_date, '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+        if start_date and r_date and r_date < start_date:
+            continue
+        if end_date and r_date and r_date > end_date:
+            continue
+        filtered_records.append((ref, veh, r_date or date.min))
+
+    # Newest on top
+    filtered_records.sort(key=lambda x: (x[2], x[0].id), reverse=True)
+
+    # Compute KPI totals
+    total_amount = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records)
+    total_litres = sum(float(ref.fuel_quantity_litres or 0) for ref, veh, dt in filtered_records)
+    total_distance = sum(float(ref.distance_km or 0) for ref, veh, dt in filtered_records)
+    total_fills = len(filtered_records)
+    avg_rate = (total_amount / total_litres) if total_litres > 0 else 0.0
+    avg_mileage = (total_distance / total_litres) if total_litres > 0 else 0.0
+
+    kpis = {
+        'total_amount': total_amount,
+        'total_litres': round(total_litres, 3),
+        'total_fills': total_fills,
+        'avg_rate': round(avg_rate, 2),
+        'total_distance': round(total_distance, 1),
+        'avg_mileage': round(avg_mileage, 2),
+    }
+
+    return render_template('vehicle_pumps.html',
+        user=session['user'],
+        records=filtered_records,
+        kpis=kpis,
+        all_pumps=all_pumps,
+        selected_pump=selected_pump,
+        all_vehicles=all_vehicles,
+        selected_vehicle_id=vehicle_id,
+        cycle=cycle,
+        month_str=month_str,
+        start_date_str=start_date_str,
+        end_date_str=end_date_str
+    )
+
+
+# ── Route: Export Fuel Pump Reconciliation to CSV ────────────────────
+@app.route('/admin/vehicles/pumps/export')
+@admin_required
+def admin_vehicles_pumps_export():
+    import io, csv, calendar
+    from datetime import date, datetime, timedelta
+    from flask import Response
+
+    today = date.today()
+    month_str = request.args.get('month', today.strftime('%Y-%m')).strip()
+    try:
+        y, m = map(int, month_str.split('-'))
+    except Exception:
+        y, m = today.year, today.month
+        month_str = today.strftime('%Y-%m')
+
+    _, last_day = calendar.monthrange(y, m)
+
+    cycle = request.args.get('cycle', '').strip()
+    start_date_str = request.args.get('start_date', '').strip()
+    end_date_str = request.args.get('end_date', '').strip()
+
+    start_date = None
+    end_date = None
+
+    if cycle == '1-10':
+        start_date = date(y, m, 1)
+        end_date = date(y, m, 10)
+    elif cycle == '11-20':
+        start_date = date(y, m, 11)
+        end_date = date(y, m, 20)
+    elif cycle == '21-end':
+        start_date = date(y, m, 21)
+        end_date = date(y, m, last_day)
+    elif cycle == 'last10':
+        start_date = today - timedelta(days=9)
+        end_date = today
+    elif cycle == 'this_month':
+        start_date = date(y, m, 1)
+        end_date = date(y, m, last_day)
+    else:
+        if start_date_str:
+            try:
+                start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+        if end_date_str:
+            try:
+                end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                pass
+
+    selected_pump = request.args.get('pump', '').strip()
+    vehicle_id = request.args.get('vehicle_id', type=int)
+
+    q = db.session.query(VehicleRefuelling, Vehicle).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
+    if selected_pump and selected_pump != 'all':
+        if selected_pump == '__none__':
+            q = q.filter((VehicleRefuelling.fuel_pump.is_(None)) | (VehicleRefuelling.fuel_pump == ''))
+        else:
+            q = q.filter(VehicleRefuelling.fuel_pump == selected_pump)
+    if vehicle_id:
+        q = q.filter(VehicleRefuelling.vehicle_id == vehicle_id)
+
+    raw_records = q.all()
+    filtered_records = []
+    for ref, veh in raw_records:
+        r_date = None
+        if ref.fuel_date:
+            try:
+                r_date = datetime.strptime(ref.fuel_date, '%d-%m-%Y').date()
+            except ValueError:
+                try:
+                    r_date = datetime.strptime(ref.fuel_date, '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+        if start_date and r_date and r_date < start_date:
+            continue
+        if end_date and r_date and r_date > end_date:
+            continue
+        filtered_records.append((ref, veh, r_date or date.min))
+
+    # Oldest to newest for billing sequence
+    filtered_records.sort(key=lambda x: (x[2], x[0].id))
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        'Sr No', 'Fuel Date', 'Fuel Pump / Dealer', 'Vehicle Number', 'Registration No',
+        'Slip / Receipt No', 'Driver Name', 'Quantity (Litres)', 'Rate (Rs/L)',
+        'Total Amount (Rs)', 'Starting KM', 'Ending KM', 'Distance (km)', 'Mileage (km/L)', 'Notes'
+    ])
+
+    for idx, (ref, veh, dt) in enumerate(filtered_records, start=1):
+        writer.writerow([
+            idx,
+            ref.fuel_date,
+            ref.fuel_pump or '',
+            veh.vehicle_number,
+            veh.registration_number or '',
+            ref.receipt_number or '',
+            ref.driver_name or '',
+            float(ref.fuel_quantity_litres or 0),
+            float(ref.fuel_rate_per_litre or 0),
+            float(ref.fuel_price_total or 0),
+            float(ref.starting_odometer_km or 0),
+            float(ref.ending_odometer_km or 0),
+            float(ref.distance_km or 0),
+            float(ref.mileage_km_per_litre or 0),
+            ref.notes or ''
+        ])
+
+    tot_litres = sum(float(ref.fuel_quantity_litres or 0) for ref, veh, dt in filtered_records)
+    tot_amt = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records)
+    writer.writerow([])
+    writer.writerow(['TOTAL', '', '', '', '', '', '', tot_litres, '', tot_amt, '', '', '', '', ''])
+
+    filename_pump = selected_pump.replace(' ', '_') if selected_pump and selected_pump != 'all' else 'All_Pumps'
+    filename = f"Fuel_Bills_{filename_pump}_{cycle or 'custom'}_{month_str}.csv"
+
+    return Response(
+        output.getvalue(),
+        mimetype='text/csv',
+        headers={'Content-Disposition': f'attachment; filename={filename}'}
+    )
 
 # ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢
 
