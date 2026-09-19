@@ -315,6 +315,7 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
             db.session.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(100);"))
             db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Registered';"))
+            db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS fuel_rate_per_litre NUMERIC(10, 2);"))
             # Auto-create cylinder_aliases and gas_type_history if missing
             db.session.execute(text("""
                 CREATE TABLE IF NOT EXISTS cylinder_aliases (
@@ -7907,6 +7908,14 @@ def _validate_refuelling_form(form):
             except ValueError:
                 errors.append("Fuel date must be a valid date.")
 
+    # fuel_rate_per_litre
+    try:
+        rate = float(form.get('fuel_rate_per_litre', '').strip() or 0)
+        if rate > 0:
+            vals['fuel_rate_per_litre'] = round(rate, 2)
+    except (ValueError, TypeError):
+        pass
+
     # fuel_quantity_litres
     try:
         qty = float(form.get('fuel_quantity_litres', '').strip() or 0)
@@ -7924,6 +7933,8 @@ def _validate_refuelling_form(form):
             errors.append("Fuel price cannot be negative.")
         else:
             vals['fuel_price_total'] = price
+            if 'fuel_rate_per_litre' not in vals and 'fuel_quantity_litres' in vals and vals['fuel_quantity_litres'] > 0:
+                vals['fuel_rate_per_litre'] = round(price / vals['fuel_quantity_litres'], 2)
     except (ValueError, TypeError):
         errors.append("Fuel price must be a valid number.")
 
@@ -7968,7 +7979,15 @@ def _validate_refuelling_form(form):
 @admin_required
 def admin_vehicles_list():
     vehicles = Vehicle.query.order_by(Vehicle.status.asc(), Vehicle.vehicle_number.asc()).all()
-    # Attach latest odometer + mileage per vehicle
+    total_vehicles = len(vehicles)
+    active_vehicles = sum(1 for v in vehicles if v.status == 'active')
+
+    now = datetime.utcnow()
+    curr_month_str = now.strftime('%m-%Y')
+    month_entries = VehicleRefuelling.query.filter(
+        VehicleRefuelling.fuel_date.like(f"%{curr_month_str}")
+    ).count()
+
     vehicle_data = []
     for v in vehicles:
         latest = VehicleRefuelling.query.filter_by(vehicle_id=v.id)\
@@ -7979,9 +7998,17 @@ def admin_vehicles_list():
             'latest_mileage':  float(latest.mileage_km_per_litre) if latest else None,
             'total_entries':   VehicleRefuelling.query.filter_by(vehicle_id=v.id).count(),
         })
+
+    summary_stats = {
+        'total_vehicles': total_vehicles,
+        'active_vehicles': active_vehicles,
+        'month_entries': month_entries
+    }
+
     return render_template('vehicles_list.html',
         user=session['user'],
-        vehicle_data=vehicle_data
+        vehicle_data=vehicle_data,
+        summary_stats=summary_stats
     )
 
 
@@ -8021,6 +8048,23 @@ def admin_vehicles_new():
 
 
 # ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Route: Reports (must be before <int:vehicle_id>) ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+@app.route('/admin/vehicles/<int:vehicle_id>/toggle_status', methods=['POST'])
+@admin_required
+def admin_vehicle_toggle_status(vehicle_id):
+    v = Vehicle.query.get_or_404(vehicle_id)
+    v.status = 'inactive' if v.status == 'active' else 'active'
+    v.updated_at = datetime.utcnow()
+    try:
+        db.session.commit()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'status': v.status})
+    except Exception as e:
+        db.session.rollback()
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'error': str(e)}), 500
+    return redirect('/admin/vehicles')
+
+
 @app.route('/admin/vehicles/reports')
 @admin_required
 def admin_vehicles_reports():
@@ -8245,6 +8289,7 @@ def admin_refuelling_new(vehicle_id):
                     fuel_date            = vals['fuel_date'],
                     fuel_quantity_litres = vals['fuel_quantity_litres'],
                     fuel_price_total     = vals['fuel_price_total'],
+                    fuel_rate_per_litre  = vals.get('fuel_rate_per_litre'),
                     starting_odometer_km = vals['starting_odometer_km'],
                     ending_odometer_km   = vals['ending_odometer_km'],
                     distance_km          = vals['distance_km'],
@@ -8293,6 +8338,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 ref.fuel_date            = vals['fuel_date']
                 ref.fuel_quantity_litres = vals['fuel_quantity_litres']
                 ref.fuel_price_total     = vals['fuel_price_total']
+                ref.fuel_rate_per_litre  = vals.get('fuel_rate_per_litre')
                 ref.starting_odometer_km = vals['starting_odometer_km']
                 ref.ending_odometer_km   = vals['ending_odometer_km']
                 ref.distance_km          = vals['distance_km']

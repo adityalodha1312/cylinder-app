@@ -1,97 +1,1025 @@
-﻿{% extends "admin_base.html" %}
+{% extends "admin_base.html" %}
 {% block title %}Vehicles{% endblock %}
 {% block head %}
 <style>
-  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
-  .header-actions { display: flex; gap: 10px; }
-  .btn-primary { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: var(--green-700); color: #fff; border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 14px; transition: 0.15s; }
-  .btn-primary:hover { background: var(--green-500); }
-  .btn-outlined { display: inline-flex; align-items: center; gap: 6px; padding: 9px 18px; background: transparent; color: var(--green-700); border: 1.5px solid var(--green-700); border-radius: 10px; font-weight: 600; text-decoration: none; font-size: 14px; transition: 0.15s; }
-  .btn-outlined:hover { background: var(--green-50); }
-  .table-wrap { background: #fff; border: 1.5px solid var(--gray-bd); border-radius: 14px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); overflow: hidden; margin-bottom: 24px; }
-  .data-table { width: 100%; border-collapse: collapse; }
-  .data-table thead th { background: var(--green-50); color: var(--green-900); font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; }
-  .data-table tbody tr { border-top: 1px solid #eeeee9; transition: 0.1s; }
-  .data-table tbody tr:hover { background: #fafaf8; }
-  .data-table tbody tr.inactive { opacity: 0.55; }
-  .data-table td { padding: 12px 16px; font-size: 13.5px; color: var(--dark-text); }
-  .veh-link { font-family: monospace; font-weight: 700; font-size: 14px; color: var(--green-700); text-decoration: none; }
-  .veh-link:hover { text-decoration: underline; }
-  .badge-active { background: #d4edda; color: #155724; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .badge-inactive { background: #e2e3e5; color: #383d41; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
-  .empty-state { text-align: center; padding: 48px 20px; color: var(--gray-text); }
-  .action-btns { display: flex; gap: 6px; }
-  .btn-sm { padding: 4px 10px; background: var(--green-50); color: var(--green-700); border: 1.5px solid var(--green-500); border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none; transition: 0.12s; }
-  .btn-sm:hover { background: var(--green-500); color: #fff; }
-  @media (max-width: 768px) { .hide-mobile { display: none; } }
+  /* ── Layout & Typography ── */
+  .veh-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding-bottom: 60px;
+  }
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 14px;
+  }
+  .page-title {
+    font-size: 24px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    margin: 0 0 4px;
+    letter-spacing: -0.3px;
+  }
+  .page-sub {
+    font-size: 13.5px;
+    color: var(--gray-text, #5F5E5A);
+    margin: 0;
+  }
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  /* ── Header Action Buttons ── */
+  .btn-header-reports {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 16px;
+    background: #ffffff;
+    color: #0F6E56;
+    border: 1.5px solid #0F6E56;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .btn-header-reports:hover {
+    background: #E1F5EE;
+  }
+  .btn-header-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: #0F6E56;
+    color: #ffffff;
+    border: none;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13.5px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(15,110,86,0.25);
+    transition: all 0.15s ease;
+  }
+  .btn-header-add:hover {
+    background: #0c5945;
+    transform: translateY(-1px);
+  }
+
+  /* ── Summary Strip (3 KPI Cards) ── */
+  .summary-strip {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    margin-bottom: 22px;
+  }
+  .summary-kpi-card {
+    background: #ffffff;
+    border: 1.5px solid #e8e9e4;
+    border-radius: 14px;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .summary-kpi-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+    background: #E1F5EE;
+    color: #0F6E56;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .summary-kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--gray-text, #5F5E5A);
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+  }
+  .summary-kpi-val {
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    line-height: 1.1;
+  }
+
+  /* ── Search & Filter Row ── */
+  .search-filter-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .search-input-wrap {
+    position: relative;
+    flex: 1;
+    min-width: 240px;
+    max-width: 460px;
+  }
+  .search-input-wrap svg {
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    pointer-events: none;
+  }
+  .veh-search-input {
+    width: 100%;
+    min-height: 42px;
+    padding: 8px 14px 8px 40px;
+    background: #ffffff;
+    border: 1.5px solid #d8d9d4;
+    border-radius: 10px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    color: var(--dark-text, #2C2C2A);
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s ease;
+  }
+  .veh-search-input:focus {
+    border-color: #1D9E75;
+  }
+
+  .filter-pills-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
+    scrollbar-width: none;
+  }
+  .filter-pills-row::-webkit-scrollbar {
+    display: none;
+  }
+  .filter-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 14px;
+    border-radius: 20px;
+    border: 1.5px solid #d8d9d4;
+    background: #ffffff;
+    color: #5F5E5A;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    user-select: none;
+  }
+  .filter-pill:hover {
+    border-color: #1D9E75;
+    color: #0F6E56;
+  }
+  .filter-pill.active {
+    background: #0F6E56 !important;
+    border-color: #0F6E56 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 6px rgba(15,110,86,0.22);
+  }
+
+  /* ── Vehicles Grid (3 Columns on Desktop) ── */
+  .vehicles-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  /* ── Vehicle Card ── */
+  .vehicle-card {
+    background: #ffffff;
+    border: 1.5px solid #e8e9e4;
+    border-radius: 16px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .vehicle-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
+    border-color: #cbd5e1;
+  }
+  .vehicle-card.inactive {
+    opacity: 0.72;
+  }
+
+  /* Card Top Banner (Mint Placeholder with Vehicle Icon) */
+  .card-top-banner {
+    background: linear-gradient(135deg, #e6f4f0 0%, #d8eee7 100%);
+    height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    border-bottom: 1px solid #e2ede8;
+  }
+  .card-top-banner svg.banner-truck-icon {
+    width: 60px;
+    height: 60px;
+    color: #0F6E56;
+    opacity: 0.65;
+  }
+
+  /* 3-Dot Floating Action Button on Card */
+  .card-menu-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.9);
+    border: 1px solid #d8d9d4;
+    color: #2C2C2A;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+    transition: all 0.15s ease;
+    z-index: 5;
+  }
+  .card-menu-btn:hover {
+    background: #ffffff;
+    color: #0F6E56;
+    transform: scale(1.05);
+  }
+
+  /* Card Menu Dropdown */
+  .card-dropdown-menu {
+    display: none;
+    position: absolute;
+    top: 46px;
+    right: 10px;
+    background: #ffffff;
+    border: 1.5px solid #e8e9e4;
+    border-radius: 12px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    min-width: 150px;
+    z-index: 20;
+    overflow: hidden;
+    animation: fadeInPop 0.12s ease;
+  }
+  @keyframes fadeInPop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .card-dropdown-menu.show {
+    display: block;
+  }
+  .card-dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #2C2C2A;
+    text-decoration: none;
+    border: none;
+    background: transparent;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.1s;
+    box-sizing: border-box;
+  }
+  .card-dropdown-item:hover {
+    background: #f4fbf8;
+    color: #0F6E56;
+  }
+  .card-dropdown-item.del-item:hover {
+    background: #fef2f2;
+    color: #dc2626;
+  }
+
+  /* Card Body */
+  .card-body {
+    padding: 16px 18px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    flex: 1;
+  }
+  .card-badges-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .plate-chip {
+    background: #f8fafc;
+    border: 1.5px solid #cbd5e1;
+    border-radius: 6px;
+    padding: 3px 9px;
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 700;
+    color: #0f172a;
+    letter-spacing: 0.5px;
+  }
+  .badges-group {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .fuel-badge {
+    padding: 3px 8px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .fuel-badge.diesel { background: #e2e8f0; color: #334155; }
+  .fuel-badge.petrol { background: #ffedd5; color: #c2410c; }
+  .fuel-badge.cng    { background: #dcfce7; color: #15803d; }
+  .fuel-badge.elec   { background: #e0f2fe; color: #0369a1; }
+  .fuel-badge.other  { background: #f1f5f9; color: #64748b; }
+
+  .status-pill {
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .status-pill.active { background: #d1fae5; color: #065f46; }
+  .status-pill.inactive { background: #e2e8f0; color: #64748b; }
+
+  .card-type-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #5F5E5A;
+  }
+  .card-type-row svg {
+    color: #0F6E56;
+  }
+
+  /* Latest Reading Block */
+  .card-reading-block {
+    background: #f8faf9;
+    border: 1px solid #e8edea;
+    border-radius: 10px;
+    padding: 10px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-top: auto;
+  }
+  .reading-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: #64748b;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .reading-val {
+    font-size: 14px;
+    font-weight: 700;
+    color: #0F6E56;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .reading-empty-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .reading-empty-text {
+    font-size: 12.5px;
+    color: #8c8d87;
+    font-style: italic;
+  }
+  .btn-first-entry {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0F6E56;
+    background: #E1F5EE;
+    border: 1px solid #0F6E56;
+    padding: 3px 9px;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.12s ease;
+  }
+  .btn-first-entry:hover {
+    background: #0F6E56;
+    color: #ffffff;
+  }
+
+  /* Empty State */
+  .empty-fleet-state {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px 20px;
+    background: #ffffff;
+    border: 1.5px dashed #d8d9d4;
+    border-radius: 16px;
+    color: #5F5E5A;
+  }
+
+  /* Floating Action Button for Mobile */
+  .fab-add-vehicle {
+    display: none;
+  }
+
+  /* ── Modal & Bottom Sheet ── */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(3px);
+    z-index: 2000;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    box-sizing: border-box;
+  }
+  .modal-overlay.open {
+    display: flex;
+  }
+  .modal-container {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 580px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.18);
+    border: 1px solid #e8e9e4;
+    overflow: hidden;
+    animation: modalScaleUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  @keyframes modalScaleUp {
+    from { opacity: 0; transform: scale(0.96) translateY(8px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+  .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 22px;
+    border-bottom: 1px solid #eeeee9;
+  }
+  .modal-title {
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--dark-text, #2C2C2A);
+    margin: 0;
+  }
+  .modal-close-btn {
+    background: none;
+    border: none;
+    font-size: 22px;
+    line-height: 1;
+    color: #5F5E5A;
+    cursor: pointer;
+    padding: 4px;
+    border-radius: 6px;
+  }
+  .modal-close-btn:hover { color: #b91c1c; }
+  .modal-body {
+    padding: 22px;
+    max-height: calc(85vh - 120px);
+    overflow-y: auto;
+  }
+  .m-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .m-form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .m-form-group.full-w {
+    grid-column: 1 / -1;
+  }
+  .m-form-label {
+    font-size: 12px;
+    font-weight: 700;
+    color: #5F5E5A;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+  .m-form-input, .m-form-select, .m-form-textarea {
+    width: 100%;
+    min-height: 44px;
+    padding: 10px 12px;
+    border: 1.5px solid #d8d9d4;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    color: #2C2C2A;
+    background: #ffffff;
+    box-sizing: border-box;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .m-form-input:focus, .m-form-select:focus, .m-form-textarea:focus {
+    border-color: #1D9E75;
+  }
+  .modal-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 16px 22px;
+    border-top: 1px solid #eeeee9;
+    background: #fafaf8;
+  }
+  .btn-modal-cancel {
+    padding: 9px 18px;
+    background: #ffffff;
+    border: 1.5px solid #d8d9d4;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #5F5E5A;
+    cursor: pointer;
+  }
+  .btn-modal-submit {
+    padding: 9px 22px;
+    background: #0F6E56;
+    border: none;
+    border-radius: 9px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ffffff;
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(15,110,86,0.25);
+  }
+  .btn-modal-submit:hover {
+    background: #0c5945;
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+     RESPONSIVE: TABLET & PHONE BREAKPOINTS
+     ══════════════════════════════════════════════════════════════ */
+  @media (max-width: 1024px) {
+    .vehicles-grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (max-width: 768px) {
+    .page-header {
+      padding-top: 6px;
+      margin-bottom: 16px;
+    }
+    .header-actions .btn-header-add {
+      display: none; /* replaced by FAB on phone */
+    }
+    .summary-strip {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .summary-kpi-card {
+      padding: 12px 10px;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .summary-kpi-icon-wrap {
+      width: 32px;
+      height: 32px;
+    }
+    .summary-kpi-val {
+      font-size: 20px;
+    }
+    .summary-kpi-label {
+      font-size: 10px;
+    }
+
+    .search-filter-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .search-input-wrap {
+      max-width: 100%;
+    }
+    .filter-pills-row {
+      padding-bottom: 6px;
+    }
+
+    /* Single Column Grid on Phone */
+    .vehicles-grid {
+      grid-template-columns: 1fr;
+      gap: 14px;
+    }
+
+    /* Floating Circular '+' Action Button */
+    .fab-add-vehicle {
+      display: flex !important;
+      position: fixed;
+      bottom: 24px;
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #0F6E56;
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 14px rgba(15,110,86,0.4);
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 400;
+      cursor: pointer;
+      z-index: 1000;
+      transition: transform 0.15s ease;
+    }
+    .fab-add-vehicle:active {
+      transform: scale(0.92);
+    }
+
+    /* Bottom Sheet on Mobile */
+    .modal-overlay {
+      padding: 0;
+      align-items: flex-end;
+    }
+    .modal-container {
+      border-radius: 20px 20px 0 0;
+      max-width: 100%;
+      animation: sheetSlideUp 0.22s ease-out;
+    }
+    @keyframes sheetSlideUp {
+      from { transform: translateY(100%); }
+      to   { transform: translateY(0); }
+    }
+    .modal-drag-handle {
+      display: block;
+      width: 42px;
+      height: 4px;
+      border-radius: 2px;
+      background: #cbd5e1;
+      margin: 8px auto 0;
+    }
+    .m-form-grid {
+      grid-template-columns: 1fr;
+    }
+    .m-form-input, .m-form-select {
+      font-size: 16px !important; /* Prevents iOS Safari auto-zoom */
+    }
+  }
 </style>
 {% endblock %}
+
 {% block content %}
-<div class="page-header">
-  <div>
-    <h1 class="page-title" style="margin-bottom:4px;">Vehicles</h1>
-    <p class="page-sub">Vehicle fuel tracking and mileage register</p>
+<div class="veh-container">
+
+  <!-- ── 1. Page Header ── -->
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Vehicles</h1>
+      <p class="page-sub">Vehicle fuel tracking and mileage register</p>
+    </div>
+    <div class="header-actions">
+      <a href="/admin/vehicles/reports" class="btn-header-reports">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+        <span>Reports</span>
+      </a>
+      <button type="button" class="btn-header-add" onclick="openAddVehicleModal()">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>Add Vehicle</span>
+      </button>
+    </div>
   </div>
-  <div class="header-actions">
-    <a href="/admin/vehicles/reports" class="btn-outlined">Reports</a>
-    <a href="/admin/vehicles/new" class="btn-primary">Add Vehicle</a>
+
+  <!-- ── 2. Summary Strip (3 Stat Cards matching reference) ── -->
+  <div class="summary-strip">
+    <div class="summary-kpi-card">
+      <div class="summary-kpi-icon-wrap">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+      </div>
+      <div>
+        <div class="summary-kpi-label">Total Vehicles</div>
+        <div class="summary-kpi-val">{{ summary_stats.total_vehicles }}</div>
+      </div>
+    </div>
+
+    <div class="summary-kpi-card">
+      <div class="summary-kpi-icon-wrap" style="background:#d1fae5;color:#065f46;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <div>
+        <div class="summary-kpi-label">Active</div>
+        <div class="summary-kpi-val" style="color:#065f46;">{{ summary_stats.active_vehicles }}</div>
+      </div>
+    </div>
+
+    <div class="summary-kpi-card">
+      <div class="summary-kpi-icon-wrap" style="background:#e0f2fe;color:#0369a1;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      </div>
+      <div>
+        <div class="summary-kpi-label">Entries This Month</div>
+        <div class="summary-kpi-val" style="color:#0369a1;">{{ summary_stats.month_entries }}</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 3. Search Bar & Filter Chips ── -->
+  <div class="search-filter-row">
+    <div class="search-input-wrap">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input type="text" id="veh-search" class="veh-search-input" placeholder="Search by vehicle number…" oninput="filterVehicles()">
+    </div>
+
+    <div class="filter-pills-row">
+      <button type="button" class="filter-pill active" onclick="setVehFilter('all')" id="pill-all">All</button>
+      <button type="button" class="filter-pill" onclick="setVehFilter('diesel')" id="pill-diesel">Diesel</button>
+      <button type="button" class="filter-pill" onclick="setVehFilter('petrol')" id="pill-petrol">Petrol</button>
+      <button type="button" class="filter-pill" onclick="setVehFilter('active')" id="pill-active">Active</button>
+      <button type="button" class="filter-pill" onclick="setVehFilter('inactive')" id="pill-inactive">Inactive</button>
+    </div>
+  </div>
+
+  <!-- ── 4. Responsive Grid of Vehicle Cards ── -->
+  <div class="vehicles-grid" id="veh-grid">
+    {% if vehicle_data %}
+      {% for row in vehicle_data %}
+        {% set v = row.vehicle %}
+        {% set f_lower = (v.fuel_type or '') | lower %}
+        {% set v_type = v.vehicle_type or 'Vehicle' %}
+        
+        <div class="vehicle-card {% if v.status == 'inactive' %}inactive{% endif %}"
+             data-num="{{ v.vehicle_number | lower }}"
+             data-reg="{{ (v.registration_number or '') | lower }}"
+             data-fuel="{{ f_lower }}"
+             data-status="{{ v.status }}"
+             onclick="handleCardClick(event, '{{ v.id }}')">
+
+          <!-- Card Top Banner with stylized Truck Icon -->
+          <div class="card-top-banner">
+            <svg class="banner-truck-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="15" height="13" rx="2"/>
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+              <circle cx="5.5" cy="18.5" r="2.5"/>
+              <circle cx="18.5" cy="18.5" r="2.5"/>
+            </svg>
+
+            <!-- Floating 3-Dot (⋮) Menu Button -->
+            <button type="button" class="card-menu-btn" title="Options" onclick="toggleCardMenu(event, '{{ v.id }}')">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+
+            <!-- Card Menu Dropdown -->
+            <div class="card-dropdown-menu" id="menu-{{ v.id }}">
+              <a href="/admin/vehicles/{{ v.id }}" class="card-dropdown-item" onclick="event.stopPropagation();">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                <span>View Details</span>
+              </a>
+              <a href="/admin/vehicles/{{ v.id }}/edit" class="card-dropdown-item" onclick="event.stopPropagation();">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                <span>Edit Vehicle</span>
+              </a>
+              <form method="POST" action="/admin/vehicles/{{ v.id }}/toggle_status" style="margin:0;" onclick="event.stopPropagation();">
+                <button type="submit" class="card-dropdown-item {% if v.status == 'active' %}del-item{% endif %}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                  <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
+                </button>
+              </form>
+            </div>
+          </div>
+
+          <!-- Card Body -->
+          <div class="card-body">
+            <!-- Row 1: Plate Number Chip + Fuel Badge + Status -->
+            <div class="card-badges-row">
+              <span class="plate-chip">{{ v.vehicle_number }}</span>
+              <div class="badges-group">
+                {% if 'diesel' in f_lower %}
+                  <span class="fuel-badge diesel">Diesel</span>
+                {% elif 'petrol' in f_lower %}
+                  <span class="fuel-badge petrol">Petrol</span>
+                {% elif 'cng' in f_lower %}
+                  <span class="fuel-badge cng">CNG</span>
+                {% elif 'elec' in f_lower %}
+                  <span class="fuel-badge elec">Electric</span>
+                {% else %}
+                  <span class="fuel-badge other">{{ v.fuel_type or 'Fuel' }}</span>
+                {% endif %}
+
+                <span class="status-pill {{ v.status }}">{{ v.status | capitalize }}</span>
+              </div>
+            </div>
+
+            <!-- Row 2: Vehicle Type with Icon -->
+            <div class="card-type-row">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13" rx="2"/>
+                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                <circle cx="5.5" cy="18.5" r="2.5"/>
+                <circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+              <span>{{ v_type }}</span>
+            </div>
+
+            <!-- Row 3: Latest Reading Block -->
+            <div class="card-reading-block">
+              <span class="reading-label">Latest Reading</span>
+              {% if row.total_entries > 0 %}
+                <div class="reading-val">
+                  <span>{{ "{:,.1f}".format(row.latest_odometer) }} km</span>
+                  <span style="font-weight:400;color:#8c8d87;margin:0 4px;">·</span>
+                  <span>{{ "%.1f"|format(row.latest_mileage) }} km/L</span>
+                </div>
+              {% else %}
+                <div class="reading-empty-row">
+                  <span class="reading-empty-text">No entries yet</span>
+                  <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-first-entry" onclick="event.stopPropagation();">+ Add first entry</a>
+                </div>
+              {% endif %}
+            </div>
+
+          </div>
+        </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty-fleet-state">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.35;margin-bottom:12px;display:inline-block;"><rect x="2" y="7" width="20" height="11" rx="2" ry="2"/><path d="M2 13h20"/><path d="M8 7v4"/><path d="M16 7v4"/></svg>
+        <h3 style="font-size:16px;font-weight:700;margin-bottom:6px;color:#2C2C2A;">No vehicles registered yet</h3>
+        <p style="font-size:13.5px;max-width:320px;margin:0 auto 16px;">Add your first vehicle to begin logging fuel refuelling and mileage.</p>
+        <button type="button" class="btn-header-add" onclick="openAddVehicleModal()">Add First Vehicle</button>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Floating Circular '+' Action Button for Phone -->
+  <button type="button" class="fab-add-vehicle" onclick="openAddVehicleModal()" title="Add Vehicle">+</button>
+
+</div>
+
+<!-- ── Add Vehicle Modal & Mobile Bottom Sheet ── -->
+<div class="modal-overlay" id="vehicleModal" onclick="handleModalOverlayClick(event)">
+  <div class="modal-container">
+    <div class="modal-drag-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">Add New Vehicle</h3>
+      <button type="button" class="modal-close-btn" onclick="closeVehicleModal()">×</button>
+    </div>
+
+    <form method="POST" action="/admin/vehicles/new" id="vehicleForm">
+      <div class="modal-body">
+        <div class="m-form-grid">
+          <div class="m-form-group">
+            <label class="m-form-label">Vehicle Number *</label>
+            <input type="text" name="vehicle_number" class="m-form-input" placeholder="e.g. MH20GC0459" required autocomplete="off">
+          </div>
+
+          <div class="m-form-group">
+            <label class="m-form-label">Registration Number</label>
+            <input type="text" name="registration_number" class="m-form-input" placeholder="e.g. MH 20 GC 0459">
+          </div>
+
+          <div class="m-form-group">
+            <label class="m-form-label">Vehicle Type *</label>
+            <select name="vehicle_type" class="m-form-select" required>
+              <option value="Truck" selected>Truck</option>
+              <option value="Van">Van</option>
+              <option value="Pickup">Pickup</option>
+              <option value="Car">Car</option>
+              <option value="Bike">Bike</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <div class="m-form-group">
+            <label class="m-form-label">Fuel Type *</label>
+            <select name="fuel_type" class="m-form-select" required>
+              <option value="Diesel" selected>Diesel</option>
+              <option value="Petrol">Petrol</option>
+              <option value="CNG">CNG</option>
+              <option value="Electric">Electric</option>
+            </select>
+          </div>
+
+          <div class="m-form-group full-w">
+            <label class="m-form-label">Status *</label>
+            <select name="status" class="m-form-select">
+              <option value="active" selected>Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+          </div>
+
+          <div class="m-form-group full-w">
+            <label class="m-form-label">Notes</label>
+            <textarea name="notes" class="m-form-textarea" rows="2" placeholder="Optional notes or remarks..."></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn-modal-cancel" onclick="closeVehicleModal()">Cancel</button>
+        <button type="submit" class="btn-modal-submit" id="btn-save-veh">Save Vehicle</button>
+      </div>
+    </form>
   </div>
 </div>
 
-<div class="table-wrap">
-  {% if vehicle_data %}
-  <div style="overflow-x:auto;">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Vehicle Number</th>
-          <th class="hide-mobile">Registration</th>
-          <th class="hide-mobile">Type</th>
-          <th class="hide-mobile">Fuel Type</th>
-          <th>Status</th>
-          <th>Latest Odometer</th>
-          <th>Latest Mileage km/l</th>
-          <th>Entries</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for row in vehicle_data %}
-        <tr class="{% if row.vehicle.status == 'inactive' %}inactive{% endif %}">
-          <td style="color:var(--gray-text); font-size:12px;">{{ loop.index }}</td>
-          <td><a href="/admin/vehicles/{{ row.vehicle.id }}" class="veh-link">{{ row.vehicle.vehicle_number }}</a></td>
-          <td class="hide-mobile">{{ row.vehicle.registration_number or '—' }}</td>
-          <td class="hide-mobile">{{ row.vehicle.vehicle_type or '—' }}</td>
-          <td class="hide-mobile">{{ row.vehicle.fuel_type or '—' }}</td>
-          <td>
-            {% if row.vehicle.status == 'active' %}
-              <span class="badge-active">Active</span>
-            {% else %}
-              <span class="badge-inactive">Inactive</span>
-            {% endif %}
-          </td>
-          <td style="font-family:monospace;">{% if row.latest_odometer %}{{ "{:,.1f}".format(row.latest_odometer) }} km{% else %}—{% endif %}</td>
-          <td>{% if row.latest_mileage %}{{ "%.2f"|format(row.latest_mileage) }}{% else %}—{% endif %}</td>
-          <td>{{ row.total_entries }}</td>
-          <td>
-            <div class="action-btns">
-              <a href="/admin/vehicles/{{ row.vehicle.id }}" class="btn-sm">View</a>
-              <a href="/admin/vehicles/{{ row.vehicle.id }}/edit" class="btn-sm">Edit</a>
-            </div>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-  {% else %}
-  <div class="empty-state">
-    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.3; margin-bottom:16px; display:inline-block;"><rect x="2" y="7" width="20" height="11" rx="2" ry="2"/><path d="M2 13h20"/><path d="M8 7v4"/><path d="M16 7v4"/></svg>
-    <p style="font-size:16px; font-weight:600; color:var(--dark-text); margin-bottom:8px;">No vehicles registered yet</p>
-    <p style="font-size:14px; margin-bottom:16px;">Add your first vehicle to start tracking fuel and mileage.</p>
-    <a href="/admin/vehicles/new" class="btn-primary">Add First Vehicle</a>
-  </div>
-  {% endif %}
-</div>
+<script>
+  let currentFilter = 'all';
+
+  // Card click navigation
+  function handleCardClick(e, id) {
+    if (e.target.closest('.card-menu-btn') || e.target.closest('.card-dropdown-menu') || e.target.closest('.btn-first-entry')) {
+      return;
+    }
+    window.location.href = `/admin/vehicles/${id}`;
+  }
+
+  // Floating 3-Dot menu toggle
+  function toggleCardMenu(e, id) {
+    e.stopPropagation();
+    const allMenus = document.querySelectorAll('.card-dropdown-menu');
+    allMenus.forEach(m => {
+      if (m.id !== `menu-${id}`) m.classList.remove('show');
+    });
+    const targetMenu = document.getElementById(`menu-${id}`);
+    if (targetMenu) targetMenu.classList.toggle('show');
+  }
+
+  // Close menus when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.card-menu-btn')) {
+      document.querySelectorAll('.card-dropdown-menu').forEach(m => m.classList.remove('show'));
+    }
+  });
+
+  // Filter chips
+  function setVehFilter(f) {
+    currentFilter = f;
+    ['all','diesel','petrol','active','inactive'].forEach(id => {
+      const b = document.getElementById('pill-' + id);
+      if (b) b.classList.toggle('active', id === f);
+    });
+    filterVehicles();
+  }
+
+  // Real-time client-side filter
+  function filterVehicles() {
+    const q = (document.getElementById('veh-search').value || '').trim().toLowerCase();
+    const cards = document.querySelectorAll('.vehicle-card');
+
+    cards.forEach(c => {
+      const num = c.dataset.num || '';
+      const reg = c.dataset.reg || '';
+      const fuel = c.dataset.fuel || '';
+      const status = c.dataset.status || '';
+
+      const matchesSearch = !q || num.includes(q) || reg.includes(q);
+      let matchesFilter = true;
+
+      if (currentFilter === 'diesel') matchesFilter = fuel.includes('diesel');
+      else if (currentFilter === 'petrol') matchesFilter = fuel.includes('petrol');
+      else if (currentFilter === 'active') matchesFilter = (status === 'active');
+      else if (currentFilter === 'inactive') matchesFilter = (status === 'inactive');
+
+      c.style.display = (matchesSearch && matchesFilter) ? 'flex' : 'none';
+    });
+  }
+
+  // Modal controls
+  function openAddVehicleModal() {
+    document.getElementById('vehicleModal').classList.add('open');
+  }
+  function closeVehicleModal() {
+    document.getElementById('vehicleModal').classList.remove('open');
+  }
+  function handleModalOverlayClick(e) {
+    if (e.target.id === 'vehicleModal') closeVehicleModal();
+  }
+</script>
 {% endblock %}

@@ -61,8 +61,12 @@
       <input type="number" step="0.001" min="0.001" name="fuel_quantity_litres" id="inp-qty" value="{{ form_data.get('fuel_quantity_litres', '') }}" required>
     </div>
     <div class="form-group">
+      <label>Fuel Rate (&#8377; / Litre)</label>
+      <input type="number" step="0.01" min="0" name="fuel_rate_per_litre" id="inp-rate" value="{{ form_data.get('fuel_rate_per_litre', '') }}" placeholder="e.g. 95.50">
+    </div>
+    <div class="form-group">
       <label>Total Fuel Price (&#8377;) *</label>
-      <input type="number" step="0.01" min="0" name="fuel_price_total" value="{{ form_data.get('fuel_price_total', '') }}" required>
+      <input type="number" step="0.01" min="0" name="fuel_price_total" id="inp-price" value="{{ form_data.get('fuel_price_total', '') }}" required>
     </div>
     <div class="form-group">
       <label>Starting Odometer (km) *</label>
@@ -130,7 +134,38 @@
       }
     }
 
-    qtyInp.addEventListener('input', updatePreview);
+    const rateInp = document.getElementById('inp-rate');
+    const priceInp = document.getElementById('inp-price');
+
+    // 3-way sync: Qty + Rate -> Price
+    function syncPrice() {
+      const q = parseFloat(qtyInp.value);
+      const r = parseFloat(rateInp.value);
+      if (!isNaN(q) && !isNaN(r) && q > 0 && r > 0) {
+        priceInp.value = (q * r).toFixed(2);
+      }
+      updatePreview();
+    }
+
+    // Qty + Price -> Rate
+    function syncRate() {
+      const q = parseFloat(qtyInp.value);
+      const p = parseFloat(priceInp.value);
+      if (!isNaN(q) && !isNaN(p) && q > 0 && p > 0) {
+        rateInp.value = (p / q).toFixed(2);
+      }
+      updatePreview();
+    }
+
+    if (rateInp) rateInp.addEventListener('input', syncPrice);
+    if (priceInp) priceInp.addEventListener('input', syncRate);
+
+    qtyInp.addEventListener('input', function() {
+      const r = parseFloat(rateInp ? rateInp.value : 0);
+      if (!isNaN(r) && r > 0) syncPrice();
+      else syncRate();
+    });
+
     startInp.addEventListener('input', updatePreview);
     endInp.addEventListener('input', updatePreview);
     updatePreview(); // initial check if pre-filled

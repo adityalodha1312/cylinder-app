@@ -2,6 +2,7 @@
 {% block title %}{{ vehicle.vehicle_number }}{% endblock %}
 
 {% block head %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
   .veh-header {
     display: flex; justify-content: space-between; align-items: flex-start;
@@ -156,6 +157,12 @@
     <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Avg</div><div class="ps-value">{{ stats.month_avg_mileage }} km/l</div></div>
     <div class="perf-sub-stat"><div class="ps-label">{{ stats.curr_month_label }} Cost</div><div class="ps-value">&#8377;{{ "{:,.0f}".format(stats.month_cost) }}</div></div>
   </div>
+  <div style="margin-top:16px;display:flex;justify-content:flex-end;">
+    <button type="button" class="btn-snapshot" onclick="savePerformanceSnapshot()">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>Save Snapshot as Image</span>
+    </button>
+  </div>
   {% else %}
   <div style="text-align:center;padding:28px 0;color:var(--gray-text);font-size:14px;">At least 2 refuelling records needed to calculate combined performance.</div>
   {% endif %}
@@ -183,7 +190,12 @@
           <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
           <td>{{ r.fuel_date }}</td>
           <td>{{ "%.3f"|format(r.fuel_quantity_litres|float) }}</td>
-          <td>&#8377;{{ "{:,.0f}".format(r.fuel_price_total|float) }}</td>
+          <td>
+            <div>&#8377;{{ "{:,.0f}".format(r.fuel_price_total|float) }}</div>
+            {% if r.fuel_rate_per_litre %}
+              <div style="font-size:11px;color:var(--gray-text);">@ &#8377;{{ "%.2f"|format(r.fuel_rate_per_litre|float) }}/L</div>
+            {% endif %}
+          </td>
           <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.starting_odometer_km|float) }}</td>
           <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.ending_odometer_km|float) }}</td>
           <td style="font-weight:600;">{{ "{:,.1f}".format(r.distance_km|float) }} km</td>

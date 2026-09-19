@@ -453,6 +453,7 @@ class VehicleRefuelling(db.Model):
     fuel_date            = db.Column(db.String(50), nullable=False, index=True)  # dd-mm-yyyy
     fuel_quantity_litres = db.Column(db.Numeric(10, 3), nullable=False)
     fuel_price_total     = db.Column(db.Numeric(12, 2), nullable=False)
+    fuel_rate_per_litre  = db.Column(db.Numeric(10, 2))
     starting_odometer_km = db.Column(db.Numeric(12, 2), nullable=False, index=True)
     ending_odometer_km   = db.Column(db.Numeric(12, 2), nullable=False, index=True)
     distance_km          = db.Column(db.Numeric(10, 2), nullable=False)   # server-calculated
@@ -468,6 +469,7 @@ class VehicleRefuelling(db.Model):
             'vehicle_id': self.vehicle_id,
             'fuel_date': self.fuel_date,
             'fuel_quantity_litres': float(self.fuel_quantity_litres),
+            'fuel_rate_per_litre': float(self.fuel_rate_per_litre) if self.fuel_rate_per_litre else 0.0,
             'fuel_price_total': float(self.fuel_price_total),
             'starting_odometer_km': float(self.starting_odometer_km),
             'ending_odometer_km': float(self.ending_odometer_km),
