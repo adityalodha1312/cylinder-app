@@ -165,7 +165,7 @@
         }
       }
 
-      // Quantity changed -> calculate Total Price (or Rate if only Price exists)
+      // Quantity changed -> calculate Total Price if Rate exists, keep Rate fixed!
       function onQtyChange() {
         const q = parseFloat(qtyInp.value);
         const r = parseFloat(rateInp.value);
@@ -173,41 +173,49 @@
 
         if (!isNaN(q) && q > 0) {
           if (!isNaN(r) && r > 0) {
+            // Fuel Rate is the fixed market price per litre: Total = Quantity * Rate
             priceInp.value = (q * r).toFixed(2);
           } else if (!isNaN(p) && p > 0) {
+            // Only if Rate is empty, calculate Rate = Price / Quantity
             rateInp.value = (p / q).toFixed(2);
           }
         }
         updatePreview();
       }
 
-      // Rate changed -> calculate Total Price (or Quantity if only Price exists)
+      // Rate changed -> if Total Price exists, recalculate Quantity = Price / Rate;
+      // else if Quantity exists, recalculate Total Price = Quantity * Rate.
       function onRateChange() {
         const r = parseFloat(rateInp.value);
-        const q = parseFloat(qtyInp.value);
         const p = parseFloat(priceInp.value);
+        const q = parseFloat(qtyInp.value);
 
         if (!isNaN(r) && r > 0) {
-          if (!isNaN(q) && q > 0) {
-            priceInp.value = (q * r).toFixed(2);
-          } else if (!isNaN(p) && p > 0 && (!qtyInp.value || isNaN(q) || q <= 0)) {
+          if (!isNaN(p) && p > 0) {
+            // Total Price was entered (e.g. 2000), update Quantity = 2000 / Rate
             qtyInp.value = (p / r).toFixed(3);
+          } else if (!isNaN(q) && q > 0) {
+            // Quantity was entered, update Total Price = Quantity * Rate
+            priceInp.value = (q * r).toFixed(2);
           }
         }
         updatePreview();
       }
 
-      // Total Price changed -> calculate Rate per Litre (or Quantity if only Rate exists)
+      // Total Price changed -> calculate Quantity = Price / Rate, NEVER change Fuel Rate!
       function onPriceChange() {
         const p = parseFloat(priceInp.value);
-        const q = parseFloat(qtyInp.value);
         const r = parseFloat(rateInp.value);
+        const q = parseFloat(qtyInp.value);
 
         if (!isNaN(p) && p > 0) {
-          if (!isNaN(q) && q > 0) {
-            rateInp.value = (p / q).toFixed(2);
-          } else if (!isNaN(r) && r > 0 && (!qtyInp.value || isNaN(q) || q <= 0)) {
+          if (!isNaN(r) && r > 0) {
+            // Example: Price = 2000, Rate = 105 -> Quantity = 2000 / 105 = 19.048 L
+            // Fuel Rate is untouched!
             qtyInp.value = (p / r).toFixed(3);
+          } else if (!isNaN(q) && q > 0) {
+            // Only if Rate was completely blank, derive Rate = Price / Quantity
+            rateInp.value = (p / q).toFixed(2);
           }
         }
         updatePreview();
@@ -250,6 +258,8 @@
       // Initial check on load
       if (qtyInp.value && rateInp.value && !priceInp.value) {
         onQtyChange();
+      } else if (priceInp.value && rateInp.value && !qtyInp.value) {
+        onPriceChange();
       }
       updatePreview();
     }

@@ -7904,7 +7904,7 @@ def _validate_refuelling_form(form):
             except ValueError:
                 errors.append("Fuel date must be a valid date.")
 
-    # fuel_rate_per_litre
+    # fuel_rate_per_litre (fixed pump rate per litre)
     try:
         rate = float(form.get('fuel_rate_per_litre', '').strip() or 0)
         if rate > 0:
@@ -7912,9 +7912,23 @@ def _validate_refuelling_form(form):
     except (ValueError, TypeError):
         pass
 
-    # fuel_quantity_litres
+    # fuel_price_total (total money paid for fuel)
     try:
-        qty = float(form.get('fuel_quantity_litres', '').strip() or 0)
+        price = float(form.get('fuel_price_total', '').strip() or 0)
+        if price < 0:
+            errors.append("Fuel price cannot be negative.")
+        else:
+            vals['fuel_price_total'] = price
+    except (ValueError, TypeError):
+        errors.append("Fuel price must be a valid number.")
+
+    # fuel_quantity_litres (litres pumped)
+    try:
+        qty_str = form.get('fuel_quantity_litres', '').strip()
+        qty = float(qty_str) if qty_str else 0
+        # If quantity was not filled, calculate Quantity = Price / Rate
+        if qty <= 0 and 'fuel_rate_per_litre' in vals and vals['fuel_rate_per_litre'] > 0 and 'fuel_price_total' in vals and vals['fuel_price_total'] > 0:
+            qty = round(vals['fuel_price_total'] / vals['fuel_rate_per_litre'], 3)
         if qty <= 0:
             errors.append("Fuel quantity must be greater than zero.")
         else:
@@ -7922,17 +7936,9 @@ def _validate_refuelling_form(form):
     except (ValueError, TypeError):
         errors.append("Fuel quantity must be a valid number.")
 
-    # fuel_price_total
-    try:
-        price = float(form.get('fuel_price_total', '').strip() or 0)
-        if price < 0:
-            errors.append("Fuel price cannot be negative.")
-        else:
-            vals['fuel_price_total'] = price
-            if 'fuel_rate_per_litre' not in vals and 'fuel_quantity_litres' in vals and vals['fuel_quantity_litres'] > 0:
-                vals['fuel_rate_per_litre'] = round(price / vals['fuel_quantity_litres'], 2)
-    except (ValueError, TypeError):
-        errors.append("Fuel price must be a valid number.")
+    # If rate was not provided, calculate from price / quantity
+    if 'fuel_rate_per_litre' not in vals and 'fuel_price_total' in vals and 'fuel_quantity_litres' in vals and vals['fuel_quantity_litres'] > 0:
+        vals['fuel_rate_per_litre'] = round(vals['fuel_price_total'] / vals['fuel_quantity_litres'], 2)
 
     # starting_odometer_km
     try:

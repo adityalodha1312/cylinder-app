@@ -349,88 +349,101 @@
     color: #0F6E56;
     font-size: 14px;
   }
+  /* Payment Status Badges & Minimal Actions */
+  .pay-status-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    align-items: flex-start;
+  }
+  .pay-status-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
   .badge-paid {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    background: #E1F5EE;
-    color: #0F6E56;
-    border: 1px solid #9FE1CB;
+    gap: 3px;
+    background: #ecfdf5;
+    color: #065f46;
+    border: 1px solid #a7f3d0;
     padding: 2px 7px;
-    border-radius: 6px;
-    font-size: 11.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
   }
   .badge-unpaid {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    background: #fef3c7;
-    color: #b45309;
+    gap: 3px;
+    background: #fffbeb;
+    color: #92400e;
     border: 1px solid #fde68a;
     padding: 2px 7px;
-    border-radius: 6px;
-    font-size: 11.5px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.3px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.2px;
   }
   .paid-sub {
-    font-size: 11px;
-    color: var(--gray-text, #5F5E5A);
-    margin-top: 2px;
+    font-size: 10.5px;
+    color: #64748b;
+    line-height: 1.2;
+    padding-left: 2px;
   }
   .btn-pay-slip {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    padding: 3px 8px;
-    background: #0F6E56;
-    color: #ffffff;
-    border: none;
+    padding: 2px 8px;
+    background: #ffffff;
+    color: #0F6E56;
+    border: 1px solid #9FE1CB;
     border-radius: 5px;
     font-family: inherit;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.15s;
-    margin-top: 3px;
+    transition: all 0.15s ease;
   }
   .btn-pay-slip:hover {
-    background: #04342C;
+    background: #0F6E56;
+    color: #ffffff;
+    border-color: #0F6E56;
   }
   .btn-xs-link {
     background: none;
     border: none;
-    padding: 0;
+    padding: 0 2px;
     color: #94a3b8;
-    font-size: 11px;
+    font-size: 10.5px;
     font-family: inherit;
     text-decoration: underline;
     cursor: pointer;
-    margin-top: 2px;
+    transition: color 0.12s ease;
   }
   .btn-xs-link:hover {
-    color: #dc2626;
+    color: #ef4444;
   }
   .btn-clear-statement {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 7px 14px;
-    background: #0F6E56;
-    color: #ffffff;
-    border: none;
+    padding: 6px 12px;
+    background: #E1F5EE;
+    color: #0F6E56;
+    border: 1px solid #9FE1CB;
     border-radius: 8px;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
-    transition: 0.15s;
+    transition: all 0.15s ease;
   }
   .btn-clear-statement:hover {
-    background: #04342C;
+    background: #0F6E56;
+    color: #ffffff;
+    border-color: #0F6E56;
   }
   .pay-modal-bg {
     position: fixed;
@@ -674,19 +687,19 @@
     </div>
 
     <!-- Pending to Pay -->
-    <div class="kpi-card" id="kpiPendingCard" style="{% if kpis.unpaid_amount > 0 %}border-color:#f59e0b;background:#fffdfa;{% endif %}">
+    <div class="kpi-card" id="kpiPendingCard">
       <div class="kpi-icon-wrap kpi-icon-amber">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
       </div>
       <div>
-        <div class="kpi-label" id="kpiPendingLabel" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;font-weight:700;{% endif %}">Pending to Pay</div>
-        <div class="kpi-val" id="kpiPendingVal" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;{% endif %}">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</div>
+        <div class="kpi-label" id="kpiPendingLabel">Pending to Pay</div>
+        <div class="kpi-val" id="kpiPendingVal" style="color:#b45309;">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</div>
         <div class="kpi-sub" id="kpiPendingSub">{{ kpis.unpaid_count }} unpaid slip(s)</div>
       </div>
     </div>
 
     <!-- Paid to Dealer -->
-    <div class="kpi-card" id="kpiPaidCard" style="{% if kpis.paid_amount > 0 %}border-color:#10b981;background:#fbfdfc;{% endif %}">
+    <div class="kpi-card" id="kpiPaidCard">
       <div class="kpi-icon-wrap kpi-icon-green">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
       </div>
@@ -797,20 +810,24 @@
               <span class="amount-val">&#8377;{{ "{:,.2f}".format(ref.fuel_price_total|float) }}</span>
             </td>
             <td id="status-cell-{{ ref.id }}">
-              {% if (ref.payment_status or 'unpaid') == 'paid' %}
-                <span class="badge-paid">Paid</span>
-                {% if ref.paid_date %}
-                  <div class="paid-sub">{{ ref.paid_date }}{% if ref.payment_ref %} &middot; {{ ref.payment_ref }}{% endif %}</div>
+              <div class="pay-status-wrap">
+                {% if (ref.payment_status or 'unpaid') == 'paid' %}
+                  <div class="pay-status-row">
+                    <span class="badge-paid">&#10003; Paid</span>
+                    <button type="button" class="btn-xs-link" onclick="handleUndoPaid({{ ref.id }})">Undo</button>
+                  </div>
+                  {% if ref.paid_date %}
+                    <div class="paid-sub">{{ ref.paid_date }}{% if ref.payment_ref %} &middot; {{ ref.payment_ref }}{% endif %}</div>
+                  {% endif %}
+                {% else %}
+                  <div class="pay-status-row">
+                    <span class="badge-unpaid">Pending</span>
+                    <button type="button" class="btn-pay-slip" onclick="openSinglePayModal({{ ref.id }}, '{{ '{:,.2f}'.format(ref.fuel_price_total|float) }}', '{{ ref.receipt_number or '' }}')">
+                      Pay
+                    </button>
+                  </div>
                 {% endif %}
-                <button type="button" class="btn-xs-link" onclick="handleUndoPaid({{ ref.id }})">Undo</button>
-              {% else %}
-                <span class="badge-unpaid">Pending</span>
-                <div>
-                  <button type="button" class="btn-pay-slip" onclick="openSinglePayModal({{ ref.id }}, '{{ '{:,.2f}'.format(ref.fuel_price_total|float) }}', '{{ ref.receipt_number or '' }}')">
-                    Mark Paid
-                  </button>
-                </div>
-              {% endif %}
+              </div>
             </td>
             <td style="font-family:monospace;font-size:12.5px;color:#475569;white-space:nowrap;">
               {{ "{:,.0f}".format(ref.starting_odometer_km|float) }} &rarr; {{ "{:,.0f}".format(ref.ending_odometer_km|float) }}
@@ -949,34 +966,14 @@
     // Pending KPI
     const pendingVal = document.getElementById('kpiPendingVal');
     const pendingSub = document.getElementById('kpiPendingSub');
-    const pendingCard = document.getElementById('kpiPendingCard');
-    const pendingLabel = document.getElementById('kpiPendingLabel');
     if (pendingVal) pendingVal.innerHTML = '&#8377;' + fmt(statePendingAmt);
     if (pendingSub) pendingSub.innerText = `${statePendingCount} unpaid slip(s)`;
-    if (pendingCard) {
-      if (statePendingCount > 0) {
-        pendingCard.style.borderColor = '#f59e0b';
-        pendingCard.style.background = '#fffdfa';
-        if (pendingLabel) { pendingLabel.style.color = '#b45309'; pendingLabel.style.fontWeight = '700'; }
-        if (pendingVal) pendingVal.style.color = '#b45309';
-      } else {
-        pendingCard.style.borderColor = '';
-        pendingCard.style.background = '';
-        if (pendingLabel) { pendingLabel.style.color = ''; pendingLabel.style.fontWeight = ''; }
-        if (pendingVal) pendingVal.style.color = '';
-      }
-    }
 
     // Paid KPI
     const paidVal = document.getElementById('kpiPaidVal');
     const paidSub = document.getElementById('kpiPaidSub');
-    const paidCard = document.getElementById('kpiPaidCard');
     if (paidVal) paidVal.innerHTML = '&#8377;' + fmt(statePaidAmt);
     if (paidSub) paidSub.innerText = `${statePaidCount} cleared slip(s)`;
-    if (paidCard && statePaidCount > 0) {
-      paidCard.style.borderColor = '#10b981';
-      paidCard.style.background = '#fbfdfc';
-    }
 
     // Table Footer
     const footPaid = document.getElementById('tfootPaidAmt');
@@ -1013,9 +1010,13 @@
     if (newStatus === 'paid') {
       const subInfo = paidDate ? `<div class="paid-sub">${paidDate}${paymentRef ? ' &middot; ' + escapeHtml(paymentRef) : ''}</div>` : '';
       cell.innerHTML = `
-        <span class="badge-paid">Paid</span>
-        ${subInfo}
-        <button type="button" class="btn-xs-link" onclick="handleUndoPaid(${refId})">Undo</button>
+        <div class="pay-status-wrap">
+          <div class="pay-status-row">
+            <span class="badge-paid">&#10003; Paid</span>
+            <button type="button" class="btn-xs-link" onclick="handleUndoPaid(${refId})">Undo</button>
+          </div>
+          ${subInfo}
+        </div>
       `;
 
       statePendingAmt = Math.max(0, statePendingAmt - amount);
@@ -1025,11 +1026,13 @@
     } else {
       const formattedAmt = fmt(amount);
       cell.innerHTML = `
-        <span class="badge-unpaid">Pending</span>
-        <div>
-          <button type="button" class="btn-pay-slip" onclick="openSinglePayModal(${refId}, '${formattedAmt}', '${escapeHtml(slipNo)}')">
-            Mark Paid
-          </button>
+        <div class="pay-status-wrap">
+          <div class="pay-status-row">
+            <span class="badge-unpaid">Pending</span>
+            <button type="button" class="btn-pay-slip" onclick="openSinglePayModal(${refId}, '${formattedAmt}', '${escapeHtml(slipNo)}')">
+              Pay
+            </button>
+          </div>
         </div>
       `;
 
