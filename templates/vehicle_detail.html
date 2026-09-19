@@ -191,7 +191,7 @@
     Recent Performance &middot; <span style="color:var(--dark-text);">{{ vehicle.vehicle_number }}</span>
   </div>
   {% if recent_perf %}
-  <p style="font-size:13px;color:var(--gray-text);margin-bottom:16px;">Combined last 2 refuelling entries — matches Excel summary method</p>
+  <p style="font-size:13px;color:var(--gray-text);margin-bottom:16px;">Combined last 2 refuelling entries</p>
   <div class="perf-grid">
     <div class="perf-stat"><div class="p-label">Combined Distance</div><div class="p-value">{{ "{:,.2f}".format(recent_perf.comb_distance) }}<span class="p-unit">km</span></div></div>
     <div class="perf-stat"><div class="p-label">Combined Fuel</div><div class="p-value">{{ "{:,.3f}".format(recent_perf.comb_litres) }}<span class="p-unit">l</span></div></div>
