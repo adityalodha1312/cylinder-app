@@ -308,11 +308,33 @@ with app.app_context():
         try:
             from sqlalchemy import text
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS gas_type VARCHAR(50);"))
+            db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             # Auto-add new internal log context fields
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_activity_date VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
             db.session.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(100);"))
+            # Auto-create cylinder_aliases and gas_type_history if missing
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS cylinder_aliases (
+                    id SERIAL PRIMARY KEY,
+                    cylinder_id INTEGER REFERENCES cylinders(id) ON DELETE CASCADE,
+                    alias_name VARCHAR(100) UNIQUE NOT NULL,
+                    created_by VARCHAR(50),
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """))
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS gas_type_history (
+                    id SERIAL PRIMARY KEY,
+                    cylinder_id INTEGER REFERENCES cylinders(id) ON DELETE CASCADE,
+                    old_gas_type VARCHAR(50),
+                    new_gas_type VARCHAR(50),
+                    changed_by VARCHAR(50),
+                    entry_source VARCHAR(50) DEFAULT 'qr',
+                    changed_at TIMESTAMP DEFAULT NOW()
+                );
+            """))
             db.session.commit()
             print("[startup] Checked and added scans.gas_type, admin_scan_logs context, and customers.gst_number columns if missing.")
         except Exception as e:
@@ -8446,10 +8468,56 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr'):
         except Exception as dbe:
             db.session.rollback()
             print("[db] Error writing scans to DB:", dbe)
-            from sqlalchemy.exc import OperationalError, InterfaceError
-            is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
-            if not is_connection_error:
-                return f"Database error logging scans: {str(dbe)}", 500
+            # Self-healing: if entry_source column is missing in DB, add it immediately and retry
+            if "entry_source" in str(dbe).lower():
+                try:
+                    from sqlalchemy import text
+                    db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
+                    db.session.commit()
+                    print("[db] Added missing entry_source column to scans table. Retrying insert...")
+                    with db.session.no_autoflush:
+                        for row_data in rows_to_append:
+                            s_date = row_data[0]
+                            s_time = row_data[1]
+                            scan_driver = row_data[2]
+                            scan_action = row_data[3]
+                            scan_uid = row_data[4]
+                            scan_cust = row_data[5] if len(row_data) > 5 else ''
+                            scan_gas = row_data[6] if len(row_data) > 6 else ''
+                            scan_db = Scan(
+                                scan_date=s_date,
+                                scan_time=s_time,
+                                driver=scan_driver,
+                                action=scan_action,
+                                cylinder_uid=scan_uid,
+                                customer=scan_cust,
+                                gas_type=scan_gas,
+                                entry_source=source
+                            )
+                            db.session.add(scan_db)
+                            c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
+                            if c_db:
+                                if scan_action == 'Delivery':
+                                    c_db.status = 'Delivered'
+                                    c_db.location = scan_cust or 'Customer'
+                                elif scan_action == 'Collection':
+                                    c_db.status = 'Empty'
+                                    c_db.location = 'Depot'
+                                elif scan_action == 'Filling':
+                                    c_db.status = 'Filled'
+                                    c_db.location = 'Depot'
+                                c_db.last_activity_date = s_date
+                    db.session.commit()
+                    db_written = True
+                    print("[db] Retry successful after adding entry_source column.")
+                except Exception as retry_err:
+                    db.session.rollback()
+                    return f"Database error logging scans: {str(retry_err)}", 500
+            else:
+                from sqlalchemy.exc import OperationalError, InterfaceError
+                is_connection_error = isinstance(dbe, (OperationalError, InterfaceError)) or "connection" in str(dbe).lower()
+                if not is_connection_error:
+                    return f"Database error logging scans: {str(dbe)}", 500
     
     # Mirror to Sheets in background
     def background_mirror_scans():
