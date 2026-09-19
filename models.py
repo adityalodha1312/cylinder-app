@@ -461,6 +461,9 @@ class VehicleRefuelling(db.Model):
     driver_name          = db.Column(db.String(100))   # free text
     fuel_pump            = db.Column(db.String(150), index=True)  # fuel dealer / petrol pump name
     receipt_number       = db.Column(db.String(100))
+    payment_status       = db.Column(db.String(20), default='unpaid', index=True) # 'unpaid' or 'paid'
+    paid_date            = db.Column(db.String(50))   # dd-mm-yyyy or yyyy-mm-dd
+    payment_ref          = db.Column(db.String(100))  # UTR, Cheque No, Transaction ID, Payment Mode
     notes                = db.Column(db.Text)
     created_at           = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -479,6 +482,9 @@ class VehicleRefuelling(db.Model):
             'driver_name': self.driver_name or '',
             'fuel_pump': self.fuel_pump or '',
             'receipt_number': self.receipt_number or '',
+            'payment_status': self.payment_status or 'unpaid',
+            'paid_date': self.paid_date or '',
+            'payment_ref': self.payment_ref or '',
             'notes': self.notes or '',
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
         }

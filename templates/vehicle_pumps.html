@@ -349,6 +349,114 @@
     color: #0F6E56;
     font-size: 14px;
   }
+  .badge-paid {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #E1F5EE;
+    color: #0F6E56;
+    border: 1px solid #9FE1CB;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .badge-unpaid {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: #fef3c7;
+    color: #b45309;
+    border: 1px solid #fde68a;
+    padding: 2px 7px;
+    border-radius: 6px;
+    font-size: 11.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .paid-sub {
+    font-size: 11px;
+    color: var(--gray-text, #5F5E5A);
+    margin-top: 2px;
+  }
+  .btn-pay-slip {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 3px 8px;
+    background: #0F6E56;
+    color: #ffffff;
+    border: none;
+    border-radius: 5px;
+    font-family: inherit;
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.15s;
+    margin-top: 3px;
+  }
+  .btn-pay-slip:hover {
+    background: #04342C;
+  }
+  .btn-xs-link {
+    background: none;
+    border: none;
+    padding: 0;
+    color: #94a3b8;
+    font-size: 11px;
+    font-family: inherit;
+    text-decoration: underline;
+    cursor: pointer;
+    margin-top: 2px;
+  }
+  .btn-xs-link:hover {
+    color: #dc2626;
+  }
+  .btn-clear-statement {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 14px;
+    background: #0F6E56;
+    color: #ffffff;
+    border: none;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+  .btn-clear-statement:hover {
+    background: #04342C;
+  }
+  .pay-modal-bg {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(0,0,0,0.45);
+    display: none;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+    backdrop-filter: blur(2px);
+  }
+  .pay-modal-bg.open {
+    display: flex;
+  }
+  .pay-modal-box {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 24px;
+    width: 90%;
+    max-width: 440px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    border: 1px solid #e2e8f0;
+  }
   .btn-sm-edit {
     padding: 4px 9px;
     background: #f1efe8;
@@ -483,6 +591,16 @@
         <input type="date" name="end_date" class="filter-input" value="{{ end_date_str }}">
       </div>
 
+      <!-- Payment Status Filter -->
+      <div class="filter-group">
+        <label>Payment Status</label>
+        <select name="pay_status" class="filter-select">
+          <option value="all" {% if pay_status == 'all' or not pay_status %}selected{% endif %}>All Slips</option>
+          <option value="unpaid" {% if pay_status == 'unpaid' %}selected{% endif %}>Pending / Unpaid Only</option>
+          <option value="paid" {% if pay_status == 'paid' %}selected{% endif %}>Paid / Cleared Only</option>
+        </select>
+      </div>
+
       <button type="submit" class="btn-apply">Filter Records</button>
       <a href="/admin/vehicles/pumps" class="btn-reset">Reset</a>
     </div>
@@ -490,22 +608,22 @@
     <!-- 10-Day Cycle Quick Select Pills -->
     <div class="cycle-bar">
       <span class="cycle-bar-label">10-Day Cycles ({{ month_str }}):</span>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=1-10&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '1-10' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=1-10&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == '1-10' %}active{% endif %}">
         <span>1st – 10th</span>
       </a>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=11-20&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '11-20' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=11-20&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == '11-20' %}active{% endif %}">
         <span>11th – 20th</span>
       </a>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=21-end&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == '21-end' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=21-end&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == '21-end' %}active{% endif %}">
         <span>21st – End of Month</span>
       </a>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=last10&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'last10' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=last10&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == 'last10' %}active{% endif %}">
         <span>Last 10 Days</span>
       </a>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=this_month&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'this_month' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=this_month&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == 'this_month' %}active{% endif %}">
         <span>Entire Month</span>
       </a>
-      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=all&vehicle_id={{ selected_vehicle_id or '' }}" class="cycle-pill {% if cycle == 'all' %}active{% endif %}">
+      <a href="/admin/vehicles/pumps?filter=1&pump={{ selected_pump }}&month={{ month_str }}&cycle=all&vehicle_id={{ selected_vehicle_id or '' }}&pay_status={{ pay_status }}" class="cycle-pill {% if cycle == 'all' %}active{% endif %}">
         <span>All Time</span>
       </a>
     </div>
@@ -513,51 +631,51 @@
 
   <!-- ── 3. Summary KPIs Strip ── -->
   <div class="kpi-strip">
-    <!-- Total Amount to Pay / Clear -->
+    <!-- Total Billed -->
     <div class="kpi-card">
-      <div class="kpi-icon-wrap kpi-icon-green">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <div class="kpi-icon-wrap kpi-icon-blue">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
       </div>
       <div>
-        <div class="kpi-label">Total Bill Amount</div>
-        <div class="kpi-val" style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</div>
+        <div class="kpi-label">Total Billed</div>
+        <div class="kpi-val">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</div>
         <div class="kpi-sub">{{ kpis.total_fills }} refuelling slip(s)</div>
       </div>
     </div>
 
-    <!-- Total Litres -->
+    <!-- Pending to Pay -->
+    <div class="kpi-card" style="{% if kpis.unpaid_amount > 0 %}border-color:#f59e0b;background:#fffdfa;{% endif %}">
+      <div class="kpi-icon-wrap kpi-icon-amber">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;font-weight:700;{% endif %}">Pending to Pay</div>
+        <div class="kpi-val" style="{% if kpis.unpaid_amount > 0 %}color:#b45309;{% endif %}">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</div>
+        <div class="kpi-sub">{{ kpis.unpaid_count }} unpaid slip(s)</div>
+      </div>
+    </div>
+
+    <!-- Paid to Dealer -->
+    <div class="kpi-card" style="{% if kpis.paid_amount > 0 %}border-color:#10b981;background:#fbfdfc;{% endif %}">
+      <div class="kpi-icon-wrap kpi-icon-green">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div>
+        <div class="kpi-label">Paid to Dealer</div>
+        <div class="kpi-val" style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.paid_amount) }}</div>
+        <div class="kpi-sub">{{ kpis.paid_count }} cleared slip(s)</div>
+      </div>
+    </div>
+
+    <!-- Total Litres & Avg Rate -->
     <div class="kpi-card">
-      <div class="kpi-icon-wrap kpi-icon-blue">
+      <div class="kpi-icon-wrap kpi-icon-purple">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
       </div>
       <div>
-        <div class="kpi-label">Total Volume</div>
-        <div class="kpi-val">{{ "{:,.3f}".format(kpis.total_litres) }} <span style="font-size:14px;font-weight:500;color:var(--gray-text);">L</span></div>
-        <div class="kpi-sub">Fuel delivered across fleet</div>
-      </div>
-    </div>
-
-    <!-- Average Rate -->
-    <div class="kpi-card">
-      <div class="kpi-icon-wrap kpi-icon-purple">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      </div>
-      <div>
-        <div class="kpi-label">Average Rate</div>
-        <div class="kpi-val">&#8377;{{ "{:,.2f}".format(kpis.avg_rate) }} <span style="font-size:13px;font-weight:500;color:var(--gray-text);">/ L</span></div>
-        <div class="kpi-sub">Effective purchase price</div>
-      </div>
-    </div>
-
-    <!-- Total Distance & Mileage -->
-    <div class="kpi-card">
-      <div class="kpi-icon-wrap kpi-icon-amber">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      </div>
-      <div>
-        <div class="kpi-label">Fleet Distance</div>
-        <div class="kpi-val">{{ "{:,.1f}".format(kpis.total_distance) }} <span style="font-size:13px;font-weight:500;color:var(--gray-text);">km</span></div>
-        <div class="kpi-sub">Avg {{ "{:,.2f}".format(kpis.avg_mileage) }} km/L</div>
+        <div class="kpi-label">Total Volume &amp; Rate</div>
+        <div class="kpi-val">{{ "{:,.3f}".format(kpis.total_litres) }} <span style="font-size:13px;font-weight:500;color:var(--gray-text);">L</span></div>
+        <div class="kpi-sub">Avg &#8377;{{ "{:,.2f}".format(kpis.avg_rate) }}/L &middot; {{ "{:,.1f}".format(kpis.total_distance) }} km</div>
       </div>
     </div>
   </div>
@@ -576,15 +694,23 @@
           {% endif %}
         </span>
       </div>
-      <div class="statement-period">
-        {% if start_date_str and end_date_str %}
-          Period: {{ start_date_str }} to {{ end_date_str }}
-        {% elif start_date_str %}
-          Since {{ start_date_str }}
-        {% elif end_date_str %}
-          Until {{ end_date_str }}
-        {% else %}
-          All Time Records
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="statement-period">
+          {% if start_date_str and end_date_str %}
+            Period: {{ start_date_str }} to {{ end_date_str }}
+          {% elif start_date_str %}
+            Since {{ start_date_str }}
+          {% elif end_date_str %}
+            Until {{ end_date_str }}
+          {% else %}
+            All Time Records
+          {% endif %}
+        </div>
+        {% if kpis.unpaid_count > 0 %}
+        <button type="button" class="btn-clear-statement" onclick="openBulkPayModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Mark Cycle as Paid (&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }})</span>
+        </button>
         {% endif %}
       </div>
     </div>
@@ -599,10 +725,10 @@
             <th>Fuel Pump / Dealer</th>
             <th>Vehicle</th>
             <th>Slip / Bill No.</th>
-            <th>Driver</th>
             <th style="text-align:right;">Quantity (L)</th>
             <th style="text-align:right;">Rate (&#8377;/L)</th>
             <th style="text-align:right;">Total (&#8377;)</th>
+            <th>Payment Status</th>
             <th>Odometer (Start &rarr; End)</th>
             <th style="text-align:right;">Distance</th>
             <th style="text-align:right;">Mileage</th>
@@ -631,7 +757,6 @@
                 <span style="color:var(--gray-text);font-size:12px;">—</span>
               {% endif %}
             </td>
-            <td style="color:var(--gray-text);font-size:13px;">{{ ref.driver_name or "—" }}</td>
             <td style="text-align:right;font-family:monospace;font-weight:600;">{{ "%.3f"|format(ref.fuel_quantity_litres|float) }}</td>
             <td style="text-align:right;color:var(--gray-text);font-size:12.5px;">
               {% if ref.fuel_rate_per_litre %}
@@ -642,6 +767,24 @@
             </td>
             <td style="text-align:right;">
               <span class="amount-val">&#8377;{{ "{:,.2f}".format(ref.fuel_price_total|float) }}</span>
+            </td>
+            <td>
+              {% if (ref.payment_status or 'unpaid') == 'paid' %}
+                <span class="badge-paid">Paid</span>
+                {% if ref.paid_date %}
+                  <div class="paid-sub">{{ ref.paid_date }}{% if ref.payment_ref %} &middot; {{ ref.payment_ref }}{% endif %}</div>
+                {% endif %}
+                <form method="POST" action="/admin/vehicles/refuellings/{{ ref.id }}/toggle_paid" style="display:inline;" onsubmit="return confirm('Undo payment for Slip #{{ ref.receipt_number or ref.id }}?');">
+                  <button type="submit" class="btn-xs-link">Undo</button>
+                </form>
+              {% else %}
+                <span class="badge-unpaid">Pending</span>
+                <div>
+                  <button type="button" class="btn-pay-slip" onclick="openSinglePayModal({{ ref.id }}, '{{ '{:,.2f}'.format(ref.fuel_price_total|float) }}', '{{ ref.receipt_number or '' }}')">
+                    Mark Paid
+                  </button>
+                </div>
+              {% endif %}
             </td>
             <td style="font-family:monospace;font-size:12.5px;color:#475569;white-space:nowrap;">
               {{ "{:,.0f}".format(ref.starting_odometer_km|float) }} &rarr; {{ "{:,.0f}".format(ref.ending_odometer_km|float) }}
@@ -656,10 +799,14 @@
         </tbody>
         <tfoot>
           <tr>
-            <td colspan="6" style="text-align:right;text-transform:uppercase;letter-spacing:0.5px;">Total ({{ records|length }} Fills):</td>
+            <td colspan="5" style="text-align:right;text-transform:uppercase;letter-spacing:0.5px;">Total ({{ records|length }} Fills):</td>
             <td style="text-align:right;font-family:monospace;">{{ "{:,.3f}".format(kpis.total_litres) }} L</td>
             <td></td>
-            <td style="text-align:right;color:#0F6E56;font-size:16px;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</td>
+            <td style="text-align:right;color:#0F6E56;font-size:15px;font-weight:700;">&#8377;{{ "{:,.2f}".format(kpis.total_amount) }}</td>
+            <td style="font-size:12px;">
+              <span style="color:#0F6E56;font-weight:700;">&#8377;{{ "{:,.0f}".format(kpis.paid_amount) }} Paid</span><br>
+              <span style="color:#b45309;font-weight:700;">&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }} Due</span>
+            </td>
             <td colspan="4"></td>
           </tr>
         </tfoot>
@@ -676,4 +823,91 @@
   </div>
 
 </div>
+
+<!-- ── Single Slip Pay Modal ── -->
+<div class="pay-modal-bg" id="singlePayModal">
+  <div class="pay-modal-box">
+    <h3 style="margin:0 0 6px;color:var(--dark-text);font-size:16px;">Mark Slip as Paid</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--gray-text);" id="singlePayInfo"></p>
+    <form method="POST" id="singlePayForm">
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px;">
+        <div>
+          <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Date *</label>
+          <input type="date" name="paid_date" id="singlePaidDate" class="filter-input" style="width:100%;box-sizing:border-box;" required>
+        </div>
+        <div>
+          <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Reference / Mode (Optional)</label>
+          <input type="text" name="payment_ref" placeholder="e.g. Bank Transfer / UTR / Cheque / Cash" class="filter-input" style="width:100%;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn-reset" onclick="closeSinglePayModal()">Cancel</button>
+        <button type="submit" class="btn-apply" style="padding:8px 16px;">Confirm Payment</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ── Bulk Cycle Pay Modal ── -->
+<div class="pay-modal-bg" id="bulkPayModal">
+  <div class="pay-modal-box">
+    <h3 style="margin:0 0 6px;color:var(--dark-text);font-size:16px;">Clear Statement / Mark Cycle as Paid</h3>
+    <p style="margin:0 0 16px;font-size:13px;color:var(--gray-text);">
+      Mark all <strong>{{ kpis.unpaid_count }} unpaid fuel slip(s)</strong> totaling <strong style="color:#0F6E56;">&#8377;{{ "{:,.2f}".format(kpis.unpaid_amount) }}</strong> as Paid for <strong>{{ selected_pump }}</strong>.
+    </p>
+    <form method="POST" action="/admin/vehicles/pumps/mark_paid">
+      <input type="hidden" name="ref_ids" value="{% for r, v, dt in records %}{% if (r.payment_status or 'unpaid') != 'paid' %}{{ r.id }},{% endif %}{% endfor %}">
+      <div style="display:flex;flex-direction:column;gap:12px;margin-bottom:18px;">
+        <div>
+          <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Date *</label>
+          <input type="date" name="paid_date" id="bulkPaidDate" class="filter-input" style="width:100%;box-sizing:border-box;" required>
+        </div>
+        <div>
+          <label style="font-size:12.5px;font-weight:600;display:block;margin-bottom:4px;color:var(--dark-text);">Payment Reference / UTR (Optional)</label>
+          <input type="text" name="payment_ref" placeholder="e.g. NEFT UTR # / Cheque #1234 / ATC Bill Cleared" class="filter-input" style="width:100%;box-sizing:border-box;">
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;">
+        <button type="button" class="btn-reset" onclick="closeBulkPayModal()">Cancel</button>
+        <button type="submit" class="btn-apply" style="padding:8px 16px;">Confirm Payment (&#8377;{{ "{:,.0f}".format(kpis.unpaid_amount) }})</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function openSinglePayModal(id, amount, slipNo) {
+    const modal = document.getElementById('singlePayModal');
+    const form = document.getElementById('singlePayForm');
+    const info = document.getElementById('singlePayInfo');
+    const dateInp = document.getElementById('singlePaidDate');
+    
+    form.action = '/admin/vehicles/refuellings/' + id + '/toggle_paid';
+    info.innerHTML = 'Slip: <strong>' + (slipNo || ('#' + id)) + '</strong> &middot; Amount: <strong style="color:#0F6E56;">&#8377;' + amount + '</strong>';
+    dateInp.value = new Date().toISOString().slice(0, 10);
+    modal.classList.add('open');
+  }
+
+  function closeSinglePayModal() {
+    document.getElementById('singlePayModal').classList.remove('open');
+  }
+
+  function openBulkPayModal() {
+    const modal = document.getElementById('bulkPayModal');
+    const dateInp = document.getElementById('bulkPaidDate');
+    dateInp.value = new Date().toISOString().slice(0, 10);
+    modal.classList.add('open');
+  }
+
+  function closeBulkPayModal() {
+    document.getElementById('bulkPayModal').classList.remove('open');
+  }
+
+  // Close modals on outside click
+  window.addEventListener('click', function(e) {
+    if (e.target.classList.contains('pay-modal-bg')) {
+      e.target.classList.remove('open');
+    }
+  });
+</script>
 {% endblock %}

@@ -424,6 +424,11 @@
             {% if r.fuel_rate_per_litre %}
               <div style="font-size:11px;color:var(--gray-text);">@ &#8377;{{ "%.2f"|format(r.fuel_rate_per_litre|float) }}/L</div>
             {% endif %}
+            {% if (r.payment_status or 'unpaid') == 'paid' %}
+              <span style="display:inline-block;margin-top:2px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:#e1f5ee;color:#0F6E56;" title="Paid {% if r.paid_date %}on {{ r.paid_date }}{% endif %}{% if r.payment_ref %} ({{ r.payment_ref }}){% endif %}">&#10003; PAID</span>
+            {% else %}
+              <span style="display:inline-block;margin-top:2px;font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px;background:#fef3c7;color:#92400e;">PENDING</span>
+            {% endif %}
           </td>
           <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.starting_odometer_km|float) }}</td>
           <td style="font-family:monospace;font-size:13px;">{{ "{:,.1f}".format(r.ending_odometer_km|float) }}</td>

@@ -93,6 +93,25 @@
     </div>
   </div>
 
+  <div class="form-section-title" style="margin-top:20px;">Dealer Payment Settlement</div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Payment Status</label>
+      <select name="payment_status" id="sel-payment-status">
+        <option value="unpaid" {% if form_data.get('payment_status', 'unpaid') != 'paid' %}selected{% endif %}>⏳ Pending / Unpaid</option>
+        <option value="paid" {% if form_data.get('payment_status') == 'paid' %}selected{% endif %}>✅ Paid to Dealer</option>
+      </select>
+    </div>
+    <div class="form-group" id="group-paid-date" style="{% if form_data.get('payment_status') != 'paid' %}display:none;{% endif %}">
+      <label>Paid Date</label>
+      <input type="date" name="paid_date" id="inp-paid-date" value="{{ form_data.get('paid_date', '') }}">
+    </div>
+    <div class="form-group" id="group-payment-ref" style="{% if form_data.get('payment_status') != 'paid' %}display:none;{% endif %}">
+      <label>Payment Reference / Mode</label>
+      <input type="text" name="payment_ref" id="inp-pay-ref" value="{{ form_data.get('payment_ref', '') }}" placeholder="e.g. Cheque #4021 / UPI / NEFT">
+    </div>
+  </div>
+
   <div id="calc-preview">
     <div class="preview-label">Live Preview (server calculates final values)</div>
     <div class="preview-stats">
@@ -202,6 +221,31 @@
         if (startInp) startInp.addEventListener(evt, updatePreview);
         if (endInp) endInp.addEventListener(evt, updatePreview);
       });
+
+      // Payment Status visibility toggle
+      const payStatusSel = document.getElementById('sel-payment-status');
+      const paidDateGroup = document.getElementById('group-paid-date');
+      const payRefGroup   = document.getElementById('group-payment-ref');
+      const paidDateInp   = document.getElementById('inp-paid-date');
+
+      if (payStatusSel && paidDateGroup && payRefGroup) {
+        payStatusSel.addEventListener('change', function() {
+          if (this.value === 'paid') {
+            paidDateGroup.style.display = 'flex';
+            payRefGroup.style.display   = 'flex';
+            if (paidDateInp && !paidDateInp.value) {
+              const today = new Date();
+              const yyyy = today.getFullYear();
+              const mm = String(today.getMonth() + 1).padStart(2, '0');
+              const dd = String(today.getDate()).padStart(2, '0');
+              paidDateInp.value = `${yyyy}-${mm}-${dd}`;
+            }
+          } else {
+            paidDateGroup.style.display = 'none';
+            payRefGroup.style.display   = 'none';
+          }
+        });
+      }
 
       // Initial check on load
       if (qtyInp.value && rateInp.value && !priceInp.value) {

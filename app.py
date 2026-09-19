@@ -317,6 +317,9 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Registered';"))
             db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS fuel_rate_per_litre NUMERIC(10, 2);"))
             db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS fuel_pump VARCHAR(150);"))
+            db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'unpaid';"))
+            db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS paid_date VARCHAR(50);"))
+            db.session.execute(text("ALTER TABLE vehicle_refuellings ADD COLUMN IF NOT EXISTS payment_ref VARCHAR(100);"))
             # Auto-create cylinder_aliases and gas_type_history if missing
             db.session.execute(text("""
                 CREATE TABLE IF NOT EXISTS cylinder_aliases (
@@ -7968,6 +7971,11 @@ def _validate_refuelling_form(form):
     if fuel_pump:
         vals['fuel_pump'] = fuel_pump
 
+    p_status = (form.get('payment_status') or 'unpaid').strip().lower()
+    vals['payment_status'] = 'paid' if p_status == 'paid' else 'unpaid'
+    vals['paid_date'] = (form.get('paid_date') or '').strip() or None
+    vals['payment_ref'] = (form.get('payment_ref') or '').strip() or None
+
     return errors, vals
 
 
@@ -8333,6 +8341,9 @@ def admin_refuelling_new(vehicle_id):
                     driver_name          = (form_data.get('driver_name') or '').strip() or None,
                     fuel_pump            = (form_data.get('fuel_pump') or '').strip() or 'ATC',
                     receipt_number       = (form_data.get('receipt_number') or '').strip() or None,
+                    payment_status       = vals.get('payment_status', 'unpaid'),
+                    paid_date            = vals.get('paid_date'),
+                    payment_ref          = vals.get('payment_ref'),
                     notes                = (form_data.get('notes') or '').strip() or None,
                 )
                 db.session.add(ref)
@@ -8406,6 +8417,9 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 ref.driver_name          = (form_data.get('driver_name') or '').strip() or None
                 ref.fuel_pump            = (form_data.get('fuel_pump') or '').strip() or None
                 ref.receipt_number       = (form_data.get('receipt_number') or '').strip() or None
+                ref.payment_status       = vals.get('payment_status', 'unpaid')
+                ref.paid_date            = vals.get('paid_date')
+                ref.payment_ref          = vals.get('payment_ref')
                 ref.notes                = (form_data.get('notes') or '').strip() or None
                 db.session.commit()
                 return redirect(f'/admin/vehicles/{vehicle_id}')
@@ -8421,6 +8435,12 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
             try:
                 parsed = datetime.strptime(form_data['fuel_date'], '%d-%m-%Y')
                 form_data['fuel_date'] = parsed.strftime('%Y-%m-%d')
+            except ValueError:
+                pass
+        if form_data.get('paid_date'):
+            try:
+                parsed_p = datetime.strptime(form_data['paid_date'], '%d-%m-%Y')
+                form_data['paid_date'] = parsed_p.strftime('%Y-%m-%d')
             except ValueError:
                 pass
     return render_template('refuelling_form.html',
@@ -8570,6 +8590,8 @@ def admin_vehicles_pumps():
     # Newest on top
     filtered_records.sort(key=lambda x: (x[2], x[0].id), reverse=True)
 
+    pay_status = request.args.get('pay_status', 'all').strip().lower()
+
     # Compute KPI totals
     total_amount = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records)
     total_litres = sum(float(ref.fuel_quantity_litres or 0) for ref, veh, dt in filtered_records)
@@ -8578,6 +8600,19 @@ def admin_vehicles_pumps():
     avg_rate = (total_amount / total_litres) if total_litres > 0 else 0.0
     avg_mileage = (total_distance / total_litres) if total_litres > 0 else 0.0
 
+    paid_amount = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records if (ref.payment_status or 'unpaid') == 'paid')
+    unpaid_amount = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records if (ref.payment_status or 'unpaid') != 'paid')
+    paid_count = sum(1 for ref, veh, dt in filtered_records if (ref.payment_status or 'unpaid') == 'paid')
+    unpaid_count = sum(1 for ref, veh, dt in filtered_records if (ref.payment_status or 'unpaid') != 'paid')
+
+    # Apply pay_status filter to table records
+    if pay_status == 'unpaid':
+        display_records = [r for r in filtered_records if (r[0].payment_status or 'unpaid') != 'paid']
+    elif pay_status == 'paid':
+        display_records = [r for r in filtered_records if (r[0].payment_status or 'unpaid') == 'paid']
+    else:
+        display_records = filtered_records
+
     kpis = {
         'total_amount': total_amount,
         'total_litres': round(total_litres, 3),
@@ -8585,11 +8620,16 @@ def admin_vehicles_pumps():
         'avg_rate': round(avg_rate, 2),
         'total_distance': round(total_distance, 1),
         'avg_mileage': round(avg_mileage, 2),
+        'paid_amount': paid_amount,
+        'unpaid_amount': unpaid_amount,
+        'paid_count': paid_count,
+        'unpaid_count': unpaid_count,
     }
 
     return render_template('vehicle_pumps.html',
         user=session['user'],
-        records=filtered_records,
+        records=display_records,
+        all_records=filtered_records,
         kpis=kpis,
         all_pumps=all_pumps,
         selected_pump=selected_pump,
@@ -8598,7 +8638,8 @@ def admin_vehicles_pumps():
         cycle=cycle,
         month_str=month_str,
         start_date_str=start_date_str,
-        end_date_str=end_date_str
+        end_date_str=end_date_str,
+        pay_status=pay_status,
     )
 
 
@@ -8658,6 +8699,7 @@ def admin_vehicles_pumps_export():
     if not selected_pump:
         selected_pump = 'ATC'
     vehicle_id = request.args.get('vehicle_id', type=int)
+    pay_status = request.args.get('pay_status', 'all').strip().lower()
 
     q = db.session.query(VehicleRefuelling, Vehicle).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
     if selected_pump and selected_pump != 'all':
@@ -8686,6 +8728,10 @@ def admin_vehicles_pumps_export():
             continue
         if end_date and r_date and r_date > end_date:
             continue
+        if pay_status == 'unpaid' and (ref.payment_status or 'unpaid') == 'paid':
+            continue
+        if pay_status == 'paid' and (ref.payment_status or 'unpaid') != 'paid':
+            continue
         filtered_records.append((ref, veh, r_date or date.min))
 
     # Oldest to newest for billing sequence
@@ -8695,8 +8741,9 @@ def admin_vehicles_pumps_export():
     writer = csv.writer(output)
     writer.writerow([
         'Sr No', 'Fuel Date', 'Fuel Pump / Dealer', 'Vehicle Number', 'Registration No',
-        'Slip / Receipt No', 'Driver Name', 'Quantity (Litres)', 'Rate (Rs/L)',
-        'Total Amount (Rs)', 'Starting KM', 'Ending KM', 'Distance (km)', 'Mileage (km/L)', 'Notes'
+        'Slip / Receipt No', 'Quantity (Litres)', 'Rate (Rs/L)',
+        'Total Amount (Rs)', 'Starting KM', 'Ending KM', 'Distance (km)', 'Mileage (km/L)',
+        'Payment Status', 'Paid Date', 'Payment Ref', 'Notes'
     ])
 
     for idx, (ref, veh, dt) in enumerate(filtered_records, start=1):
@@ -8707,7 +8754,6 @@ def admin_vehicles_pumps_export():
             veh.vehicle_number,
             veh.registration_number or '',
             ref.receipt_number or '',
-            ref.driver_name or '',
             float(ref.fuel_quantity_litres or 0),
             float(ref.fuel_rate_per_litre or 0),
             float(ref.fuel_price_total or 0),
@@ -8715,13 +8761,16 @@ def admin_vehicles_pumps_export():
             float(ref.ending_odometer_km or 0),
             float(ref.distance_km or 0),
             float(ref.mileage_km_per_litre or 0),
+            (ref.payment_status or 'unpaid').upper(),
+            ref.paid_date or '',
+            ref.payment_ref or '',
             ref.notes or ''
         ])
 
     tot_litres = sum(float(ref.fuel_quantity_litres or 0) for ref, veh, dt in filtered_records)
     tot_amt = sum(float(ref.fuel_price_total or 0) for ref, veh, dt in filtered_records)
     writer.writerow([])
-    writer.writerow(['TOTAL', '', '', '', '', '', '', tot_litres, '', tot_amt, '', '', '', '', ''])
+    writer.writerow(['TOTAL', '', '', '', '', '', tot_litres, '', tot_amt, '', '', '', '', '', '', '', ''])
 
     filename_pump = selected_pump.replace(' ', '_') if selected_pump and selected_pump != 'all' else 'All_Pumps'
     filename = f"Fuel_Bills_{filename_pump}_{cycle or 'custom'}_{month_str}.csv"
@@ -8731,6 +8780,76 @@ def admin_vehicles_pumps_export():
         mimetype='text/csv',
         headers={'Content-Disposition': f'attachment; filename={filename}'}
     )
+
+
+# ── Route: Toggle or Mark Single Refuelling as Paid ──────────────────
+@app.route('/admin/vehicles/refuellings/<int:refuelling_id>/toggle_paid', methods=['POST'])
+@admin_required
+def admin_refuelling_toggle_paid(refuelling_id):
+    from datetime import date
+    ref = VehicleRefuelling.query.get_or_404(refuelling_id)
+    curr_status = ref.payment_status or 'unpaid'
+    new_status = 'unpaid' if curr_status == 'paid' else 'paid'
+    ref.payment_status = new_status
+    if new_status == 'paid':
+        req_date = request.form.get('paid_date') or (request.json.get('paid_date') if request.is_json else None)
+        ref.paid_date = req_date or date.today().strftime('%d-%m-%Y')
+        p_ref = request.form.get('payment_ref') or (request.json.get('payment_ref') if request.is_json else '')
+        ref.payment_ref = (p_ref or '').strip() or None
+    else:
+        ref.paid_date = None
+        ref.payment_ref = None
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({
+            'success': True,
+            'refuelling_id': ref.id,
+            'payment_status': ref.payment_status,
+            'paid_date': ref.paid_date or '',
+            'payment_ref': ref.payment_ref or ''
+        })
+
+    flash(f"Refuelling #{ref.id} marked as {new_status.upper()}.", "success")
+    return redirect(request.referrer or '/admin/vehicles/pumps')
+
+
+# ── Route: Batch Mark Fuel Slips as Paid ─────────────────────────────
+@app.route('/admin/vehicles/pumps/mark_paid', methods=['POST'])
+@admin_required
+def admin_vehicles_pumps_mark_paid():
+    from datetime import date
+    data = request.get_json() if request.is_json else request.form.to_dict()
+    ref_ids_raw = data.get('ref_ids', '')
+    if isinstance(ref_ids_raw, str):
+        ref_ids = [int(i.strip()) for i in ref_ids_raw.split(',') if i.strip().isdigit()]
+    elif isinstance(ref_ids_raw, list):
+        ref_ids = [int(i) for i in ref_ids_raw if str(i).isdigit()]
+    else:
+        ref_ids = []
+
+    paid_date = data.get('paid_date') or date.today().strftime('%d-%m-%Y')
+    payment_ref = (data.get('payment_ref') or '').strip() or None
+    mark_as = data.get('status', 'paid')
+
+    if ref_ids:
+        refs = VehicleRefuelling.query.filter(VehicleRefuelling.id.in_(ref_ids)).all()
+        for r in refs:
+            r.payment_status = mark_as
+            if mark_as == 'paid':
+                r.paid_date = paid_date
+                r.payment_ref = payment_ref
+            else:
+                r.paid_date = None
+                r.payment_ref = None
+        db.session.commit()
+
+    if request.is_json:
+        return jsonify({'success': True, 'count': len(ref_ids), 'status': mark_as})
+
+    flash(f"Successfully marked {len(ref_ids)} fuel slip(s) as {mark_as.upper()}.", "success")
+    return redirect(request.referrer or '/admin/vehicles/pumps')
+
 
 # ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢ÃƒÂ¢Ã¢â‚¬Â¢
 
