@@ -8389,9 +8389,9 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
 
 
 
-def process_cylinder_action(parsed_scans, driver_username, source='qr'):
+def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=None):
     from datetime import datetime
-    now = datetime.now()
+    now = scan_dt or datetime.now()
     driver = driver_username or 'Admin'
     rows_to_append = []
     # Resolve gas types for all scanned UIDs in a single batch lookup
@@ -8872,23 +8872,73 @@ def api_admin_scan_submit_manual():
 
     # Run through existing permanent transaction + Accounts logic
     try:
+        now = datetime.now()
+        d_str = now.strftime('%d-%m-%Y')
+        t_str = now.strftime('%H:%M:%S')
+        today_compact = now.strftime('%Y%m%d')
+        driver = driver_username or admin_name or 'Admin'
+
         msg = process_cylinder_action(
-            parsed_scans, driver_username, source='admin_manual')
+            parsed_scans, driver, source='admin_manual', scan_dt=now)
         if isinstance(msg, tuple):
             return jsonify({'error': msg[0]}), msg[1]
 
         submitted = len(parsed_scans)
+
+        # ── Create CustomerMap Batch for Receipts Section (/admin/receipts) ──
+        if os.environ.get('DATABASE_URL') and parsed_scans:
+            try:
+                all_uids_str = ', '.join(s['uid'] for s in parsed_scans)
+                cmap_record = CustomerMap(
+                    scan_date=d_str,
+                    scan_time=t_str,
+                    driver=driver,
+                    action=action,
+                    count=len(parsed_scans),
+                    uids=all_uids_str,
+                    customer=customer if action in ('Delivery', 'Collection') else ('Depot' if action == 'Filling' else ''),
+                    send_receipt=False,
+                    receipt_status=''
+                )
+                db.session.add(cmap_record)
+                db.session.commit()
+                print(f"[receipts] Created CustomerMap record for manual batch ({len(parsed_scans)} items).")
+
+                # Background mirror to Customer Map Sheet
+                def background_mirror_cmap():
+                    try:
+                        global map_ws, doc
+                        if map_ws is None and doc:
+                            try:
+                                map_ws = doc.worksheet('Customer Map')
+                            except Exception:
+                                pass
+                        if map_ws:
+                            map_row = [
+                                d_str,
+                                t_str,
+                                driver,
+                                action,
+                                str(len(parsed_scans)),
+                                all_uids_str,
+                                customer if action in ('Delivery', 'Collection') else ('Depot' if action == 'Filling' else ''),
+                                'FALSE',
+                                ''
+                            ]
+                            sheets_write_with_retry(map_ws.append_rows, [map_row])
+                    except Exception as s_err:
+                        print("[sheets] Error mirroring CustomerMap to Sheets:", s_err)
+
+                async_sheets_write(background_mirror_cmap)
+            except Exception as cmap_err:
+                db.session.rollback()
+                print(f"[receipts] Error creating CustomerMap record: {cmap_err}")
 
         # ── Create Accounts Batch for this manual entry submission ───────────
         batch_ref = ''
         accounts_count = 0
         if os.environ.get('DATABASE_URL') and parsed_scans:
             try:
-                now = datetime.now()
-                d_str = now.strftime('%d-%m-%Y')
-                t_str = now.strftime('%H:%M:%S')
-                today_compact = now.strftime('%Y%m%d')
-
                 batch_count = AccountsBatch.query.filter(
                     AccountsBatch.batch_date == d_str
                 ).count() + 1
