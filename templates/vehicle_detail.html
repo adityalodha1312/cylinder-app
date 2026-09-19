@@ -234,7 +234,7 @@
         <th class="hide-md">Driver</th><th class="hide-md">Receipt</th><th>Actions</th>
       </tr></thead>
       <tbody>
-        {% for r in records %}
+        {% for r in (display_records if display_records is defined else records|reverse) %}
         <tr>
           <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
           <td>{{ r.fuel_date }}</td>
