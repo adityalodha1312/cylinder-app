@@ -300,13 +300,15 @@ class AccountsBatchItem(db.Model):
     batch_id     = db.Column(db.Integer, db.ForeignKey('accounts_batches.id'), nullable=False, index=True)
     cylinder_uid = db.Column(db.String(100), index=True)
     gas_type     = db.Column(db.String(50))
+    status       = db.Column(db.String(50), default='Registered')
 
     def to_dict(self):
         return {
             'id': self.id,
             'batch_id': self.batch_id,
             'cylinder_uid': self.cylinder_uid or '',
-            'gas_type': self.gas_type or ''
+            'gas_type': self.gas_type or '',
+            'status': self.status or 'Registered'
         }
 
 class DriverJob(db.Model):

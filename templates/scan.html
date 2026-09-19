@@ -1523,6 +1523,7 @@
             <div>Unregistered: <strong id="sum-unregistered">0</strong></div>
             <div>Failed: &nbsp;&nbsp;&nbsp;<strong id="sum-failed">0</strong></div>
             <div>Accounts records: <strong id="sum-accounts">0</strong></div>
+            <div id="sum-batch-ref" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #d8d9d4;font-size:13px;"></div>
           </div>
           <div style="margin-top:24px;">
             <button type="button" onclick="manualClear()" class="btn-submit-main" style="max-width:240px;margin:0 auto;">
@@ -2994,7 +2995,14 @@ async function manualSubmit() {
     document.getElementById('sum-mapped').innerText      = data.mapped      || 0;
     document.getElementById('sum-unregistered').innerText= data.unregistered|| 0;
     document.getElementById('sum-failed').innerText      = data.failed      || 0;
-    document.getElementById('sum-accounts').innerText    = sub - (data.failed || 0);
+    document.getElementById('sum-accounts').innerText    = data.accounts_created !== undefined ? data.accounts_created : (sub - (data.failed || 0));
+    if (data.batch_ref) {
+      const bRefEl = document.getElementById('sum-batch-ref');
+      if (bRefEl) {
+        bRefEl.innerHTML = `Batch Ref: <strong>${data.batch_ref}</strong> (<a href="/admin/accounts_batches" target="_blank" style="color:#0F6E56;text-decoration:underline;">View in Accounts</a>)`;
+        bRefEl.style.display = 'block';
+      }
+    }
     isSubmitting = false;
   } catch(e) {
     alert('Network error during submission.');

@@ -314,6 +314,7 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_activity_date VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
             db.session.execute(text("ALTER TABLE customers ADD COLUMN IF NOT EXISTS gst_number VARCHAR(100);"))
+            db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'Registered';"))
             # Auto-create cylinder_aliases and gas_type_history if missing
             db.session.execute(text("""
                 CREATE TABLE IF NOT EXISTS cylinder_aliases (
@@ -8831,6 +8832,60 @@ def api_admin_scan_submit_manual():
             return jsonify({'error': msg[0]}), msg[1]
 
         submitted = len(parsed_scans)
+
+        # ── Create Accounts Batch for this manual entry submission ───────────
+        batch_ref = ''
+        accounts_count = 0
+        if os.environ.get('DATABASE_URL') and parsed_scans:
+            try:
+                now = datetime.now()
+                d_str = now.strftime('%d-%m-%Y')
+                t_str = now.strftime('%H:%M:%S')
+                today_compact = now.strftime('%Y%m%d')
+
+                batch_count = AccountsBatch.query.filter(
+                    AccountsBatch.batch_date == d_str
+                ).count() + 1
+                batch_ref = f'ACCT-{today_compact}-{batch_count:03d}'
+
+                acct_batch = AccountsBatch(
+                    batch_ref=batch_ref,
+                    batch_date=d_str,
+                    batch_time=t_str,
+                    customer=customer or ('Depot' if action == 'Filling' else 'Direct'),
+                    admin_name=admin_name,
+                    status='Pending',
+                    notes=f"Admin manual entry ({action})"
+                )
+                db.session.add(acct_batch)
+                db.session.flush()  # get acct_batch.id
+
+                for item in items:
+                    master_id = item.get('master_id', '').strip().upper() or item.get('entered_id', '').strip().upper()
+                    t_gas = item.get('transaction_gas', '').strip()
+                    r_status = item.get('registry_status', 'unregistered')
+
+                    if r_status == 'mapped':
+                        item_status = 'Mapped'
+                    elif r_status == 'unregistered':
+                        item_status = 'Unregistered'
+                    else:
+                        item_status = 'Registered'
+
+                    db.session.add(AccountsBatchItem(
+                        batch_id=acct_batch.id,
+                        cylinder_uid=master_id,
+                        gas_type=t_gas,
+                        status=item_status
+                    ))
+                    accounts_count += 1
+
+                db.session.commit()
+                print(f"[accounts] Created manual batch {batch_ref} with {accounts_count} items.")
+            except Exception as acct_err:
+                db.session.rollback()
+                print(f"[accounts] Error creating accounts batch: {acct_err}")
+
         return jsonify({
             'success':    True,
             'message':    msg,
@@ -8839,6 +8894,8 @@ def api_admin_scan_submit_manual():
             'mapped':     counts['mapped'],
             'unregistered': counts['unregistered'],
             'failed':     counts['failed'],
+            'accounts_created': accounts_count,
+            'batch_ref':  batch_ref,
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
