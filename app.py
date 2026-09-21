@@ -9536,3 +9536,132 @@ def api_admin_scan_submit_manual():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+
+# ── Route: Full Data Backup Export (ZIP of CSVs) ─────────────────────
+@app.route('/admin/backup/export')
+@admin_required
+def admin_backup_export():
+    """Export all key tables as CSV files bundled in a single ZIP download."""
+    import io, csv, zipfile
+    from datetime import date
+    from flask import Response
+
+    today = date.today().strftime('%Y-%m-%d')
+    zip_buffer = io.BytesIO()
+
+    def rows_to_csv(headers, rows):
+        buf = io.StringIO()
+        w = csv.writer(buf)
+        w.writerow(headers)
+        for row in rows:
+            w.writerow(row)
+        return buf.getvalue().encode('utf-8-sig')  # BOM for Excel compatibility
+
+    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+
+        # 1. Vehicles
+        vehicles = Vehicle.query.order_by(Vehicle.vehicle_number).all()
+        zf.writestr(f'vehicles_{today}.csv', rows_to_csv(
+            ['ID', 'Vehicle Number', 'Registration', 'Type', 'Fuel Type', 'Status', 'Notes'],
+            [(v.id, v.vehicle_number, v.registration_number or '', v.vehicle_type or '',
+              v.fuel_type or '', v.status or '', v.notes or '') for v in vehicles]
+        ))
+
+        # 2. Vehicle Refuellings
+        refuellings = VehicleRefuelling.query.order_by(
+            VehicleRefuelling.vehicle_id, VehicleRefuelling.fuel_date
+        ).all()
+        zf.writestr(f'vehicle_refuellings_{today}.csv', rows_to_csv(
+            ['ID', 'Vehicle ID', 'Date', 'Qty (L)', 'Total Price', 'Rate/L',
+             'Start KM', 'End KM', 'Distance KM', 'KMPL', 'Pump', 'Driver',
+             'Receipt', 'Payment Status', 'Paid Date', 'Payment Ref', 'Notes'],
+            [(r.id, r.vehicle_id, r.fuel_date,
+              float(r.fuel_quantity_litres or 0),
+              float(r.fuel_price_total or 0),
+              float(r.fuel_rate_per_litre or 0),
+              float(r.starting_odometer_km or 0),
+              float(r.ending_odometer_km or 0),
+              float(r.distance_km or 0),
+              float(r.mileage_km_per_litre or 0),
+              r.fuel_pump or '', r.driver_name or '', r.receipt_number or '',
+              r.payment_status or 'unpaid', r.paid_date or '', r.payment_ref or '',
+              r.notes or '') for r in refuellings]
+        ))
+
+        # 3. Customers
+        customers = Customer.query.order_by(Customer.name).all()
+        cust_fields = [c for c in dir(customers[0]) if not c.startswith('_')] if customers else []
+        zf.writestr(f'customers_{today}.csv', rows_to_csv(
+            ['ID', 'Name', 'Phone', 'Address', 'Area', 'Status', 'Cylinder Type',
+             'Outstanding', 'Total Delivered', 'Total Collected', 'Created At'],
+            [(c.id,
+              getattr(c, 'name', ''),
+              getattr(c, 'phone', '') or '',
+              getattr(c, 'address', '') or '',
+              getattr(c, 'area', '') or '',
+              getattr(c, 'status', '') or '',
+              getattr(c, 'cylinder_type', '') or '',
+              getattr(c, 'outstanding_cylinders', 0) or 0,
+              getattr(c, 'total_delivered', 0) or 0,
+              getattr(c, 'total_collected', 0) or 0,
+              str(getattr(c, 'created_at', '') or '')) for c in customers]
+        ))
+
+        # 4. Cylinders
+        cylinders = Cylinder.query.order_by(Cylinder.uid).all()
+        zf.writestr(f'cylinders_{today}.csv', rows_to_csv(
+            ['ID', 'UID', 'Status', 'Customer ID', 'Gas Type', 'Capacity', 'Notes'],
+            [(c.id,
+              getattr(c, 'uid', ''),
+              getattr(c, 'status', '') or '',
+              getattr(c, 'customer_id', '') or '',
+              getattr(c, 'gas_type', '') or '',
+              getattr(c, 'capacity', '') or '',
+              getattr(c, 'notes', '') or '') for c in cylinders]
+        ))
+
+        # 5. Scans
+        scans = Scan.query.order_by(Scan.id.desc()).limit(10000).all()
+        zf.writestr(f'scans_{today}.csv', rows_to_csv(
+            ['ID', 'Cylinder UID', 'Customer ID', 'Action', 'Driver', 'Scanned At', 'Notes'],
+            [(s.id,
+              getattr(s, 'cylinder_uid', ''),
+              getattr(s, 'customer_id', '') or '',
+              getattr(s, 'action', '') or '',
+              getattr(s, 'driver', '') or '',
+              str(getattr(s, 'scanned_at', '') or ''),
+              getattr(s, 'notes', '') or '') for s in scans]
+        ))
+
+        # 6. Spare Items
+        spares = SpareItem.query.order_by(SpareItem.id).all()
+        zf.writestr(f'spare_items_{today}.csv', rows_to_csv(
+            ['ID', 'Name', 'Category', 'Quantity', 'Unit', 'Min Stock', 'Notes'],
+            [(s.id,
+              getattr(s, 'name', ''),
+              getattr(s, 'category', '') or '',
+              getattr(s, 'quantity', 0) or 0,
+              getattr(s, 'unit', '') or '',
+              getattr(s, 'min_stock', 0) or 0,
+              getattr(s, 'notes', '') or '') for s in spares]
+        ))
+
+        # 7. Spare Transactions
+        spare_txns = SpareTransaction.query.order_by(SpareTransaction.id.desc()).limit(10000).all()
+        zf.writestr(f'spare_transactions_{today}.csv', rows_to_csv(
+            ['ID', 'Item ID', 'Type', 'Quantity', 'Date', 'Notes'],
+            [(t.id,
+              getattr(t, 'spare_item_id', '') or '',
+              getattr(t, 'transaction_type', '') or '',
+              getattr(t, 'quantity', 0) or 0,
+              str(getattr(t, 'transaction_date', '') or ''),
+              getattr(t, 'notes', '') or '') for t in spare_txns]
+        ))
+
+    zip_buffer.seek(0)
+    filename = f'cylinder_backup_{today}.zip'
+    return Response(
+        zip_buffer.getvalue(),
+        mimetype='application/zip',
+        headers={'Content-Disposition': f'attachment; filename="{filename}"'}
+    )
