@@ -168,7 +168,7 @@
         </td>
         {% if user.role in ['manager', 'owner'] %}
         <td style="text-align: center; vertical-align: middle;">
-          <form action="/admin/activity/delete" method="POST" onsubmit="return confirm('Are you sure you want to delete this activity? This will delete these scan logs and revert the status/location of the associated cylinders to their previous states.');" style="display: inline;">
+          <form action="/admin/activity/delete" method="POST" onsubmit="deleteActivity(event, this)" style="display: inline;">
             <input type="hidden" name="date" value="{{ e.date }}">
             <input type="hidden" name="time" value="{{ e.time }}">
             <input type="hidden" name="driver" value="{{ e.driver }}">
@@ -292,5 +292,46 @@
     document.getElementById("filterDate").value = `${yyyy}-${mm}-${dd}`;
     filterTable();
   });
+
+  // ── Dynamic AJAX Deletion ──
+  function deleteActivity(e, form) {
+    e.preventDefault();
+    if (!confirm('Are you sure you want to delete this activity? This will delete these scan logs and revert the status/location of the associated cylinders to their previous states.')) {
+      return;
+    }
+    const btn = form.querySelector('button');
+    if (btn) btn.disabled = true;
+    const row = form.closest('tr');
+    if (row) row.style.opacity = '0.35';
+
+    fetch('/admin/activity/delete', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: new FormData(form)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (row) {
+          row.style.transition = 'opacity 0.3s, max-height 0.3s';
+          row.style.opacity = '0';
+          setTimeout(() => {
+            row.remove();
+            filterTable();
+          }, 320);
+        }
+        if (window.showToast) window.showToast('Activity record deleted successfully.', 'success');
+      } else {
+        if (row) row.style.opacity = '1';
+        if (btn) btn.disabled = false;
+        alert('Failed to delete activity record.');
+      }
+    })
+    .catch(() => {
+      if (row) row.style.opacity = '1';
+      if (btn) btn.disabled = false;
+      alert('Network error while deleting activity record.');
+    });
+  }
 </script>
 {% endblock %}

@@ -13,16 +13,12 @@
     <h1 class="page-title">{{ batch.customer or 'No Customer' }}</h1>
     <p class="page-sub">{{ batch.batch_date }} at {{ batch.batch_time }} &nbsp;·&nbsp; Scanned by {{ batch.admin_name }}</p>
   </div>
-  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+  <div id="billing-actions-container" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
     {% if batch.status == 'Pending' %}
-      <form action="/accounts/batch/{{ batch.id }}/mark_billed" method="POST" style="display:inline;" onsubmit="return confirm('Mark this batch as Billed?');">
-        <button type="submit" class="btn btn-primary">✓ Mark as Billed</button>
-      </form>
+      <button type="button" class="btn btn-primary" onclick="toggleBatchBilled({{ batch.id }}, 'mark_billed', this)">✓ Mark as Billed</button>
     {% else %}
       <span class="badge-billed" style="padding:8px 16px; border-radius:8px; font-size:13px;">✓ Billed</span>
-      <form action="/accounts/batch/{{ batch.id }}/unmark_billed" method="POST" style="display:inline;">
-        <button type="submit" class="btn btn-outline btn-sm">Revert to Pending</button>
-      </form>
+      <button type="button" class="btn btn-outline btn-sm" onclick="toggleBatchBilled({{ batch.id }}, 'unmark_billed', this)">Revert to Pending</button>
     {% endif %}
     <form action="/accounts/batch/{{ batch.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Delete this entire batch? This cannot be undone.');">
       <button type="submit" class="btn btn-danger btn-sm">Delete Batch</button>
@@ -159,9 +155,7 @@
             {% endif %}
           </td>
           <td>
-            <form action="/accounts/batch/{{ batch.id }}/item/{{ item.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Remove this cylinder from the batch?');">
-              <button type="submit" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:12px; text-decoration:underline;">Remove</button>
-            </form>
+            <button type="button" onclick="deleteBatchItem({{ batch.id }}, {{ item.id }}, this)" style="background:none; border:none; color:#dc3545; cursor:pointer; font-size:12px; text-decoration:underline;">Remove</button>
           </td>
         </tr>
         {% else %}
@@ -202,10 +196,80 @@
         setTimeout(() => { this.innerHTML = originalText; }, 2000);
       }).catch(err => {
         console.error('Failed to copy text: ', err);
-        // Fallback
         prompt("Copy UIDs:", textToCopy);
       });
     });
   });
+
+  function toggleBatchBilled(batchId, action, btn) {
+    if (action === 'mark_billed' && !confirm('Mark this batch as Billed?')) return;
+    btn.disabled = true;
+    fetch('/accounts/batch/' + batchId + '/' + action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const container = document.getElementById('billing-actions-container');
+        if (action === 'mark_billed') {
+          container.innerHTML = `
+            <span class="badge-billed" style="padding:8px 16px; border-radius:8px; font-size:13px;">✓ Billed</span>
+            <button type="button" class="btn btn-outline btn-sm" onclick="toggleBatchBilled(${batchId}, 'unmark_billed', this)">Revert to Pending</button>
+            <form action="/accounts/batch/${batchId}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Delete this entire batch? This cannot be undone.');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete Batch</button>
+            </form>
+          `;
+          if (window.showToast) window.showToast('Batch marked as Billed.', 'success');
+        } else {
+          container.innerHTML = `
+            <button type="button" class="btn btn-primary" onclick="toggleBatchBilled(${batchId}, 'mark_billed', this)">✓ Mark as Billed</button>
+            <form action="/accounts/batch/${batchId}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Delete this entire batch? This cannot be undone.');">
+              <button type="submit" class="btn btn-danger btn-sm">Delete Batch</button>
+            </form>
+          `;
+          if (window.showToast) window.showToast('Batch reverted to Pending.', 'success');
+        }
+      } else {
+        btn.disabled = false;
+        alert('Error updating batch status.');
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      alert('Network error.');
+    });
+  }
+
+  function deleteBatchItem(batchId, itemId, btn) {
+    if (!confirm('Remove this cylinder from the batch?')) return;
+    btn.disabled = true;
+    const row = btn.closest('tr');
+    if (row) row.style.opacity = '0.35';
+    fetch('/accounts/batch/' + batchId + '/item/' + itemId + '/delete', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (row) {
+          row.style.transition = 'opacity 0.3s';
+          row.style.opacity = '0';
+          setTimeout(() => row.remove(), 320);
+        }
+        if (window.showToast) window.showToast('Cylinder removed from batch.', 'success');
+      } else {
+        if (row) row.style.opacity = '1';
+        btn.disabled = false;
+        alert('Error: ' + (data.error || 'Could not remove cylinder'));
+      }
+    })
+    .catch(() => {
+      if (row) row.style.opacity = '1';
+      btn.disabled = false;
+      alert('Network error.');
+    });
+  }
 </script>
 {% endblock %}

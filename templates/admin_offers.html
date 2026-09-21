@@ -124,12 +124,10 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Download
             </a>
-            <form action="/admin/offers/{{ o.id }}/delete" method="POST" style="margin:0;" onsubmit="return confirm('Delete this offer permanently?');">
-              <button type="submit" class="btn-del">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
-                Delete
-              </button>
-            </form>
+            <button type="button" class="btn-del" onclick="deleteOffer({{ o.id }}, this)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              Delete
+            </button>
           </div>
         </td>
       </tr>
@@ -155,13 +153,45 @@
     </div>
     <div class="m-card-actions">
       <a href="/admin/offers/{{ o.id }}/download" class="btn-dl" style="flex:1; justify-content:center;">Download</a>
-      <form action="/admin/offers/{{ o.id }}/delete" method="POST" style="margin:0; flex:1;" onsubmit="return confirm('Delete this offer?');">
-        <button type="submit" class="btn-del" style="width:100%; justify-content:center;">Delete</button>
-      </form>
+      <button type="button" class="btn-del" onclick="deleteOffer({{ o.id }}, this)" style="flex:1; justify-content:center;">Delete</button>
     </div>
   </div>
   {% endfor %}
 </div>
 
 {% endif %}
+
+<script>
+function deleteOffer(id, btn) {
+  if (!confirm('Delete this offer permanently?')) return;
+  btn.disabled = true;
+  const row = btn.closest('tr') || btn.closest('.m-card');
+  if (row) row.style.opacity = '0.35';
+  
+  fetch('/admin/offers/' + id + '/delete', {
+    method: 'POST',
+    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+  })
+  .then(r => r.json())
+  .then(data => {
+    if (data.success) {
+      if (row) {
+        row.style.transition = 'opacity 0.3s, max-height 0.3s';
+        row.style.opacity = '0';
+        setTimeout(() => row.remove(), 320);
+      }
+      if (window.showToast) window.showToast('Offer deleted successfully.', 'success');
+    } else {
+      if (row) row.style.opacity = '1';
+      btn.disabled = false;
+      alert('Failed to delete offer.');
+    }
+  })
+  .catch(() => {
+    if (row) row.style.opacity = '1';
+    btn.disabled = false;
+    alert('Network error while deleting offer.');
+  });
+}
+</script>
 {% endblock %}

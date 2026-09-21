@@ -347,7 +347,7 @@
       <div class="modal-title">📥 Mark Cylinder as Collected</div>
       <button class="modal-close" onclick="closeModal()">&times;</button>
     </div>
-    <form action="/admin/cylinders/mark_collected" method="POST">
+    <form id="search-collect-form" action="/admin/cylinders/mark_collected" method="POST">
       <div class="modal-body">
         <input type="hidden" name="uid" id="modal-uid">
         <input type="hidden" name="customer" id="modal-customer">
@@ -422,6 +422,52 @@
     const isSelect = document.querySelector('input[name="driver_type"]:checked').value === 'select';
     document.getElementById('driver-select-container').style.display = isSelect ? 'block' : 'none';
     document.getElementById('driver-custom-container').style.display = isSelect ? 'none' : 'block';
+  }
+
+  // ── AJAX submission for quick collection ──
+  const scForm = document.getElementById('search-collect-form');
+  if (scForm) {
+    scForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('confirm-collect-btn');
+      const orig = btn ? btn.textContent : 'Confirm Return';
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+      fetch('/admin/cylinders/mark_collected', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(scForm)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          closeModal();
+          const statusCard = document.querySelector('.status-card.with-customer');
+          if (statusCard) {
+            statusCard.className = 'status-card in-stock';
+            statusCard.innerHTML = `
+              <div class="status-icon-wrap" style="background: rgba(99,102,241,0.1);">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#4f46e5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+              </div>
+              <div>
+                <div class="status-label" style="color: #4f46e5;">Status</div>
+                <div class="status-value" style="color: #4f46e5;">In Stock / Depot</div>
+                <div class="status-since">Marked collected just now</div>
+              </div>
+            `;
+          }
+          if (window.showToast) {
+            window.showToast('Cylinder marked as collected into Depot.', 'success');
+          }
+        } else {
+          alert('Error: ' + (data.message || 'Failed'));
+        }
+      })
+      .catch(() => alert('Network error'))
+      .finally(() => { if (btn) { btn.disabled = false; btn.textContent = orig; } });
+    });
   }
 </script>
 

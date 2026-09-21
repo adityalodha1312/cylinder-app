@@ -1968,13 +1968,21 @@ def admin_sync_from_sheets():
             if success:
                 clear_cache()
                 flash("Successfully synced all tables (Scans, Cylinders, Customers, etc.) from Google Sheets to database!", "success")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                    return jsonify({'success': True, 'message': 'Successfully synced all tables from Google Sheets to database!'})
             else:
                 flash("Sync completed with warnings. Please check the logs.", "warning")
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                    return jsonify({'success': False, 'message': 'Sync completed with warnings. Please check the logs.'})
         else:
             flash("Sheets document is not connected. Unable to sync.", "danger")
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+                return jsonify({'success': False, 'message': 'Sheets document is not connected. Unable to sync.'}), 500
     except Exception as e:
         print("[sync] Manual sync error:", e)
         flash(f"Sync error: {str(e)}", "danger")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'message': f'Sync error: {str(e)}'}), 500
         
     return redirect('/admin/dashboard')
 
@@ -2269,6 +2277,8 @@ def delete_activity():
     async_sheets_write(background_delete_activity_sheets)
 
     flash("Activity record deleted successfully.", "success")
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'message': 'Activity record deleted successfully.'})
     return redirect('/admin/activity')
 
 @app.route('/admin/daily_summary')
@@ -4529,6 +4539,8 @@ def admin_mark_collected():
         return str(e), 500
         
     clear_cache()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'uid': uid, 'customer': customer, 'driver': driver})
     return redirect(redirect_url)
 
 
@@ -4689,6 +4701,8 @@ def admin_bulk_collect():
         return str(e), 500
         
     clear_cache()
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'count': len(uids), 'uids': uids, 'customer': customer, 'driver': driver})
     return redirect(redirect_url)
 
 
@@ -5053,7 +5067,11 @@ def admin_users_delete(user_id):
     except Exception as e:
         db.session.rollback()
         flash(f"Database error deleting user: {str(e)}", "danger")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
         
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': True, 'user_id': user_id, 'username': username})
     return redirect('/admin/users')
 
 
@@ -5797,6 +5815,8 @@ def admin_offers_delete(offer_id):
         db.session.delete(offer)
         db.session.commit()
         flash("Offer deleted successfully.", "success")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'offer_id': offer_id})
     return redirect('/admin/offers')
 
 @app.route('/admin/offer/generate', methods=['POST'])
@@ -7178,9 +7198,13 @@ def admin_scanner_logs_delete(log_id):
         db.session.delete(log)
         db.session.commit()
         flash("Scan log deleted successfully.", "success")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'log_id': log_id})
     except Exception as e:
         db.session.rollback()
         flash(f"Error deleting log: {str(e)}", "error")
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
     return redirect(url_for('admin_scanner_logs'))
 
 @app.route('/admin/scanner/logs/bulk_delete', methods=['POST'])
@@ -7392,9 +7416,13 @@ def accounts_batch_mark_billed(batch_id):
     try:
         db.session.commit()
         flash('Batch marked as Billed.', 'success')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'status': 'Billed', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {str(e)}', 'error')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/unmark_billed', methods=['POST'])
@@ -7407,9 +7435,13 @@ def accounts_batch_unmark_billed(batch_id):
     try:
         db.session.commit()
         flash('Batch reverted to Pending.', 'success')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'status': 'Pending', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {str(e)}', 'error')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/item/<int:item_id>/delete', methods=['POST'])
@@ -7420,9 +7452,13 @@ def accounts_batch_item_delete(batch_id, item_id):
         db.session.delete(item)
         db.session.commit()
         flash('Cylinder removed from batch.', 'success')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'item_id': item_id, 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
         flash(f'Error: {str(e)}', 'error')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/delete', methods=['POST'])

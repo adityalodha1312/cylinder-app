@@ -90,9 +90,7 @@
           {% endif %}
         </td>
         <td>
-          <form action="/admin/scanner/logs/{{ log.id }}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete this internal scan log?');">
-            <button type="submit" style="background: none; border: none; color: #dc3545; cursor: pointer; text-decoration: underline; font-size: 13px;">Delete</button>
-          </form>
+          <button type="button" onclick="deleteScanLog({{ log.id }}, this)" style="background: none; border: none; color: #dc3545; cursor: pointer; text-decoration: underline; font-size: 13px;">Delete</button>
         </td>
       </tr>
       {% endfor %}
@@ -181,6 +179,36 @@
     }
   }
 
+  function deleteScanLog(id, btn) {
+    if (!confirm('Are you sure you want to delete this internal scan log?')) return;
+    btn.disabled = true;
+    btn.textContent = 'Deleting...';
+    fetch('/admin/scanner/logs/' + id + '/delete', {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (dataTableInstance) {
+          dataTableInstance.row($(btn).closest('tr')).remove().draw();
+        } else {
+          $(btn).closest('tr').remove();
+        }
+        if (window.showToast) window.showToast('Scan log deleted.', 'success');
+      } else {
+        btn.disabled = false;
+        btn.textContent = 'Delete';
+        alert('Error: ' + (data.error || 'Failed to delete'));
+      }
+    })
+    .catch(() => {
+      btn.disabled = false;
+      btn.textContent = 'Delete';
+      alert('Network error while deleting log.');
+    });
+  }
+
   function bulkDelete() {
     var checked = $('.row-checkbox:checked');
     if (checked.length === 0) return;
@@ -194,13 +222,23 @@
     
     fetch('/admin/scanner/logs/bulk_delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       body: JSON.stringify({ log_ids: ids })
     })
     .then(res => res.json())
     .then(data => {
       if (data.success) {
-        window.location.reload();
+        if (dataTableInstance) {
+          checked.each(function() {
+            dataTableInstance.row($(this).closest('tr')).remove();
+          });
+          dataTableInstance.draw();
+        } else {
+          checked.closest('tr').remove();
+        }
+        $('#bulkDeleteBtn').hide();
+        $('#selectAll').prop('checked', false);
+        if (window.showToast) window.showToast(data.message || 'Selected logs deleted.', 'success');
       } else {
         alert("Error: " + data.error);
       }

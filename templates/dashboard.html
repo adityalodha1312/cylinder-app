@@ -184,16 +184,14 @@
       Fill Before Delivery: <span id="fill-rule-label">{{ 'ON' if fill_required else 'OFF' }}</span>
     </button>
     <!-- Sync Button -->
-    <form action="/admin/sync_from_sheets" method="POST" style="margin: 0;" onsubmit="this.querySelector('button').disabled=true; this.querySelector('button').innerHTML='Syncing...'">
-      <button type="submit" style="background-color: var(--green-600, #1D9E75); color: white; padding: 10px 16px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#127c5b'" onmouseout="this.style.backgroundColor='#1D9E75'">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="23 4 23 10 17 10"></polyline>
-          <polyline points="1 20 1 14 7 14"></polyline>
-          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-        </svg>
-        Sync Sheets → Database
-      </button>
-    </form>
+    <button type="button" onclick="triggerSheetsSync(this)" style="background-color: var(--green-600, #1D9E75); color: white; padding: 10px 16px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); transition: background-color 0.15s;" onmouseover="this.style.backgroundColor='#127c5b'" onmouseout="this.style.backgroundColor='#1D9E75'">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+      Sync Sheets → Database
+    </button>
   </div>
   {% endif %}
 </div>
@@ -621,6 +619,50 @@
       alert('Failed to update setting. Please try again.');
     } finally {
       btn.disabled = false;
+    }
+  }
+
+  // ── Sync Sheets -> DB via AJAX ──
+  async function triggerSheetsSync(btn) {
+    const origHtml = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin">
+        <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/>
+        <line x1="2" y1="12" x2="6" y1="12"/><line x1="18" y1="12" x2="22" y1="12"/>
+        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/>
+      </svg>
+      Syncing...
+    `;
+    try {
+      const res = await fetch('/admin/sync_from_sheets', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' }
+      });
+      const data = await res.json();
+      if (data.success) {
+        if (window.showToast) {
+          window.showToast(data.message || 'Sheets synced to database successfully!', 'success');
+        } else {
+          alert(data.message || 'Sheets synced to database successfully!');
+        }
+      } else {
+        if (window.showToast) {
+          window.showToast(data.message || 'Sync completed with warnings.', 'warning');
+        } else {
+          alert(data.message || 'Sync completed with warnings.');
+        }
+      }
+    } catch(err) {
+      if (window.showToast) {
+        window.showToast('Network error during sync.', 'error');
+      } else {
+        alert('Network error during sync.');
+      }
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
     }
   }
 </script>

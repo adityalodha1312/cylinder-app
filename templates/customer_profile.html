@@ -220,15 +220,15 @@
     <div class="mini-kpi-lbl">Total Delivered</div>
   </div>
   <div class="mini-kpi">
-    <div class="mini-kpi-val">{{ total_collected }}</div>
+    <div class="mini-kpi-val" id="kpi-collected-val">{{ total_collected }}</div>
     <div class="mini-kpi-lbl">Total Collected</div>
   </div>
-  <div class="mini-kpi" style="{{ 'border-color:#ffc107; background:#fffdf0;' if outstanding_count > 0 else '' }}">
-    <div class="mini-kpi-val" style="{{ 'color:#856404;' if outstanding_count > 0 else '' }}">{{ outstanding_count }}</div>
+  <div class="mini-kpi" id="kpi-outstanding-card" style="{{ 'border-color:#ffc107; background:#fffdf0;' if outstanding_count > 0 else '' }}">
+    <div class="mini-kpi-val" id="kpi-outstanding-val" style="{{ 'color:#856404;' if outstanding_count > 0 else '' }}">{{ outstanding_count }}</div>
     <div class="mini-kpi-lbl">Currently Outstanding</div>
   </div>
   <div class="mini-kpi" style="{{ 'border-color:#dc3545; background:#fff5f5;' if overdue_cyls|length > 0 else '' }}">
-    <div class="mini-kpi-val" style="{{ 'color:#dc3545;' if overdue_cyls|length > 0 else '' }}">{{ overdue_cyls|length }}</div>
+    <div class="mini-kpi-val">{{ overdue_cyls|length }}</div>
     <div class="mini-kpi-lbl">Overdue (&gt;30 Days)</div>
   </div>
 </div>
@@ -290,7 +290,7 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
       </svg>
-      Currently With Customer ({{ outstanding_count }})
+      Currently With Customer (<span id="header-outstanding-count">{{ outstanding_count }}</span>)
     </span>
     {% if outstanding_detail %}
     <button class="back-btn" onclick="openBulkCollectModal()" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer; padding:6px 12px; font-size:12.5px; border-radius:6px; display:inline-flex; align-items:center; gap:6px;">
@@ -299,7 +299,7 @@
     {% endif %}
   </div>
   {% if outstanding_detail %}
-  <div class="table-wrap">
+  <div class="table-wrap" id="outstanding-table-wrap">
     <table class="tbl" id="outstanding-table">
       <thead>
         <tr>
@@ -311,7 +311,7 @@
       </thead>
       <tbody>
         {% for c in outstanding_detail %}
-        <tr {% if c.overdue %}class="overdue-row"{% endif %}>
+        <tr id="cyl-row-{{ c.uid }}" data-uid="{{ c.uid }}" {% if c.overdue %}class="overdue-row"{% endif %}>
           <td style="text-align: center; vertical-align: middle;">
             <input type="checkbox" class="cyl-select-checkbox" value="{{ c.uid }}" style="cursor: pointer; width: 16px; height: 16px;" onclick="onCylinderCheckboxChange()">
           </td>
@@ -495,7 +495,7 @@
       <div class="modal-title">📥 Mark Cylinder as Collected</div>
       <button class="modal-close" onclick="closeModal()">&times;</button>
     </div>
-    <form action="/admin/cylinders/mark_collected" method="POST">
+    <form id="single-collect-form" action="/admin/cylinders/mark_collected" method="POST">
       <div class="modal-body">
         <input type="hidden" name="uid" id="modal-uid">
         <input type="hidden" name="customer" id="modal-customer">
@@ -536,7 +536,6 @@
         <button type="button" class="back-btn" style="background:#fff; border-color:var(--gray-bd); color:var(--dark-text); cursor:pointer;" onclick="closeModal()">Cancel</button>
         <button type="submit" class="back-btn" style="background:var(--green-600); border-color:var(--green-700); color:white; cursor:pointer;" id="confirm-collect-btn">Confirm Return</button>
       </div>
-      </div>
     </form>
   </div>
 </div>
@@ -549,7 +548,7 @@
       <div class="modal-title">📥 Mark Selected as Collected</div>
       <button class="modal-close" onclick="closeBulkModal()">&times;</button>
     </div>
-    <form action="/admin/customers/bulk_collect" method="POST">
+    <form id="bulk-collect-form" action="/admin/customers/bulk_collect" method="POST">
       <div class="modal-body">
         <input type="hidden" name="uids" id="bulk-modal-uids">
         <input type="hidden" name="customer" value="{{ customer_name }}">
@@ -748,6 +747,133 @@
     paginateTable('outstanding-table', 15);
     paginateTable('stmt-table', 15);
     paginateTable('hist-table', 15);
+
+    // ── Single Cylinder Collection (AJAX) ──
+    const singleForm = document.getElementById('single-collect-form');
+    if (singleForm) {
+      singleForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = document.getElementById('confirm-collect-btn');
+        const origText = btn ? btn.textContent : 'Confirm Return';
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+        const uid = document.getElementById('modal-uid').value;
+        const fd = new FormData(singleForm);
+
+        fetch('/admin/cylinders/mark_collected', {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            closeModal();
+            const row = document.getElementById('cyl-row-' + uid);
+            if (row) {
+              row.style.transition = 'opacity 0.3s, max-height 0.3s';
+              row.style.opacity = '0';
+              setTimeout(() => row.remove(), 320);
+            }
+
+            // Decrement outstanding counters
+            const outKpi = document.getElementById('kpi-outstanding-val');
+            if (outKpi) {
+              const val = Math.max(0, parseInt(outKpi.textContent || '0') - 1);
+              outKpi.textContent = val;
+              if (val === 0) {
+                const card = document.getElementById('kpi-outstanding-card');
+                if (card) { card.style.borderColor = ''; card.style.background = ''; }
+              }
+            }
+            const hdrCount = document.getElementById('header-outstanding-count');
+            if (hdrCount) hdrCount.textContent = Math.max(0, parseInt(hdrCount.textContent || '0') - 1);
+
+            // Increment collected KPI
+            const colKpi = document.getElementById('kpi-collected-val');
+            if (colKpi) colKpi.textContent = parseInt(colKpi.textContent || '0') + 1;
+
+            if (window.showToast) {
+              window.showToast('Cylinder ' + uid + ' marked as collected successfully.', 'success');
+            }
+          } else {
+            alert('Error: ' + (data.message || 'Could not mark collected'));
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('Network error while marking collected.');
+        })
+        .finally(() => {
+          if (btn) { btn.disabled = false; btn.textContent = origText; }
+        });
+      });
+    }
+
+    // ── Bulk Cylinder Collection (AJAX) ──
+    const bulkForm = document.getElementById('bulk-collect-form');
+    if (bulkForm) {
+      bulkForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const btn = bulkForm.querySelector('button[type="submit"]');
+        const origText = btn ? btn.textContent : 'Confirm Bulk Return';
+        if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
+        const uidsStr = document.getElementById('bulk-modal-uids').value;
+        const uids = uidsStr.split(',').map(u => u.trim()).filter(Boolean);
+        const fd = new FormData(bulkForm);
+
+        fetch('/admin/customers/bulk_collect', {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          body: fd
+        })
+        .then(r => r.json())
+        .then(data => {
+          if (data.success) {
+            closeBulkModal();
+            uids.forEach(uid => {
+              const row = document.getElementById('cyl-row-' + uid);
+              if (row) {
+                row.style.transition = 'opacity 0.3s, max-height 0.3s';
+                row.style.opacity = '0';
+                setTimeout(() => row.remove(), 320);
+              }
+            });
+
+            // Decrement outstanding counters
+            const outKpi = document.getElementById('kpi-outstanding-val');
+            if (outKpi) {
+              const val = Math.max(0, parseInt(outKpi.textContent || '0') - uids.length);
+              outKpi.textContent = val;
+              if (val === 0) {
+                const card = document.getElementById('kpi-outstanding-card');
+                if (card) { card.style.borderColor = ''; card.style.background = ''; }
+              }
+            }
+            const hdrCount = document.getElementById('header-outstanding-count');
+            if (hdrCount) hdrCount.textContent = Math.max(0, parseInt(hdrCount.textContent || '0') - uids.length);
+
+            // Increment collected KPI
+            const colKpi = document.getElementById('kpi-collected-val');
+            if (colKpi) colKpi.textContent = parseInt(colKpi.textContent || '0') + uids.length;
+
+            if (window.showToast) {
+              window.showToast(data.count + ' cylinders marked as collected successfully.', 'success');
+            }
+          } else {
+            alert('Error: ' + (data.message || 'Could not mark bulk collected'));
+          }
+        })
+        .catch(err => {
+          console.error(err);
+          alert('Network error while marking bulk collected.');
+        })
+        .finally(() => {
+          if (btn) { btn.disabled = false; btn.textContent = origText; }
+        });
+      });
+    }
   });
 </script>
 
