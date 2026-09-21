@@ -809,8 +809,8 @@
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                 <span>Edit Vehicle</span>
               </a>
-              <form method="POST" action="/admin/vehicles/{{ v.id }}/toggle_status" style="margin:0;" onclick="event.stopPropagation();">
-                <button type="submit" class="card-dropdown-item {% if v.status == 'active' %}del-item{% endif %}">
+              <form class="toggle-status-form" data-veh-id="{{ v.id }}" data-current-status="{{ v.status }}" style="margin:0;" onclick="event.stopPropagation();">
+                <button type="button" class="card-dropdown-item {% if v.status == 'active' %}del-item{% endif %}" onclick="toggleVehicleStatus(this)">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
                   <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
                 </button>
@@ -956,6 +956,31 @@
 <script>
   let currentFilter = 'all';
 
+  // ── Toast Notification ────────────────────────────────────────────
+  function showListToast(msg, type) {
+    let t = document.getElementById('veh-list-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'veh-list-toast';
+      Object.assign(t.style, {
+        position:'fixed', bottom:'24px', right:'24px', zIndex:'9999',
+        padding:'12px 20px', borderRadius:'10px', fontFamily:'DM Sans,sans-serif',
+        fontSize:'13.5px', fontWeight:'600', boxShadow:'0 4px 18px rgba(0,0,0,0.15)',
+        transition:'opacity 0.3s', opacity:'0', pointerEvents:'none', maxWidth:'340px'
+      });
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    if (type === 'error') {
+      t.style.background = '#fef2f2'; t.style.color = '#b91c1c'; t.style.border = '1.5px solid #fecaca';
+    } else {
+      t.style.background = '#e1f5ee'; t.style.color = '#04342C'; t.style.border = '1.5px solid #a7f3d0';
+    }
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+  }
+
   // Card click navigation
   function handleCardClick(e, id) {
     if (e.target.closest('.card-menu-btn') || e.target.closest('.card-dropdown-menu') || e.target.closest('.btn-first-entry')) {
@@ -1015,15 +1040,196 @@
     });
   }
 
+  // ── Toggle Active/Inactive via AJAX ──────────────────────────────
+  function toggleVehicleStatus(btn) {
+    const form = btn.closest('.toggle-status-form');
+    const vehId = form.dataset.vehId;
+    const card  = document.querySelector(`.vehicle-card[data-num]#card-${vehId}`) ||
+                  form.closest('.vehicle-card');
+    const currentStatus = card ? card.dataset.status : (form.dataset.currentStatus || 'active');
+
+    btn.disabled = true;
+    btn.querySelector('span').textContent = 'Updating…';
+
+    fetch(`/admin/vehicles/${vehId}/toggle_status`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const newStatus = data.status;
+        // Update card's data-status
+        if (card) {
+          card.dataset.status = newStatus;
+          card.classList.toggle('inactive', newStatus === 'inactive');
+          // Update status pill
+          const pill = card.querySelector('.status-pill');
+          if (pill) {
+            pill.className = `status-pill ${newStatus}`;
+            pill.textContent = newStatus.charAt(0).toUpperCase() + newStatus.slice(1);
+          }
+        }
+        // Update form data and button
+        form.dataset.currentStatus = newStatus;
+        const isNowActive = (newStatus === 'active');
+        btn.querySelector('span').textContent = isNowActive ? 'Deactivate' : 'Activate';
+        btn.classList.toggle('del-item', isNowActive);
+
+        showListToast(`Vehicle ${isNowActive ? 'activated' : 'deactivated'} successfully.`);
+      } else {
+        showListToast('Failed to update status. Please try again.', 'error');
+        btn.querySelector('span').textContent = currentStatus === 'active' ? 'Deactivate' : 'Activate';
+      }
+    })
+    .catch(() => {
+      showListToast('Network error. Please try again.', 'error');
+      btn.querySelector('span').textContent = currentStatus === 'active' ? 'Deactivate' : 'Activate';
+    })
+    .finally(() => { btn.disabled = false; });
+  }
+
+  // ── Add Vehicle Modal: AJAX submit ────────────────────────────────
+  const vehicleForm = document.getElementById('vehicleForm');
+  if (vehicleForm) {
+    vehicleForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const btn = document.getElementById('btn-save-veh');
+      const errBox = document.getElementById('modal-form-errors');
+      if (errBox) errBox.style.display = 'none';
+
+      const origText = btn ? btn.textContent : 'Save Vehicle';
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+      fetch('/admin/vehicles/new', {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: new FormData(vehicleForm)
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (data.success) {
+          const v = data.vehicle;
+          const fuelLower = (v.fuel_type || '').toLowerCase();
+          let fuelBadge = '';
+          if (fuelLower.includes('diesel'))       fuelBadge = `<span class="fuel-badge diesel">Diesel</span>`;
+          else if (fuelLower.includes('petrol'))  fuelBadge = `<span class="fuel-badge petrol">Petrol</span>`;
+          else if (fuelLower.includes('cng'))     fuelBadge = `<span class="fuel-badge cng">CNG</span>`;
+          else if (fuelLower.includes('elec'))    fuelBadge = `<span class="fuel-badge elec">Electric</span>`;
+          else                                     fuelBadge = `<span class="fuel-badge other">${v.fuel_type || 'Fuel'}</span>`;
+
+          const cardHtml = `
+            <div class="vehicle-card"
+                 data-num="${(v.vehicle_number||'').toLowerCase()}"
+                 data-reg="${(v.registration_number||'').toLowerCase()}"
+                 data-fuel="${fuelLower}"
+                 data-status="${v.status}"
+                 onclick="handleCardClick(event, '${v.id}')">
+              <div class="card-top-banner">
+                <svg class="banner-truck-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="1" y="3" width="15" height="13" rx="2"/>
+                  <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                  <circle cx="5.5" cy="18.5" r="2.5"/>
+                  <circle cx="18.5" cy="18.5" r="2.5"/>
+                </svg>
+                <button type="button" class="card-menu-btn" title="Options" onclick="toggleCardMenu(event, '${v.id}')">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+                </button>
+                <div class="card-dropdown-menu" id="menu-${v.id}">
+                  <a href="/admin/vehicles/${v.id}" class="card-dropdown-item" onclick="event.stopPropagation();">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    <span>View Details</span>
+                  </a>
+                  <a href="/admin/vehicles/${v.id}/edit" class="card-dropdown-item" onclick="event.stopPropagation();">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    <span>Edit Vehicle</span>
+                  </a>
+                  <form class="toggle-status-form" data-veh-id="${v.id}" data-current-status="${v.status}" style="margin:0;" onclick="event.stopPropagation();">
+                    <button type="button" class="card-dropdown-item" onclick="toggleVehicleStatus(this)">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                      <span>Deactivate</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+              <div class="card-body">
+                <div class="card-badges-row">
+                  <span class="plate-chip">${v.vehicle_number}</span>
+                  <div class="badges-group">
+                    ${fuelBadge}
+                    <span class="status-pill active">Active</span>
+                  </div>
+                </div>
+                <div class="card-type-row">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <rect x="1" y="3" width="15" height="13" rx="2"/>
+                    <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
+                    <circle cx="5.5" cy="18.5" r="2.5"/>
+                    <circle cx="18.5" cy="18.5" r="2.5"/>
+                  </svg>
+                  <span>${v.vehicle_type || 'Truck'}</span>
+                </div>
+                <div class="card-reading-block">
+                  <span class="reading-label">Latest Reading</span>
+                  <div class="reading-empty-row">
+                    <span class="reading-empty-text">No entries yet</span>
+                    <a href="/admin/vehicles/${v.id}/refuellings/new" class="btn-first-entry" onclick="event.stopPropagation();">+ Add first entry</a>
+                  </div>
+                </div>
+              </div>
+            </div>`;
+
+          // Remove empty-state placeholder if present
+          const emptyState = document.querySelector('.empty-fleet-state');
+          if (emptyState) emptyState.remove();
+
+          // Prepend new card to grid
+          const grid = document.getElementById('veh-grid');
+          if (grid) grid.insertAdjacentHTML('afterbegin', cardHtml);
+
+          // Update KPI total count
+          const totalKpi = document.querySelector('.summary-kpi-val');
+          if (totalKpi) totalKpi.textContent = parseInt(totalKpi.textContent || '0') + 1;
+          const activeKpi = document.querySelectorAll('.summary-kpi-val')[1];
+          if (activeKpi) activeKpi.textContent = parseInt(activeKpi.textContent || '0') + 1;
+
+          closeVehicleModal();
+          vehicleForm.reset();
+          showListToast(`Vehicle ${v.vehicle_number} added successfully!`);
+        } else {
+          const msgs = (data.errors || ['Unknown error']).join(' ');
+          let errBox = document.getElementById('modal-form-errors');
+          if (!errBox) {
+            errBox = document.createElement('div');
+            errBox.id = 'modal-form-errors';
+            errBox.style.cssText = 'background:#fef2f2;color:#b91c1c;border:1.5px solid #fecaca;border-radius:8px;padding:10px 14px;font-size:13px;font-weight:600;margin-bottom:12px;';
+            vehicleForm.querySelector('.modal-body').prepend(errBox);
+          }
+          errBox.textContent = msgs;
+          errBox.style.display = 'block';
+        }
+      })
+      .catch(() => {
+        showListToast('Network error. Please try again.', 'error');
+      })
+      .finally(() => {
+        if (btn) { btn.disabled = false; btn.textContent = origText; }
+      });
+    });
+  }
+
   // Modal controls
   function openAddVehicleModal() {
     document.getElementById('vehicleModal').classList.add('open');
   }
   function closeVehicleModal() {
     document.getElementById('vehicleModal').classList.remove('open');
+    const errBox = document.getElementById('modal-form-errors');
+    if (errBox) errBox.style.display = 'none';
   }
   function handleModalOverlayClick(e) {
     if (e.target.id === 'vehicleModal') closeVehicleModal();
   }
 </script>
 {% endblock %}
+

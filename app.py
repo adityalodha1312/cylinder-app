@@ -8029,6 +8029,7 @@ def admin_vehicles_list():
 def admin_vehicles_new():
     errors = []
     form_data = {}
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json)
     if request.method == 'POST':
         form_data = request.form.to_dict()
         vehicle_number = (form_data.get('vehicle_number') or '').strip().upper()
@@ -8048,11 +8049,27 @@ def admin_vehicles_new():
                 )
                 db.session.add(v)
                 db.session.commit()
-                showToast_msg = f"Vehicle {vehicle_number} added successfully."
+                if is_ajax:
+                    return jsonify({
+                        'success': True,
+                        'vehicle': {
+                            'id': v.id,
+                            'vehicle_number': v.vehicle_number,
+                            'registration_number': v.registration_number or '',
+                            'vehicle_type': v.vehicle_type or 'Truck',
+                            'fuel_type': v.fuel_type or 'Diesel',
+                            'status': v.status,
+                        }
+                    })
                 return redirect(f'/admin/vehicles/{v.id}')
             except Exception as e:
                 db.session.rollback()
                 errors.append(f"Database error: {str(e)[:120]}")
+                if is_ajax:
+                    return jsonify({'success': False, 'errors': errors}), 400
+        else:
+            if is_ajax:
+                return jsonify({'success': False, 'errors': errors}), 400
     return render_template('vehicle_form.html',
         user=session['user'], mode='add', errors=errors, form_data=form_data
     )
@@ -8304,18 +8321,25 @@ def admin_vehicle_edit(vehicle_id):
 def admin_vehicle_delete(vehicle_id):
     v = Vehicle.query.get_or_404(vehicle_id)
     action = request.form.get('action', 'deactivate')
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json)
     try:
         if action == 'delete':
             db.session.delete(v)  # cascade deletes refuellings
             db.session.commit()
+            if is_ajax:
+                return jsonify({'success': True, 'action': 'delete', 'redirect': '/admin/vehicles'})
             return redirect('/admin/vehicles')
         else:
             v.status = 'inactive'
             v.updated_at = datetime.utcnow()
             db.session.commit()
+            if is_ajax:
+                return jsonify({'success': True, 'action': 'deactivate', 'status': 'inactive'})
             return redirect(f'/admin/vehicles/{vehicle_id}')
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'success': False, 'error': str(e)[:120]}), 500
         return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
@@ -8461,11 +8485,16 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
 @admin_required
 def admin_refuelling_delete(vehicle_id, refuelling_id):
     ref = VehicleRefuelling.query.filter_by(id=refuelling_id, vehicle_id=vehicle_id).first_or_404()
+    is_ajax = (request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json)
     try:
         db.session.delete(ref)
         db.session.commit()
+        if is_ajax:
+            return jsonify({'success': True})
     except Exception as e:
         db.session.rollback()
+        if is_ajax:
+            return jsonify({'success': False, 'error': str(e)[:120]}), 500
     return redirect(f'/admin/vehicles/{vehicle_id}')
 
 

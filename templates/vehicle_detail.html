@@ -415,7 +415,7 @@
       </tr></thead>
       <tbody>
         {% for r in (display_records if display_records is defined else records|reverse) %}
-        <tr>
+        <tr id="ref-row-{{ r.id }}">
           <td style="color:var(--gray-text);font-size:12px;">{{ loop.index }}</td>
           <td>{{ r.fuel_date }}</td>
           <td>{{ "%.3f"|format(r.fuel_quantity_litres|float) }}</td>
@@ -444,9 +444,8 @@
           <td>
             <div class="action-btns">
               <a href="/admin/vehicles/{{ vehicle.id }}/refuellings/{{ r.id }}/edit" class="btn-sm-edit">Edit</a>
-              <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/refuellings/{{ r.id }}/delete" onsubmit="return confirm('Delete this refuelling record?');" style="display:inline;">
-                <button type="submit" class="btn-sm-del">Del</button>
-              </form>
+              <button type="button" class="btn-sm-del"
+                      onclick="deleteRefuelling({{ r.id }}, {{ vehicle.id }})">Del</button>
             </div>
           </td>
         </tr>
@@ -470,10 +469,9 @@
     <div class="modal-actions">
       <button class="btn-secondary" onclick="closeDeleteModal()">Cancel</button>
       {% if vehicle.status == "active" %}
-      <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/delete" style="display:inline;">
-        <input type="hidden" name="action" value="deactivate">
-        <button type="submit" style="padding:9px 16px;background:#fff3cd;color:#856404;border:1.5px solid #ffc107;border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;">Deactivate</button>
-      </form>
+      <button type="button"
+              style="padding:9px 16px;background:#fff3cd;color:#856404;border:1.5px solid #ffc107;border-radius:10px;font-family:DM Sans,sans-serif;font-size:14px;font-weight:600;cursor:pointer;"
+              onclick="deactivateVehicle({{ vehicle.id }})">Deactivate</button>
       {% endif %}
       <form method="POST" action="/admin/vehicles/{{ vehicle.id }}/delete" style="display:inline;" onsubmit="return confirm('Permanently delete vehicle and ALL records?');">
         <input type="hidden" name="action" value="delete">
@@ -486,6 +484,93 @@
   function openDeleteModal()  { document.getElementById("deleteModal").classList.add("open"); }
   function closeDeleteModal() { document.getElementById("deleteModal").classList.remove("open"); }
   document.getElementById("deleteModal").addEventListener("click", function(e){ if(e.target===this) closeDeleteModal(); });
+
+  // ── Shared toast for vehicle detail page ─────────────────────────
+  function showDetailToast(msg, type) {
+    let t = document.getElementById('veh-detail-toast');
+    if (!t) {
+      t = document.createElement('div');
+      t.id = 'veh-detail-toast';
+      Object.assign(t.style, {
+        position:'fixed', bottom:'24px', right:'24px', zIndex:'9999',
+        padding:'12px 20px', borderRadius:'10px', fontFamily:'DM Sans,sans-serif',
+        fontSize:'13.5px', fontWeight:'600', boxShadow:'0 4px 18px rgba(0,0,0,0.15)',
+        transition:'opacity 0.3s', opacity:'0', pointerEvents:'none', maxWidth:'340px'
+      });
+      document.body.appendChild(t);
+    }
+    t.textContent = msg;
+    if (type === 'error') {
+      t.style.background = '#fef2f2'; t.style.color = '#b91c1c'; t.style.border = '1.5px solid #fecaca';
+    } else {
+      t.style.background = '#e1f5ee'; t.style.color = '#04342C'; t.style.border = '1.5px solid #a7f3d0';
+    }
+    t.style.opacity = '1';
+    clearTimeout(t._timer);
+    t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3200);
+  }
+
+  // ── Delete Refuelling (AJAX) ──────────────────────────────────────
+  function deleteRefuelling(refId, vehicleId) {
+    if (!confirm('Delete this refuelling record?')) return;
+    const row = document.getElementById('ref-row-' + refId);
+    if (row) { row.style.opacity = '0.4'; row.style.pointerEvents = 'none'; }
+
+    fetch(`/admin/vehicles/${vehicleId}/refuellings/${refId}/delete`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        if (row) {
+          row.style.transition = 'opacity 0.35s, max-height 0.35s';
+          row.style.opacity = '0';
+          setTimeout(() => row.remove(), 380);
+        }
+        showDetailToast('Refuelling record deleted.');
+      } else {
+        if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+        showDetailToast('Failed to delete: ' + (data.error || 'Unknown error'), 'error');
+      }
+    })
+    .catch(() => {
+      if (row) { row.style.opacity = '1'; row.style.pointerEvents = ''; }
+      showDetailToast('Network error. Please try again.', 'error');
+    });
+  }
+
+  // ── Deactivate Vehicle (AJAX) ─────────────────────────────────────
+  function deactivateVehicle(vehicleId) {
+    const fd = new FormData();
+    fd.append('action', 'deactivate');
+    fetch(`/admin/vehicles/${vehicleId}/delete`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        closeDeleteModal();
+        // Update status badge in info card
+        const badges = document.querySelectorAll('.badge-active, .badge-inactive');
+        badges.forEach(b => {
+          b.className = 'badge-inactive';
+          b.textContent = 'Inactive';
+        });
+        showDetailToast('Vehicle deactivated successfully.');
+        // Disable deactivate button since it's now inactive
+        const deactivateBtn = document.querySelector('[onclick^="deactivateVehicle"]');
+        if (deactivateBtn) deactivateBtn.style.display = 'none';
+      } else {
+        showDetailToast('Failed to deactivate: ' + (data.error || 'Unknown error'), 'error');
+      }
+    })
+    .catch(() => {
+      showDetailToast('Network error. Please try again.', 'error');
+    });
+  }
 
   // --- Performance Entry Switcher & Snapshot Functionality ---
   const perfOptions = {{ recent_perf_options|tojson if recent_perf_options else '{}' }};
