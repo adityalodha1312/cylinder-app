@@ -20,9 +20,14 @@ from concurrent.futures import ThreadPoolExecutor
 sheets_executor = ThreadPoolExecutor(max_workers=3)
 
 def async_sheets_write(fn, *args, **kwargs):
-    """Submits a Google Sheets API call to the background executor."""
+    """Submits a Google Sheets API call to the background executor and clears cache upon completion."""
+    def wrapped(*a, **kw):
+        try:
+            fn(*a, **kw)
+        finally:
+            clear_cache()
     try:
-        sheets_executor.submit(fn, *args, **kwargs)
+        sheets_executor.submit(wrapped, *args, **kwargs)
     except Exception as e:
         print(f"[sheets_executor] Error submitting task: {e}")
 
@@ -299,11 +304,21 @@ if not db_url:
     db_url = 'sqlite:///:memory:'
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+    'pool_size': 10,
+    'max_overflow': 20,
+    'connect_args': {'connect_timeout': 3}
+}
 db.init_app(app)
 
-# Auto-create any missing tables on startup (safe ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â checkfirst=True skips existing tables)
+# Auto-create any missing tables on startup (safe — checkfirst=True skips existing tables)
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        print("[startup] Warning: Could not create tables (DB unreachable or timeout):", e)
     if os.environ.get('DATABASE_URL'):
         try:
             from sqlalchemy import text
@@ -342,6 +357,7 @@ with app.app_context():
                 );
             """))
             db.session.commit()
+            clear_cache()
             print("[startup] Checked and added scans.gas_type, admin_scan_logs context, and customers.gst_number columns if missing.")
         except Exception as e:
             print("[startup] table alter check failed:", e)
@@ -373,6 +389,7 @@ with app.app_context():
             );
         """))
         db.session.commit()
+        clear_cache()
         print("[startup] Accounts tables verified/created.")
     except Exception as e:
         db.session.rollback()
@@ -397,6 +414,7 @@ with app.app_context():
             );
         """))
         db.session.commit()
+        clear_cache()
         print("[startup] driver_jobs table verified/created.")
     except Exception as e:
         db.session.rollback()
@@ -441,6 +459,7 @@ with app.app_context():
         db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vr_end_odo ON vehicle_refuellings(ending_odometer_km);"))
         db.session.execute(sa_veh("CREATE INDEX IF NOT EXISTS idx_vehicles_status ON vehicles(status);"))
         db.session.commit()
+        clear_cache()
         print("[startup] Vehicle fuel tracking tables verified/created.")
     except Exception as e:
         db.session.rollback()
@@ -540,12 +559,17 @@ DEFAULT_PRODUCTS_CONFIG = [
 ]
 
 def get_products_config():
-    """Reads product rows from the Products database table, falling back to Google Sheets."""
+    """Reads product rows from cache, then DB, then Google Sheets."""
+    now = time.time()
+    if _data_cache['products'] is not None and (now - _data_cache['products_time']) < CACHE_TTL:
+        return _data_cache['products']
+
+    out = None
     try:
         if os.environ.get('DATABASE_URL'):
             products = Product.query.all()
             if products:
-                return [{
+                out = [{
                     'id':            p.product_id,
                     'name':          p.name,
                     'gas_type':      p.gas_type,
@@ -557,121 +581,112 @@ def get_products_config():
     except Exception as e:
         print("[db] get_products_config read error, falling back to Sheets:", e)
 
-    global products_ws
-    try:
-        if products_ws is None and doc:
-            try:
-                products_ws = doc.worksheet(PRODUCTS_SHEET_NAME)
-            except Exception:
-                pass
-        if products_ws is None:
-            return DEFAULT_PRODUCTS_CONFIG
+    if not out:
+        global products_ws
+        try:
+            if products_ws is None and doc:
+                try:
+                    products_ws = doc.worksheet(PRODUCTS_SHEET_NAME)
+                except Exception:
+                    pass
+            if products_ws is not None:
+                rows = products_ws.get_all_values()
+                if len(rows) >= 2:
+                    config = []
+                    for r in rows[1:]:  # skip header
+                        if len(r) < 6 or not r[0].strip():
+                            continue
+                        try:
+                            gas_per = float(r[4].strip()) if r[4].strip() else 0.0
+                        except ValueError:
+                            gas_per = 0.0
+                        is_virtual = str(r[6]).strip().upper() == 'TRUE' if len(r) > 6 else False
+                        config.append({
+                            'id':            r[0].strip(),
+                            'name':          r[1].strip(),
+                            'gas_type':      r[2].strip().upper(),
+                            'cylinder_type': r[3].strip().capitalize(),
+                            'gas_per_cyl':   gas_per,
+                            'unit':          r[5].strip(),
+                            'is_virtual':    is_virtual,
+                        })
+                    if config:
+                        out = config
+        except Exception as e:
+            print("get_products_config error:", e)
 
-        rows = products_ws.get_all_values()
-        if len(rows) < 2:
-            return DEFAULT_PRODUCTS_CONFIG
-
-        # Expected header order:
-        # Product ID | Display Name | Gas Type | Cylinder Type | Gas Per Cylinder | Unit | Is Virtual?
-        config = []
-        for r in rows[1:]:  # skip header
-            if len(r) < 6 or not r[0].strip():
-                continue
-            try:
-                gas_per = float(r[4].strip()) if r[4].strip() else 0.0
-            except ValueError:
-                gas_per = 0.0
-            is_virtual = str(r[6]).strip().upper() == 'TRUE' if len(r) > 6 else False
-            config.append({
-                'id':            r[0].strip(),
-                'name':          r[1].strip(),
-                'gas_type':      r[2].strip().upper(),
-                'cylinder_type': r[3].strip().capitalize(),
-                'gas_per_cyl':   gas_per,
-                'unit':          r[5].strip(),
-                'is_virtual':    is_virtual,
-            })
-        return config if config else DEFAULT_PRODUCTS_CONFIG
-    except Exception as e:
-        print("get_products_config error:", e)
-        return DEFAULT_PRODUCTS_CONFIG
+    final_val = out if out else DEFAULT_PRODUCTS_CONFIG
+    _data_cache['products'] = final_val
+    _data_cache['products_time'] = now
+    return final_val
 
 # Helper functions to fetch customer details from Google Sheets
 def get_customer_names():
+    now = time.time()
+    if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
+        return _data_cache['customer_names']
+
+    result = []
     if os.environ.get('DATABASE_URL'):
         try:
             customers = Customer.query.all()
             if customers:
                 names = [c.name.strip() for c in customers if c.name.strip()]
-                return sorted(list(set(names)))
+                result = sorted(list(set(names)))
         except Exception as e:
             print("[db] Error getting customer names from DB, falling back to Sheets:", e)
 
-    now = time.time()
-    if _data_cache['customer_names'] is not None and (now - _data_cache['customer_names_time']) < CACHE_TTL:
-        return _data_cache['customer_names']
-        print("[db] Error getting customer names from DB, falling back to Sheets:", e)
+    if not result:
+        try:
+            if customer_ws is not None:
+                values = customer_ws.get_all_values()
+                if len(values) >= 2:
+                    names = [row[1].strip() for row in values[1:] if len(row) > 1 and row[1].strip()]
+                    result = sorted(list(set(names)))
+        except Exception as e:
+            print("Error getting customer names from sheet:", e)
+            if _data_cache['customer_names'] is not None:
+                return _data_cache['customer_names']
 
-    try:
-        if customer_ws is None:
-            return []
-        values = customer_ws.get_all_values()
-        if len(values) < 2:
-            return []
-        # Column B is "Name" (index 1)
-        names = [row[1].strip() for row in values[1:] if len(row) > 1 and row[1].strip()]
-        result = sorted(list(set(names)))
-        _data_cache['customer_names']      = result
-        _data_cache['customer_names_time'] = now
-        return result
-    except Exception as e:
-        print("Error getting customer names from sheet:", e)
-        # Return stale data if available rather than an empty list
-        if _data_cache['customer_names'] is not None:
-            return _data_cache['customer_names']
-        return []
+    _data_cache['customer_names'] = result
+    _data_cache['customer_names_time'] = now
+    return result
 
 def get_customer_emails():
     """Returns a dict of {customer_name: email}"""
+    now = time.time()
+    if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
+        return _data_cache['customer_emails']
+
+    out = {}
     if os.environ.get('DATABASE_URL'):
         try:
             customers = Customer.query.all()
             if customers:
-                out = {}
                 for c in customers:
                     if c.name.strip():
                         out[c.name.strip()] = c.email.strip() if c.email else ''
-                return out
         except Exception as e:
             print("[db] Error getting customer emails from DB, falling back to Sheets:", e)
 
-    now = time.time()
-    if _data_cache['customer_emails'] is not None and (now - _data_cache['customer_emails_time']) < CACHE_TTL:
-        return _data_cache['customer_emails']
-        print("[db] Error getting customer emails from DB, falling back to Sheets:", e)
+    if not out:
+        try:
+            if customer_ws is not None:
+                values = customer_ws.get_all_values()
+                if len(values) >= 2:
+                    for row in values[1:]:
+                        if len(row) > 1 and row[1].strip():
+                            name = row[1].strip()
+                            email = row[2].strip() if len(row) > 2 else ''
+                            out[name] = email
+        except Exception as e:
+            print("Error getting customer emails from sheet:", e)
+            if _data_cache['customer_emails'] is not None:
+                return _data_cache['customer_emails']
 
-    try:
-        if customer_ws is None:
-            return {}
-        values = customer_ws.get_all_values()
-        if len(values) < 2:
-            return {}
-        # Name is Column B (index 1), Email is Column C (index 2)
-        out = {}
-        for row in values[1:]:
-            if len(row) > 1 and row[1].strip():
-                name = row[1].strip()
-                email = row[2].strip() if len(row) > 2 else ''
-                out[name] = email
-        _data_cache['customer_emails']      = out
-        _data_cache['customer_emails_time'] = now
-        return out
-    except Exception as e:
-        print("Error getting customer emails from sheet:", e)
-        # Return stale data if available rather than an empty dict
-        if _data_cache['customer_emails'] is not None:
-            return _data_cache['customer_emails']
-        return {}
+    _data_cache['customer_emails'] = out
+    _data_cache['customer_emails_time'] = now
+    return out
 
 # Helper to ensure customers sheet has phone column D and address column E
 def ensure_customer_columns():
@@ -720,6 +735,7 @@ def rename_customer_in_sheets(old_name, new_name):
             for cm in cmaps:
                 cm.customer = new_n
             db.session.commit()
+            clear_cache()
             print(f"[db] Cascaded customer rename from '{old_name}' to '{new_name}' in DB.")
         except Exception as e:
             db.session.rollback()
@@ -768,42 +784,50 @@ def rename_customer_in_sheets(old_name, new_name):
         print("Error renaming customer in Scan Log:", e)
 
 
-# ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ System Settings helpers ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ System Settings helpers ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
 SETTINGS_SHEET_NAME = "Settings"
 
 def get_setting(key, default_value):
-    """Gets setting from DB first, then from Google Sheets, with fallback."""
+    """Gets setting from memory cache first, then DB, then Google Sheets, with fallback."""
+    now = time.time()
+    if key in _settings_cache and (now - _settings_cache[key]['time']) < CACHE_TTL:
+        return _settings_cache[key]['value']
+
+    val_found = None
     if os.environ.get('DATABASE_URL'):
         try:
             s = SystemSetting.query.filter_by(key=key).first()
             if s:
-                return s.value
+                val_found = s.value
         except Exception as e:
             print("[settings] Error reading setting from DB:", e)
             
     # Try reading from Sheets if not found in DB
-    global doc
-    if doc:
-        try:
-            ws = doc.worksheet(SETTINGS_SHEET_NAME)
-            records = ws.get_all_values()
-            for r in records:
-                if len(r) >= 2 and r[0].strip().lower() == key.strip().lower():
-                    val = r[1].strip()
-                    # Cache in DB if possible
-                    if os.environ.get('DATABASE_URL') and val:
-                        try:
-                            s = SystemSetting(key=key, value=val)
-                            db.session.add(s)
-                            db.session.commit()
-                        except Exception:
-                            db.session.rollback()
-                    return val
-        except Exception:
-            # Settings worksheet might not exist yet
-            pass
-            
-    return default_value
+    if val_found is None:
+        global doc
+        if doc:
+            try:
+                ws = doc.worksheet(SETTINGS_SHEET_NAME)
+                records = ws.get_all_values()
+                for r in records:
+                    if len(r) >= 2 and r[0].strip().lower() == key.strip().lower():
+                        val_found = r[1].strip()
+                        # Cache in DB if possible
+                        if os.environ.get('DATABASE_URL') and val_found:
+                            try:
+                                s = SystemSetting(key=key, value=val_found)
+                                db.session.add(s)
+                                db.session.commit()
+                                clear_cache()
+                            except Exception:
+                                db.session.rollback()
+                        break
+            except Exception as e:
+                print(f"[settings] Error reading '{key}' from sheets:", e)
+    
+    final_val = val_found if val_found is not None else default_value
+    _settings_cache[key] = {'value': final_val, 'time': now}
+    return final_val
 
 def set_setting(key, value):
     """Sets setting in DB and updates Google Sheets in the background."""
@@ -816,6 +840,7 @@ def set_setting(key, value):
             else:
                 s.value = value
             db.session.commit()
+            clear_cache()
         except Exception as e:
             db.session.rollback()
             print("[settings] Error saving setting to DB:", e)
@@ -849,138 +874,138 @@ def set_setting(key, value):
     async_sheets_write(background_save_setting_sheets)
 
 
-# ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Cylinder Registry helpers ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
+# ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ Cylinder Registry helpers ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬Â Ã¢â€šÂ¬
 def get_all_cylinders():
     """Returns list of dicts from Cylinders table, falling back to Sheets."""
-    global cyl_ws
-    if os.environ.get('DATABASE_URL'):
-        try:
-            cyls = Cylinder.query.all()
-            return [{
-                'uid'           : c.uid,
-                'gas_type'      : c.gas_type or '',
-                'cylinder_type' : c.cylinder_type or '',
-                'owner'         : c.owner or '',
-                'status'        : c.status or 'Active',
-                'location'      : c.location or 'Depot',
-                'last_activity' : c.last_activity_date or '',
-            } for c in cyls]
-        except Exception as e:
-            print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
-
     now = time.time()
     if _data_cache['cylinders'] is not None and (now - _data_cache['cylinders_time']) < CACHE_TTL:
         return _data_cache['cylinders']
 
-    try:
-        if cyl_ws is None:
-            if doc:
-                try:
-                    cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
-                except Exception:
-                    return []
-            else:
-                return []
-        rows = cyl_ws.get_all_values()
-        if len(rows) < 2:
-            return []
-        out = []
-        for r in rows[1:]:
-            if len(r) >= 1 and r[0].strip():
-                out.append({
-                    'uid'           : r[0].strip() if len(r) > 0 else '',
-                    'gas_type'      : r[1].strip() if len(r) > 1 else '',
-                    'cylinder_type' : r[2].strip() if len(r) > 2 else '',
-                    'owner'         : r[3].strip() if len(r) > 3 else '',
-                    'status'        : r[4].strip() if len(r) > 4 else 'Active',
-                    'location'      : r[5].strip() if len(r) > 5 else 'Depot',
-                    'last_activity' : r[6].strip() if len(r) > 6 else '',
-                })
-        _data_cache['cylinders']      = out
+    out = None
+    if os.environ.get('DATABASE_URL'):
+        try:
+            cyls = Cylinder.query.all()
+            if cyls:
+                out = [{
+                    'uid'           : c.uid,
+                    'gas_type'      : c.gas_type or '',
+                    'cylinder_type' : c.cylinder_type or '',
+                    'owner'         : c.owner or '',
+                    'status'        : c.status or 'Active',
+                    'location'      : c.location or 'Depot',
+                    'last_activity' : c.last_activity_date or '',
+                } for c in cyls]
+        except Exception as e:
+            print("[db] Error getting cylinders from DB, falling back to Sheets:", e)
+
+    if out is None:
+        global cyl_ws
+        try:
+            if cyl_ws is None:
+                if doc:
+                    try:
+                        cyl_ws = doc.worksheet(CYLINDER_SHEET_NAME)
+                    except Exception:
+                        pass
+            if cyl_ws is not None:
+                rows = cyl_ws.get_all_values()
+                if len(rows) >= 2:
+                    out = []
+                    for r in rows[1:]:
+                        if len(r) >= 1 and r[0].strip():
+                            out.append({
+                                'uid'           : r[0].strip() if len(r) > 0 else '',
+                                'gas_type'      : r[1].strip() if len(r) > 1 else '',
+                                'cylinder_type' : r[2].strip() if len(r) > 2 else '',
+                                'owner'         : r[3].strip() if len(r) > 3 else '',
+                                'status'        : r[4].strip() if len(r) > 4 else 'Active',
+                                'location'      : r[5].strip() if len(r) > 5 else 'Depot',
+                                'last_activity' : r[6].strip() if len(r) > 6 else '',
+                            })
+        except Exception as e:
+            print("Error reading cylinders sheet:", e)
+
+    if out is None:
+        out = _data_cache['cylinders'] if _data_cache['cylinders'] is not None else []
+    else:
+        _data_cache['cylinders'] = out
         _data_cache['cylinders_time'] = now
-        return out
-    except Exception as e:
-        print("Error getting cylinders:", e)
-        # Return stale data if available
-        if _data_cache['cylinders'] is not None:
-            return _data_cache['cylinders']
-        return []
+
+    return out
 
 def get_all_maintenance():
     """Returns dict of {uid: maintenance_dict} from Cylinder Maintenance table, falling back to Sheets."""
-    global cyl_maint_ws
-    if os.environ.get('DATABASE_URL'):
-        try:
-            maints = CylinderMaintenance.query.all()
-            out = {}
-            for m in maints:
-                if m.cylinder_uid:
-                    out[m.cylinder_uid] = {
-                        'uid'              : m.cylinder_uid,
-                        'water_capacity'   : m.water_capacity or '',
-                        'fill_pressure'    : m.fill_pressure or '',
-                        'gas_capacity'     : m.gas_capacity or '',
-                        'unit'             : m.unit or '',
-                        'is_mixture'       : m.is_mixture or 'No',
-                        'mix_ratio'        : m.mix_ratio or '',
-                        'manufacture_date' : m.manufacture_date or '',
-                        'last_hydro_date'  : m.last_hydro_date or '',
-                        'next_hydro_due'   : m.next_hydro_due or '',
-                        'hydro_test_status': m.hydro_test_status or '',
-                        'cert_no'          : m.cert_no or '',
-                        'is_uhp'           : m.is_uhp or 'No',
-                    }
-            return out
-        except Exception as e:
-            print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
-
     now = time.time()
     if _data_cache['maintenance'] is not None and (now - _data_cache['maintenance_time']) < CACHE_TTL:
         return _data_cache['maintenance']
-        print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
 
-    try:
-        if cyl_maint_ws is None:
-            if doc:
-                try:
-                    cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
-                except Exception:
-                    return {}
-            else:
-                return {}
-        rows = cyl_maint_ws.get_all_values()
-        if len(rows) < 2:
-            return {}
-        out = {}
-        for r in rows[1:]:
-            uid = r[0].strip() if len(r) > 0 else ''
-            if not uid:
-                continue
-            out[uid] = {
-                'uid'              : uid,
-                'water_capacity'   : r[1].strip() if len(r) > 1 else '',
-                'fill_pressure'    : r[2].strip() if len(r) > 2 else '',
-                'gas_capacity'     : r[3].strip() if len(r) > 3 else '',
-                'unit'             : r[4].strip() if len(r) > 4 else '',
-                'is_mixture'       : r[5].strip() if len(r) > 5 else 'No',
-                'mix_ratio'        : r[6].strip() if len(r) > 6 else '',
-                'manufacture_date' : r[7].strip() if len(r) > 7 else '',
-                'last_hydro_date'  : r[8].strip() if len(r) > 8 else '',
-                'next_hydro_due'   : r[9].strip() if len(r) > 9 else '',
-                'hydro_test_status': r[10].strip() if len(r) > 10 else '',
-                'cert_no'          : r[11].strip() if len(r) > 11 else '',
-                'is_uhp'           : r[12].strip() if len(r) > 12 else 'No',
-            }
-        _data_cache['maintenance']      = out
+    out = None
+    if os.environ.get('DATABASE_URL'):
+        try:
+            maints = CylinderMaintenance.query.all()
+            if maints:
+                out = {}
+                for m in maints:
+                    if m.cylinder_uid:
+                        out[m.cylinder_uid] = {
+                            'uid'              : m.cylinder_uid,
+                            'water_capacity'   : m.water_capacity or '',
+                            'fill_pressure'    : m.fill_pressure or '',
+                            'gas_capacity'     : m.gas_capacity or '',
+                            'unit'             : m.unit or '',
+                            'is_mixture'       : m.is_mixture or 'No',
+                            'mix_ratio'        : m.mix_ratio or '',
+                            'manufacture_date' : m.manufacture_date or '',
+                            'last_hydro_date'  : m.last_hydro_date or '',
+                            'next_hydro_due'   : m.next_hydro_due or '',
+                            'hydro_test_status': m.hydro_test_status or '',
+                            'cert_no'          : m.cert_no or '',
+                            'is_uhp'           : m.is_uhp or 'No',
+                        }
+        except Exception as e:
+            print("[db] Error getting maintenance data from DB, falling back to Sheets:", e)
+
+    if out is None:
+        global cyl_maint_ws
+        try:
+            if cyl_maint_ws is None:
+                if doc:
+                    try:
+                        cyl_maint_ws = doc.worksheet(CYLINDER_MAINT_NAME)
+                    except Exception:
+                        pass
+            if cyl_maint_ws is not None:
+                rows = cyl_maint_ws.get_all_values()
+                if len(rows) >= 2:
+                    out = {}
+                    for r in rows[1:]:
+                        if len(r) >= 1 and r[0].strip():
+                            uid = r[0].strip()
+                            out[uid] = {
+                                'uid'              : uid,
+                                'water_capacity'   : r[1].strip() if len(r) > 1 else '',
+                                'fill_pressure'    : r[2].strip() if len(r) > 2 else '',
+                                'gas_capacity'     : r[3].strip() if len(r) > 3 else '',
+                                'unit'             : r[4].strip() if len(r) > 4 else '',
+                                'is_mixture'       : r[5].strip() if len(r) > 5 else 'No',
+                                'mix_ratio'        : r[6].strip() if len(r) > 6 else '',
+                                'manufacture_date' : r[7].strip() if len(r) > 7 else '',
+                                'last_hydro_date'  : r[8].strip() if len(r) > 8 else '',
+                                'next_hydro_due'   : r[9].strip() if len(r) > 9 else '',
+                                'hydro_test_status': r[10].strip() if len(r) > 10 else '',
+                                'cert_no'          : r[11].strip() if len(r) > 11 else '',
+                                'is_uhp'           : r[12].strip() if len(r) > 12 else 'No',
+                            }
+        except Exception as e:
+            print("Error getting maintenance data:", e)
+
+    if out is None:
+        out = _data_cache['maintenance'] if _data_cache['maintenance'] is not None else {}
+    else:
+        _data_cache['maintenance'] = out
         _data_cache['maintenance_time'] = now
-        return out
-    except Exception as e:
-        print("Error getting maintenance data:", e)
-        # Return stale data if available
-        if _data_cache['maintenance'] is not None:
-            return _data_cache['maintenance']
-        return {}
-        return {}
+
+    return out
 
 def compute_hydro_badge(next_hydro_due_str):
     """Returns ('OK'|'Due Soon'|'Overdue'|'Not Set') based on next_hydro_due date string."""
@@ -1124,7 +1149,7 @@ def find_cylinder_rows(uid):
 
 
 # In-memory TTL data cache configurations
-# TTL is 60 s ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â all write routes call clear_cache() immediately after mutating
+# TTL is 60s - all write routes call clear_cache() immediately after mutating
 # data, so the dashboard is never stale after an intentional change.
 _data_cache = {
     'scans'              : None, 'scans_time'          : 0,
@@ -1133,13 +1158,21 @@ _data_cache = {
     'maintenance'        : None, 'maintenance_time'    : 0,
     'customer_names'     : None, 'customer_names_time' : 0,
     'customer_emails'    : None, 'customer_emails_time': 0,
+    'customer_info'      : None, 'customer_info_time'  : 0,
+    'products'           : None, 'products_time'       : 0,
+    'events'             : None, 'events_time'         : 0,
+    'outstanding'        : None, 'outstanding_time'    : 0,
+    'aging'              : None, 'aging_time'          : 0,
+    'movement'           : None, 'movement_time'       : 0,
 }
-CACHE_TTL = 60  # seconds (was 10 ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â safe to raise because writes always clear the cache)
+_settings_cache = {}
+CACHE_TTL = 60  # seconds
 
 def clear_cache():
-    """Wipes every cached value so the next read fetches fresh data from Sheets."""
+    """Wipes every cached value so the next read fetches fresh data."""
     for key in list(_data_cache.keys()):
         _data_cache[key] = 0 if key.endswith('_time') else None
+    _settings_cache.clear()
 
 def sheets_write_with_retry(fn, *args, retries=3, **kwargs):
     """Call a gspread write function with exponential-backoff retry.
@@ -1280,6 +1313,7 @@ def check_login(username, password):
                         try:
                             u.password = generate_password_hash(password)
                             db.session.commit()
+                            clear_cache()
                             print(f"[security] Successfully auto-upgraded password hash for user: {u.username}")
                         except Exception as upgrade_err:
                             db.session.rollback()
@@ -1347,11 +1381,16 @@ def fmt_date(value):
 
 def get_scan_rows():
     """List of dicts from Sheet1: date, time, driver, action, uid, customer, gas_type (cached)"""
+    now = time.time()
+    if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
+        return _data_cache['scans']
+
+    out = None
     if os.environ.get('DATABASE_URL'):
         try:
             scans = Scan.query.all()
             if scans:
-                return [{
+                out = [{
                     'date': s.scan_date,
                     'time': s.scan_time or '',
                     'driver': s.driver or '',
@@ -1363,42 +1402,45 @@ def get_scan_rows():
         except Exception as e:
             print("[db] Error reading scans from DB, falling back to Sheets:", e)
 
-    now = time.time()
-    if _data_cache['scans'] is not None and (now - _data_cache['scans_time']) < CACHE_TTL:
-        return _data_cache['scans']
+    if out is None:
+        try:
+            if scan_ws is not None:
+                rows = scan_ws.get_all_values()
+                out = []
+                for r in rows[1:]:
+                    if len(r) >= 5 and r[4].strip():
+                        out.append({
+                            'date'  : r[0].strip(),
+                            'time'  : r[1].strip(),
+                            'driver': r[2].strip(),
+                            'action': r[3].strip(),
+                            'uid'   : r[4].strip(),
+                            'customer': r[5].strip() if len(r) > 5 else '',
+                            'gas_type': r[6].strip() if len(r) > 6 else ''
+                        })
+        except Exception as e:
+            print("Error reading scans:", e)
 
-    try:
-        if scan_ws is None:
-            return []
-        rows = scan_ws.get_all_values()
-        out  = []
-        for r in rows[1:]:
-            if len(r) >= 5 and r[4].strip():
-                out.append({
-                    'date'  : r[0].strip(),
-                    'time'  : r[1].strip(),
-                    'driver': r[2].strip(),
-                    'action': r[3].strip(),
-                    'uid'   : r[4].strip(),
-                    'customer': r[5].strip() if len(r) > 5 else '',
-                    'gas_type': r[6].strip() if len(r) > 6 else ''
-                })
+    if out is None:
+        out = _data_cache['scans'] if _data_cache['scans'] is not None else []
+    else:
         _data_cache['scans'] = out
         _data_cache['scans_time'] = now
-        return out
-    except Exception as e:
-        print("Error reading scans:", e)
-        if _data_cache['scans'] is not None:
-            return _data_cache['scans']
-        return []
+
+    return out
 
 def get_map_rows():
     """List of dicts from Customer Map: date, time, driver, action, customer (cached)"""
+    now = time.time()
+    if _data_cache['map'] is not None and (now - _data_cache['map_time']) < CACHE_TTL:
+        return _data_cache['map']
+
+    out = None
     if os.environ.get('DATABASE_URL'):
         try:
             maps = CustomerMap.query.all()
             if maps:
-                return [{
+                out = [{
                     'date': m.scan_date,
                     'time': m.scan_time or '',
                     'driver': m.driver or '',
@@ -1408,33 +1450,30 @@ def get_map_rows():
         except Exception as e:
             print("[db] Error reading map from DB, falling back to Sheets:", e)
 
-    now = time.time()
-    if _data_cache['map'] is not None and (now - _data_cache['map_time']) < CACHE_TTL:
-        return _data_cache['map']
-        print("[db] Error reading map from DB, falling back to Sheets:", e)
+    if out is None:
+        try:
+            if map_ws is not None:
+                rows = map_ws.get_all_values()
+                out = []
+                for r in rows[1:]:
+                    if len(r) >= 7 and r[6].strip():
+                        out.append({
+                            'date'    : r[0].strip(),
+                            'time'    : r[1].strip(),
+                            'driver'  : r[2].strip(),
+                            'action'  : r[3].strip(),
+                            'customer': r[6].strip()
+                        })
+        except Exception as e:
+            print("Error reading map:", e)
 
-    try:
-        if map_ws is None:
-            return []
-        rows = map_ws.get_all_values()
-        out  = []
-        for r in rows[1:]:
-            if len(r) >= 7 and r[6].strip():
-                out.append({
-                    'date'    : r[0].strip(),
-                    'time'    : r[1].strip(),
-                    'driver'  : r[2].strip(),
-                    'action'  : r[3].strip(),
-                    'customer': r[6].strip()
-                })
+    if out is None:
+        out = _data_cache['map'] if _data_cache['map'] is not None else []
+    else:
         _data_cache['map'] = out
         _data_cache['map_time'] = now
-        return out
-    except Exception as e:
-        print("Error reading map:", e)
-        if _data_cache['map'] is not None:
-            return _data_cache['map']
-        return []
+
+    return out
 
 def build_batch_map():
     """dict: 'date||time||driver||action' ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ customer"""
@@ -1446,6 +1485,10 @@ def build_batch_map():
 
 def build_events():
     """Sorted list of scan events enriched with customer name"""
+    now = time.time()
+    if _data_cache['events'] is not None and (now - _data_cache['events_time']) < CACHE_TTL:
+        return _data_cache['events']
+
     batch_map = build_batch_map()
     events    = []
     for r in get_scan_rows():
@@ -1457,6 +1500,9 @@ def build_events():
             continue
         events.append({**r, 'customer': customer, 'date_obj': parse_date(r['date'])})
     events.sort(key=lambda x: (x['date_obj'] or date.min, x['time']))
+    
+    _data_cache['events'] = events
+    _data_cache['events_time'] = now
     return events
 
 def get_activity_events():
@@ -1596,6 +1642,10 @@ def get_mapping_mismatches():
 
 def build_outstanding():
     """Outstanding cylinders per customer"""
+    now = time.time()
+    if _data_cache['outstanding'] is not None and (now - _data_cache['outstanding_time']) < CACHE_TTL:
+        return _data_cache['outstanding']
+
     events          = build_events()
     cylinder_owner  = {}
     customer_stats  = {}
@@ -1627,16 +1677,22 @@ def build_outstanding():
             'total_delivered': stats['total_delivered'],
             'total_collected': stats['total_collected'],
             'outstanding'    : len(uid_list),
-            'cylinder_uids'  : uid_list,              # list ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â for template iteration
-            'uids'           : ', '.join(uid_list) if uid_list else 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â',  # string fallback
+            'cylinder_uids'  : uid_list,              # list for template iteration
+            'uids'           : ', '.join(uid_list) if uid_list else '—',  # string fallback
             'last_activity'  : stats['last_activity']
         })
 
     result.sort(key=lambda x: x['outstanding'], reverse=True)
+    _data_cache['outstanding'] = result
+    _data_cache['outstanding_time'] = now
     return result
 
 def build_aging():
     """Days outstanding per cylinder currently with a customer"""
+    now = time.time()
+    if _data_cache['aging'] is not None and (now - _data_cache['aging_time']) < CACHE_TTL:
+        return _data_cache['aging']
+
     events                 = build_events()
     cylinder_owner         = {}
     cylinder_delivery_date = {}
@@ -1664,16 +1720,18 @@ def build_aging():
             'uid'          : uid,          # kept for backward compat
             'customer'     : cust,
             'delivered_on' : fmt_date(d_date),   # matches aging.html template
-            'delivery_date': fmt_date(d_date),   # kept for backward compat
-            'days_out'     : days_out,
+            'date'         : fmt_date(d_date),   # kept for backward compat
+            'days_out'     : days_out if days_out is not None else 0,
             'status'       : status
         })
 
-    result.sort(key=lambda x: (x['days_out'] or 0), reverse=True)
+    result.sort(key=lambda x: x['days_out'], reverse=True)
+    _data_cache['aging'] = result
+    _data_cache['aging_time'] = now
     return result
 
 def build_rotation(from_date=None, to_date=None, gas_filter='', customer_filter='', direction_filter=''):
-    """Builds cylinder rotation data ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â every in/out movement event in a date range.
+    """Builds cylinder rotation data ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â  every in/out movement event in a date range.
 
     Direction logic:
       'out'  = Delivery (cylinder left depot to customer)
@@ -1829,6 +1887,10 @@ def build_driver_stats():
 
 def build_daily_movement():
     """Cylinders delivered vs collected per day (last 30 days)"""
+    now = time.time()
+    if _data_cache['movement'] is not None and (now - _data_cache['movement_time']) < CACHE_TTL:
+        return _data_cache['movement']
+
     scan_rows = get_scan_rows()
     daily     = {}
 
@@ -1840,7 +1902,11 @@ def build_daily_movement():
         elif r['action'] == 'Collection': daily[d]['collected'] += 1
 
     result = sorted(daily.values(), key=lambda x: x['date_obj'] or date.min)
-    return result[-30:]
+    final_res = result[-30:]
+    
+    _data_cache['movement'] = final_res
+    _data_cache['movement_time'] = now
+    return final_res
 
 def get_cylinder_history(uid):
     """Full event history for a single cylinder UID"""
@@ -2176,6 +2242,8 @@ def delete_activity():
                     db.session.delete(cmap)
 
             db.session.commit()
+
+            clear_cache()
             db_written = True
             
         except Exception as dbe:
@@ -2507,6 +2575,7 @@ def admin_products_save():
                 )
                 db.session.add(p_db)
             db.session.commit()
+            clear_cache()
             db_written = True
             print(f"[db] Saved {len(rows)} products to database.")
         except Exception as dbe:
@@ -2818,6 +2887,8 @@ def admin_update_mapping():
                             c_db.location = customer_val
 
                 db.session.commit()
+
+                clear_cache()
                 db_written = True
                 print(f"[db] Mapped customer {customer_val} to batch, individual scans, and cylinders in DB.")
             except Exception as dbe:
@@ -2920,6 +2991,7 @@ def admin_send_receipt():
                     db_record.send_receipt = True
                     db_record.receipt_status = "Sending..."
                     db.session.commit()
+                    clear_cache()
                     db_written = True
                     print("[db] Triggered send receipt in database.")
             except Exception as dbe:
@@ -3007,6 +3079,7 @@ def admin_receipt_status():
                                     db_record.receipt_status = sheet_status
                                     db_record.send_receipt = send_receipt.upper() in ('TRUE', '1', 'YES')
                                     db.session.commit()
+                                    clear_cache()
                                     print(f"[db] Mirrored receipt status from Sheets to DB: {sheet_status}")
                                 except Exception as dbe2:
                                     db.session.rollback()
@@ -3440,6 +3513,7 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
                     )
                     db.session.add(bt)
                 db.session.commit()
+                clear_cache()
                 db_written = True
                 print(f"[db] Updated bulk tank stock for {gas_name} on {date_str} in DB.")
             except Exception as dbe:
@@ -3865,6 +3939,7 @@ def admin_cylinders_bulk_delete():
                 CylinderMaintenance.query.filter(CylinderMaintenance.cylinder_uid.in_(uids_to_delete)).delete(synchronize_session=False)
                 Cylinder.query.filter(Cylinder.uid.in_(uids_to_delete)).delete(synchronize_session=False)
                 db.session.commit()
+                clear_cache()
                 print(f"[db] Bulk deleted {len(uids_to_delete)} cylinders from PostgreSQL.")
             except Exception as dbe:
                 db.session.rollback()
@@ -4047,6 +4122,8 @@ def admin_cylinders_upload():
             added += 1
             
         db.session.commit()
+            
+        clear_cache()
         
         if added > 0:
             def background_upload_sheets():
@@ -4134,6 +4211,7 @@ def admin_cylinders_add():
                     )
                     db.session.add(m_db)
                     db.session.commit()
+                    clear_cache()
                     db_written = True
                     print(f"[db] Added cylinder {uid} to PostgreSQL database.")
                 except Exception as dbe:
@@ -4218,6 +4296,7 @@ def admin_cylinders_delete(uid):
                 if m_db:
                     db.session.delete(m_db)
                 db.session.commit()
+                clear_cache()
                 print(f"[db] Deleted cylinder {uid} from PostgreSQL.")
             except Exception as dbe:
                 db.session.rollback()
@@ -4312,6 +4391,8 @@ def admin_cylinders_edit(uid):
                     m_db.is_uhp = 'Yes' if data.get('is_uhp') == 'Yes' else 'No'
                     
                     db.session.commit()
+                    
+                    clear_cache()
                     db_written = True
                     print(f"[db] Updated cylinder {uid} in PostgreSQL database.")
                 except Exception as dbe:
@@ -4481,6 +4562,8 @@ def admin_mark_collected():
                     db.session.add(cmap)
                     
                 db.session.commit()
+                    
+                clear_cache()
                 db_written = True
                 print(f"[db] Logged manual collection scan and updated cylinder {uid} status in DB.")
             except Exception as dbe:
@@ -4659,6 +4742,8 @@ def admin_bulk_collect():
                     db.session.add(cmap)
                     
                 db.session.commit()
+                    
+                clear_cache()
                 db_written = True
                 print(f"[db] Logged bulk collection scans ({len(uids)}) and updated cylinder status in DB.")
             except Exception as dbe:
@@ -4716,48 +4801,58 @@ def admin_bulk_collect():
 
 def get_all_customer_info():
     """Returns list of dicts from Customers database table, falling back to Sheets: {id, name, email, phone, address, cold_call_done}"""
+    now = time.time()
+    if _data_cache['customer_info'] is not None and (now - _data_cache['customer_info_time']) < CACHE_TTL:
+        return _data_cache['customer_info']
+
+    out = None
     try:
         if os.environ.get('DATABASE_URL'):
             customers = Customer.query.all()
-            return [{
-                'id'             : c.customer_id,
-                'name'           : c.name,
-                'email'          : c.email or '',
-                'phone'          : c.phone or '',
-                'address'        : c.address or '',
-                'gst_number'     : c.gst_number or '',
-                'cold_call_done' : bool(c.cold_call_done),
-            } for c in customers]
+            if customers:
+                out = [{
+                    'id'             : c.customer_id,
+                    'name'           : c.name,
+                    'email'          : c.email or '',
+                    'phone'          : c.phone or '',
+                    'address'        : c.address or '',
+                    'gst_number'     : c.gst_number or '',
+                    'cold_call_done' : bool(c.cold_call_done),
+                } for c in customers]
     except Exception as e:
         print('[db] Error getting customer info from DB, falling back to Sheets:', e)
 
-    try:
-        if customer_ws is None:
-            return []
-        values = customer_ws.get_all_values()
-        if len(values) < 2:
-            return []
-        out = []
-        for i, row in enumerate(values[1:], start=1):
-            if len(row) < 2 or not row[1].strip():
-                continue
-            is_done = False
-            if len(row) > 5:
-                val = row[5].strip().upper()
-                is_done = (val in ('ON', 'TRUE', '1', 'YES'))
-            out.append({
-                'id'             : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
-                'name'           : row[1].strip() if len(row) > 1 else '',
-                'email'          : row[2].strip() if len(row) > 2 else '',
-                'phone'          : row[3].strip() if len(row) > 3 else '',
-                'address'        : row[4].strip() if len(row) > 4 else '',
-                'gst_number'     : row[6].strip() if len(row) > 6 else '', # Column G
-                'cold_call_done' : is_done,
-            })
-        return out
-    except Exception as e:
-        print('Error getting customer info from sheet:', e)
-        return []
+    if out is None:
+        try:
+            if customer_ws is not None:
+                values = customer_ws.get_all_values()
+                if len(values) >= 2:
+                    out = []
+                    for i, row in enumerate(values[1:], start=1):
+                        if len(row) < 2 or not row[1].strip():
+                            continue
+                        is_done = False
+                        if len(row) > 5:
+                            val = row[5].strip().upper()
+                            is_done = (val in ('ON', 'TRUE', '1', 'YES'))
+                        out.append({
+                            'id'             : row[0].strip() if len(row) > 0 else f'C{str(i).zfill(3)}',
+                            'name'           : row[1].strip() if len(row) > 1 else '',
+                            'email'          : row[2].strip() if len(row) > 2 else '',
+                            'phone'          : row[3].strip() if len(row) > 3 else '',
+                            'address'        : row[4].strip() if len(row) > 4 else '',
+                            'gst_number'     : row[6].strip() if len(row) > 6 else '', # Column G
+                            'cold_call_done' : is_done,
+                        })
+        except Exception as e:
+            print('Error getting customer info from sheet:', e)
+
+    if out is None:
+        out = _data_cache['customer_info'] if _data_cache['customer_info'] is not None else []
+    else:
+        _data_cache['customer_info'] = out
+        _data_cache['customer_info_time'] = now
+    return out
 
 def build_customer_outstanding_detail(customer_name):
     """
@@ -4916,6 +5011,7 @@ def admin_users_add():
             new_user = User(username=username, name=name, password=hashed_pw, role=role)
             db.session.add(new_user)
             db.session.commit()
+            clear_cache()
             
             # Local background sync function
             def background_add_user_sheets():
@@ -4984,6 +5080,8 @@ def admin_users_edit(user_id):
                 hashed_pw = target_user.password
                 
             db.session.commit()
+                
+            clear_cache()
             
             # Local background sync function
             def background_edit_user_sheets():
@@ -5043,6 +5141,7 @@ def admin_users_delete(user_id):
     try:
         db.session.delete(target_user)
         db.session.commit()
+        clear_cache()
         
         # Local background sync function
         def background_delete_user_sheets():
@@ -5242,6 +5341,7 @@ def admin_customers_add():
                     )
                     db.session.add(cust_db)
                     db.session.commit()
+                    clear_cache()
                     db_written = True
                     print(f"[db] Added customer {name} to PostgreSQL.")
                 except Exception as dbe:
@@ -5343,6 +5443,7 @@ def admin_customers_edit(customer_name):
                         c_db.address = address
                         c_db.gst_number = gst_number
                         db.session.commit()
+                        clear_cache()
                         db_written = True
                         print(f"[db] Updated customer {name} in PostgreSQL.")
                 except Exception as dbe:
@@ -5409,6 +5510,7 @@ def admin_customers_delete(customer_name):
                 if c_db:
                     db.session.delete(c_db)
                     db.session.commit()
+                    clear_cache()
                     db_deleted = True
                     print(f"[db] Deleted customer {customer_name} from PostgreSQL.")
             except Exception as dbe:
@@ -5480,6 +5582,7 @@ def admin_api_cold_call_toggle():
                 cust.cold_call_done = not cust.cold_call_done
                 new_state = cust.cold_call_done
                 db.session.commit()
+                clear_cache()
                 db_written = True
         except Exception as e:
             db.session.rollback()
@@ -5526,6 +5629,7 @@ def admin_api_cold_call_reset_all():
         try:
             Customer.query.update({Customer.cold_call_done: False})
             db.session.commit()
+            clear_cache()
             db_written = True
         except Exception as e:
             db.session.rollback()
@@ -5632,6 +5736,7 @@ def admin_api_dura_fill():
             )
             db.session.add(hist)
             db.session.commit()
+            clear_cache()
             db_written = True
             print(f"[db] Refill registered for {uid} in DB.")
         except Exception as e:
@@ -5814,6 +5919,7 @@ def admin_offers_delete(offer_id):
         offer = CommercialOffer.query.get_or_404(offer_id)
         db.session.delete(offer)
         db.session.commit()
+        clear_cache()
         flash("Offer deleted successfully.", "success")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'offer_id': offer_id})
@@ -5896,6 +6002,7 @@ def _generate_offer_pdf(customer_name, saved_data=None):
             )
             db.session.add(offer)
             db.session.commit()
+            clear_cache()
         except Exception as e:
             db.session.rollback()
             print("[db] Error saving commercial offer:", e)
@@ -7197,6 +7304,7 @@ def admin_scanner_logs_delete(log_id):
     try:
         db.session.delete(log)
         db.session.commit()
+        clear_cache()
         flash("Scan log deleted successfully.", "success")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'log_id': log_id})
@@ -7222,6 +7330,7 @@ def admin_scanner_logs_bulk_delete():
     try:
         AdminScanLog.query.filter(AdminScanLog.id.in_(log_ids)).delete(synchronize_session=False)
         db.session.commit()
+        clear_cache()
         return jsonify({'success': True, 'message': f'Deleted {len(log_ids)} logs'})
     except Exception as e:
         db.session.rollback()
@@ -7304,6 +7413,7 @@ def admin_scanner_submit():
                         owner, last_act_str, days_out if days_out is not None else ""
                     ])
             db.session.commit()
+            clear_cache()
         except Exception as e:
             db.session.rollback()
             return jsonify({'error': str(e)}), 500
@@ -7338,6 +7448,7 @@ def admin_scanner_submit():
                     gas_type=gas
                 ))
             db.session.commit()
+            clear_cache()
         except Exception as e:
             db.session.rollback()
             print("[accounts] Error saving accounts batch:", e)
@@ -7400,6 +7511,7 @@ def accounts_batch_edit(batch_id):
     batch.notes = request.form.get('notes', batch.notes)
     try:
         db.session.commit()
+        clear_cache()
         flash('Batch updated successfully.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -7415,6 +7527,7 @@ def accounts_batch_mark_billed(batch_id):
     batch.billed_by = session.get('user', {}).get('name', 'Accounts')
     try:
         db.session.commit()
+        clear_cache()
         flash('Batch marked as Billed.', 'success')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'status': 'Billed', 'batch_id': batch_id})
@@ -7434,6 +7547,7 @@ def accounts_batch_unmark_billed(batch_id):
     batch.billed_by = None
     try:
         db.session.commit()
+        clear_cache()
         flash('Batch reverted to Pending.', 'success')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'status': 'Pending', 'batch_id': batch_id})
@@ -7451,6 +7565,7 @@ def accounts_batch_item_delete(batch_id, item_id):
     try:
         db.session.delete(item)
         db.session.commit()
+        clear_cache()
         flash('Cylinder removed from batch.', 'success')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'item_id': item_id, 'batch_id': batch_id})
@@ -7468,6 +7583,7 @@ def accounts_batch_delete(batch_id):
     try:
         db.session.delete(batch)
         db.session.commit()
+        clear_cache()
         flash('Batch deleted.', 'success')
     except Exception as e:
         db.session.rollback()
@@ -7536,6 +7652,7 @@ def admin_assign_job():
         )
         db.session.add(job)
         db.session.commit()
+        clear_cache()
         if is_ajax:
             ist_offset = timedelta(hours=5, minutes=30)
             assigned_at_ist = (job.assigned_at + ist_offset) if job.assigned_at else None
@@ -7568,6 +7685,7 @@ def admin_clear_driver_queue(username):
             driver_username=username, status='Pending'
         ).update({'status': 'Cancelled'})
         db.session.commit()
+        clear_cache()
         return jsonify({'ok': True})
     except Exception as e:
         db.session.rollback()
@@ -7594,6 +7712,7 @@ def admin_cancel_job(job_id):
             DriverJob.queue_position > pos
         ).update({'queue_position': DriverJob.queue_position - 1})
         db.session.commit()
+        clear_cache()
         if is_ajax:
             return jsonify({'ok': True})
         flash('Job cancelled.', 'success')
@@ -7625,6 +7744,7 @@ def admin_job_move_up(job_id):
             above.queue_position = job.queue_position
             job.queue_position = job.queue_position - 1
             db.session.commit()
+            clear_cache()
             if is_ajax:
                 return jsonify({'ok': True})
         elif is_ajax:
@@ -7655,6 +7775,7 @@ def admin_job_move_down(job_id):
             below.queue_position = job.queue_position
             job.queue_position = job.queue_position + 1
             db.session.commit()
+            clear_cache()
             if is_ajax:
                 return jsonify({'ok': True})
         elif is_ajax:
@@ -7792,6 +7913,7 @@ def admin_spares_add():
         )
         db.session.add(item)
         db.session.commit()
+        clear_cache()
         return jsonify({'success': True, 'item': item.to_dict() | {'id': item.id}})
     except Exception as e:
         db.session.rollback()
@@ -7819,6 +7941,7 @@ def admin_spares_restock(item_id):
         item.current_stock += qty
         db.session.add(txn)
         db.session.commit()
+        clear_cache()
         return jsonify({'success': True, 'new_stock': item.current_stock})
     except Exception as e:
         db.session.rollback()
@@ -7847,6 +7970,7 @@ def admin_spares_use(item_id):
         item.current_stock -= qty
         db.session.add(txn)
         db.session.commit()
+        clear_cache()
         return jsonify({'success': True, 'new_stock': item.current_stock})
     except Exception as e:
         db.session.rollback()
@@ -8085,6 +8209,7 @@ def admin_vehicles_new():
                 )
                 db.session.add(v)
                 db.session.commit()
+                clear_cache()
                 if is_ajax:
                     return jsonify({
                         'success': True,
@@ -8120,6 +8245,7 @@ def admin_vehicle_toggle_status(vehicle_id):
     v.updated_at = datetime.utcnow()
     try:
         db.session.commit()
+        clear_cache()
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': True, 'status': v.status})
     except Exception as e:
@@ -8340,6 +8466,7 @@ def admin_vehicle_edit(vehicle_id):
                 v.notes               = (form_data.get('notes') or '').strip()
                 v.updated_at          = datetime.utcnow()
                 db.session.commit()
+                clear_cache()
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
@@ -8362,6 +8489,7 @@ def admin_vehicle_delete(vehicle_id):
         if action == 'delete':
             db.session.delete(v)  # cascade deletes refuellings
             db.session.commit()
+            clear_cache()
             if is_ajax:
                 return jsonify({'success': True, 'action': 'delete', 'redirect': '/admin/vehicles'})
             return redirect('/admin/vehicles')
@@ -8369,6 +8497,7 @@ def admin_vehicle_delete(vehicle_id):
             v.status = 'inactive'
             v.updated_at = datetime.utcnow()
             db.session.commit()
+            clear_cache()
             if is_ajax:
                 return jsonify({'success': True, 'action': 'deactivate', 'status': 'inactive'})
             return redirect(f'/admin/vehicles/{vehicle_id}')
@@ -8414,6 +8543,7 @@ def admin_refuelling_new(vehicle_id):
                 )
                 db.session.add(ref)
                 db.session.commit()
+                clear_cache()
                 # Sheets sync (best-effort, non-blocking)
                 async_sheets_write(_sync_refuelling_to_sheets, v.vehicle_number, ref.to_dict())
                 return redirect(f'/admin/vehicles/{vehicle_id}')
@@ -8488,6 +8618,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 ref.payment_ref          = vals.get('payment_ref')
                 ref.notes                = (form_data.get('notes') or '').strip() or None
                 db.session.commit()
+                clear_cache()
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
@@ -8525,6 +8656,7 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
     try:
         db.session.delete(ref)
         db.session.commit()
+        clear_cache()
         if is_ajax:
             return jsonify({'success': True})
     except Exception as e:
@@ -8885,6 +9017,7 @@ def admin_refuelling_toggle_paid(refuelling_id):
         ref.paid_date = None
         ref.payment_ref = None
     db.session.commit()
+    clear_cache()
 
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
@@ -8941,6 +9074,7 @@ def admin_vehicles_pumps_mark_paid():
             updated_ids.append(r.id)
             total_amount += float(r.fuel_price_total or 0)
         db.session.commit()
+        clear_cache()
 
     if request.is_json or request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         return jsonify({
@@ -9086,6 +9220,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                         c_db.last_activity_date = s_date
                     # Unregistered cylinders: scan logged but no master Cylinder record created
             db.session.commit()
+            clear_cache()
             db_written = True
             print(f"[db] Logged {len(rows_to_append)} scans and updated cylinder registries in DB.")
         except Exception as dbe:
@@ -9097,6 +9232,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                     from sqlalchemy import text
                     db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
                     db.session.commit()
+                    clear_cache()
                     print("[db] Added missing entry_source column to scans table. Retrying insert...")
                     with db.session.no_autoflush:
                         for row_data in rows_to_append:
@@ -9131,6 +9267,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                                     c_db.location = 'Depot'
                                 c_db.last_activity_date = s_date
                     db.session.commit()
+                    clear_cache()
                     db_written = True
                     print("[db] Retry successful after adding entry_source column.")
                 except Exception as retry_err:
@@ -9227,6 +9364,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                     DriverJob.status == 'Pending'
                 ).update({'queue_position': DriverJob.queue_position - 1})
                 db.session.commit()
+                clear_cache()
         except Exception as je:
             db.session.rollback()
             print('[job] Error completing job:', je)
@@ -9442,6 +9580,8 @@ def api_admin_scan_submit_manual():
 
         db.session.commit()
 
+        clear_cache()
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -9478,6 +9618,7 @@ def api_admin_scan_submit_manual():
                 )
                 db.session.add(cmap_record)
                 db.session.commit()
+                clear_cache()
                 print(f"[receipts] Created CustomerMap record for manual batch ({len(parsed_scans)} items).")
 
                 # Background mirror to Customer Map Sheet
@@ -9553,6 +9694,8 @@ def api_admin_scan_submit_manual():
                     accounts_count += 1
 
                 db.session.commit()
+
+                clear_cache()
                 print(f"[accounts] Created manual batch {batch_ref} with {accounts_count} items.")
             except Exception as acct_err:
                 db.session.rollback()
