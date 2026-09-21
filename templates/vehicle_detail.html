@@ -382,9 +382,9 @@
         <thead>
           <tr>
             <th>Sr-no</th>
-            <th>Fule Date</th>
-            <th>Fule LTR</th>
-            <th>Fule Prices</th>
+            <th>Fuel Date</th>
+            <th>Fuel LTR</th>
+            <th>Fuel Price</th>
             <th>Start KM</th>
             <th>To</th>
             <th>End KM</th>
@@ -696,6 +696,77 @@
     });
   }
 
+  async function renderPerformanceCanvas(card) {
+    var h2c = await loadHtml2Canvas();
+    var tableEl = card.querySelector('.excel-table');
+    var tableWidth = 860;
+    if (tableEl) {
+      tableWidth = Math.max(tableEl.scrollWidth || 0, tableEl.offsetWidth || 0, 860);
+    }
+    var targetWidth = Math.max(tableWidth + 50, card.offsetWidth || 0, 940);
+    var winWidth = Math.max(targetWidth + 120, 1200);
+
+    return await h2c(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: targetWidth,
+      windowWidth: winWidth,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: function(clonedDoc) {
+        var clonedCard = clonedDoc.getElementById('perfAnalysisCard');
+        if (clonedCard) {
+          clonedCard.style.backgroundColor = '#ffffff';
+          clonedCard.style.boxShadow = 'none';
+          clonedCard.style.width = targetWidth + 'px';
+          clonedCard.style.minWidth = targetWidth + 'px';
+          clonedCard.style.maxWidth = targetWidth + 'px';
+          clonedCard.style.boxSizing = 'border-box';
+          clonedCard.style.padding = '20px 24px';
+          clonedCard.style.margin = '0 auto';
+
+          // Ensure parent wrappers in cloned document allow full width without clipping
+          var parent = clonedCard.parentElement;
+          while (parent && parent !== clonedDoc.body) {
+            parent.style.width = '100%';
+            parent.style.maxWidth = 'none';
+            parent.style.overflow = 'visible';
+            parent = parent.parentElement;
+          }
+          if (clonedDoc.body) {
+            clonedDoc.body.style.width = winWidth + 'px';
+            clonedDoc.body.style.overflow = 'visible';
+          }
+
+          var wrap = clonedCard.querySelector('.excel-perf-wrapper');
+          if (wrap) {
+            wrap.style.overflow = 'visible';
+            wrap.style.width = '100%';
+          }
+
+          var scrollWrap = clonedCard.querySelector('.excel-table-scroll');
+          if (scrollWrap) {
+            scrollWrap.scrollLeft = 0;
+            scrollWrap.style.overflow = 'visible';
+            scrollWrap.style.overflowX = 'visible';
+            scrollWrap.style.width = '100%';
+            scrollWrap.style.maxWidth = 'none';
+          }
+
+          var t = clonedCard.querySelector('.excel-table');
+          if (t) {
+            t.style.width = '100%';
+            t.style.minWidth = (targetWidth - 48) + 'px';
+          }
+        }
+        var pills = clonedDoc.querySelector('.perf-pills');
+        if (pills) pills.style.display = 'none';
+      }
+    });
+  }
+
   async function copyPerformanceImage() {
     var btn = document.getElementById('btnCopyImage');
     var card = document.getElementById('perfAnalysisCard');
@@ -711,22 +782,7 @@
     }
 
     try {
-      var h2c = await loadHtml2Canvas();
-      var canvas = await h2c(card, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        onclone: function(clonedDoc) {
-          var clonedCard = clonedDoc.getElementById('perfAnalysisCard');
-          if (clonedCard) {
-            clonedCard.style.backgroundColor = '#ffffff';
-            clonedCard.style.boxShadow = 'none';
-          }
-          var pills = clonedDoc.querySelector('.perf-pills');
-          if (pills) pills.style.display = 'none';
-        }
-      });
+      var canvas = await renderPerformanceCanvas(card);
 
       if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
         throw new Error('Direct clipboard copy is not supported in this browser. Falling back to download.');
@@ -787,22 +843,7 @@
     }
 
     try {
-      var h2c = await loadHtml2Canvas();
-      var canvas = await h2c(card, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        logging: false,
-        onclone: function(clonedDoc) {
-          var clonedCard = clonedDoc.getElementById('perfAnalysisCard');
-          if (clonedCard) {
-            clonedCard.style.backgroundColor = '#ffffff';
-            clonedCard.style.boxShadow = 'none';
-          }
-          var pills = clonedDoc.querySelector('.perf-pills');
-          if (pills) pills.style.display = 'none';
-        }
-      });
+      var canvas = await renderPerformanceCanvas(card);
 
       var vehNum = '{{ vehicle.vehicle_number }}'.replace(/[^a-zA-Z0-9_-]/g, '_');
       var dateStr = new Date().toISOString().slice(0, 10);
