@@ -294,7 +294,7 @@ Return exactly 5 bullet points, one per line, no numbering, no extra text."""
         if cached:
             import json
             return json.loads(cached), -2  # -2 = using stale cache
-        return [f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Could not generate insights: {str(e)[:100]}'], -1
+        return [f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Could not generate insights: {\'Failed, please try again.\'}'], -1
 
 
 # SQLAlchemy Database Configuration
@@ -1283,7 +1283,7 @@ Answer:"""
         return jsonify({'answer': answer})
     except Exception as e:
         print(f"[Groq] Chat error: {e}")
-        return jsonify({'answer': f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Error generating response: {str(e)[:120]}'}), 500
+        return jsonify({'answer': f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Error generating response: {\'Failed, please try again.\'}'}), 500
 
 
 def accounts_required(f):
@@ -1970,6 +1970,25 @@ def admin_api_mapping_mismatches():
 
 
 # ================================================================
+#  ERROR HANDLERS
+# ================================================================
+@app.errorhandler(500)
+def internal_error(error):
+    if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+        return jsonify({'success': False, 'error': 'Failed, please try again.', 'message': 'Failed, please try again.'}), 500
+    return render_template_string("""
+    {% extends "admin_base.html" %}
+    {% block title %}Error{% endblock %}
+    {% block content %}
+    <div style="text-align:center; padding: 50px; background:#fff; border-radius:12px; margin-top:20px; box-shadow:0 2px 8px rgba(0,0,0,0.05);">
+        <h2 style="color: #b91c1c; font-size: 24px; margin-bottom: 16px;">Action Failed</h2>
+        <p style="color: #666; font-size: 16px;">Something went wrong. Please try again.</p>
+        <button class="btn btn-primary" style="margin-top:24px; padding: 10px 24px;" onclick="window.history.back()">Go Back</button>
+    </div>
+    {% endblock %}
+    """), 500
+
+# ================================================================
 #  AUTH ROUTES
 # ================================================================
 
@@ -2047,9 +2066,9 @@ def admin_sync_from_sheets():
                 return jsonify({'success': False, 'message': 'Sheets document is not connected. Unable to sync.'}), 500
     except Exception as e:
         print("[sync] Manual sync error:", e)
-        flash(f"Sync error: {str(e)}", "danger")
+        flash(f"Sync error: {'Failed, please try again.'}", "danger")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'message': f'Sync error: {str(e)}'}), 500
+            return jsonify({'success': False, 'message': f'Sync error: {'Failed, please try again.'}'}), 500
         
     return redirect('/admin/dashboard')
 
@@ -2612,7 +2631,7 @@ def admin_products_save():
     except Exception as e:
         print("admin_products_save sheets error:", e)
         if not db_written:
-            return _jsonify({'ok': False, 'msg': str(e)}), 500
+            return _jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
         clear_cache()
         return _jsonify({'ok': True, 'msg': f'Saved {len(rows)} products to DB (failed mirroring to Sheets).'})
 
@@ -2922,7 +2941,7 @@ def admin_update_mapping():
         clear_cache()
         return jsonify({'status': 'Success', 'message': 'Customer mapped successfully'})
     except Exception as e:
-        return jsonify({'status': 'Error', 'message': str(e)})
+        return jsonify({'status': 'Error', 'message': 'Failed, please try again.'})
 
 @app.route('/admin/send_receipt', methods=['POST'])
 @admin_required
@@ -3025,7 +3044,7 @@ def admin_send_receipt():
         clear_cache()
         return jsonify({'status': 'Success', 'message': 'Receipt trigger sent'})
     except Exception as e:
-        return jsonify({'status': 'Error', 'message': str(e)})
+        return jsonify({'status': 'Error', 'message': 'Failed, please try again.'})
 
 @app.route('/admin/receipt_status')
 @admin_required
@@ -3104,7 +3123,7 @@ def admin_receipt_status():
 
         return jsonify({'status': 'Error', 'message': 'Batch row not found'})
     except Exception as e:
-        return jsonify({'status': 'Error', 'message': str(e)})
+        return jsonify({'status': 'Error', 'message': 'Failed, please try again.'})
 
 
 # ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ Inventory & Bulk Tanks Calculations ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -4019,7 +4038,7 @@ def admin_cylinders_bulk_delete():
         return "OK", 200
         
     except Exception as e:
-        return str(e), 500
+        return 'Failed, please try again.', 500
 
 @app.route('/admin/cylinders/upload', methods=['POST'])
 @admin_required
@@ -4152,7 +4171,7 @@ def admin_cylinders_upload():
         db.session.rollback()
         print(f"[bulk_upload] FATAL ERROR: {e}")
         traceback.print_exc()
-        flash(f"Error processing file: {str(e)}", "danger")
+        flash(f"Error processing file: {'Failed, please try again.'}", "danger")
         
     return redirect('/admin/cylinders')
 
@@ -4273,10 +4292,10 @@ def admin_cylinders_add():
             flash(f"Cylinder '{uid}' added successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
-            flash(f"Error adding cylinder: {str(e)}", "danger")
+            flash(f"Error adding cylinder: {'Failed, please try again.'}", "danger")
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
-                error=str(e), form=data,
+                error='Failed, please try again.', form=data,
                 gas_types=gas_types, cylinder_types=cylinder_types)
     return render_template('cylinders_form.html',
         user=session['user'], mode='add', error=None, form={},
@@ -4340,7 +4359,7 @@ def admin_cylinders_delete(uid):
 
         flash(f"Cylinder {uid} deleted successfully.", "success")
     except Exception as e:
-        flash(f"Error deleting cylinder: {str(e)}", "danger")
+        flash(f"Error deleting cylinder: {'Failed, please try again.'}", "danger")
         
     return redirect('/admin/cylinders')
 
@@ -4448,11 +4467,11 @@ def admin_cylinders_edit(uid):
             flash("Cylinder updated successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
-            flash(f"Error updating cylinder: {str(e)}", "danger")
+            flash(f"Error updating cylinder: {'Failed, please try again.'}", "danger")
             merged = {**cyl, **maint}
             return render_template('cylinders_form.html',
                 user=session['user'], mode='edit',
-                error=str(e), form=merged, uid=uid,
+                error='Failed, please try again.', form=merged, uid=uid,
                 gas_types=gas_types, cylinder_types=cylinder_types)
 
     merged = {**cyl, **maint}
@@ -4620,7 +4639,7 @@ def admin_mark_collected():
                 raise se
     except Exception as e:
         print("Manual collection log write / registry update error:", e)
-        return str(e), 500
+        return 'Failed, please try again.', 500
         
     clear_cache()
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
@@ -4784,7 +4803,7 @@ def admin_bulk_collect():
                 raise se
     except Exception as e:
         print("Bulk collection log write / registry update error:", e)
-        return str(e), 500
+        return 'Failed, please try again.', 500
         
     clear_cache()
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
@@ -5037,8 +5056,8 @@ def admin_users_add():
             
         except Exception as e:
             db.session.rollback()
-            flash(f"Error adding user: {str(e)}", "danger")
-            return render_template('users_form.html', user=session['user'], mode='add', error=f"Database error: {str(e)}", form=request.form)
+            flash(f"Error adding user: {'Failed, please try again.'}", "danger")
+            return render_template('users_form.html', user=session['user'], mode='add', error=f"Database error: {'Failed, please try again.'}", form=request.form)
 
     return render_template('users_form.html', user=session['user'], mode='add', error=None, form={})
 
@@ -5114,8 +5133,8 @@ def admin_users_edit(user_id):
             
         except Exception as e:
             db.session.rollback()
-            flash(f"Error updating user: {str(e)}", "danger")
-            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Database error: {str(e)}", form=request.form)
+            flash(f"Error updating user: {'Failed, please try again.'}", "danger")
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Database error: {'Failed, please try again.'}", form=request.form)
 
     # Prepopulate form
     form_data = {
@@ -5166,9 +5185,9 @@ def admin_users_delete(user_id):
         
     except Exception as e:
         db.session.rollback()
-        flash(f"Database error deleting user: {str(e)}", "danger")
+        flash(f"Database error deleting user: {'Failed, please try again.'}", "danger")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
         
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
         return jsonify({'success': True, 'user_id': user_id, 'username': username})
@@ -5391,10 +5410,10 @@ def admin_customers_add():
             flash("Customer added successfully!", "success")
             return redirect('/admin/customers')
         except Exception as e:
-            flash(f"Error adding customer: {str(e)}", "danger")
+            flash(f"Error adding customer: {'Failed, please try again.'}", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='add',
-                error=str(e), form=request.form)
+                error='Failed, please try again.', form=request.form)
                 
     return render_template('customers_form.html',
         user=session['user'], mode='add', error=None, form={})
@@ -5489,10 +5508,10 @@ def admin_customers_edit(customer_name):
             flash("Customer updated successfully!", "success")
             return redirect(f'/admin/customers/{name}')
         except Exception as e:
-            flash(f"Error updating customer: {str(e)}", "danger")
+            flash(f"Error updating customer: {'Failed, please try again.'}", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='edit', uid=customer_name,
-                error=str(e), form=request.form)
+                error='Failed, please try again.', form=request.form)
                 
     return render_template('customers_form.html',
         user=session['user'], mode='edit', uid=customer_name, error=None, form=cust)
@@ -5548,7 +5567,7 @@ def admin_customers_delete(customer_name):
         return redirect('/admin/customers')
     except Exception as e:
         print("Error deleting customer:", e)
-        return str(e), 500
+        return 'Failed, please try again.', 500
 
 
 
@@ -5613,7 +5632,7 @@ def admin_api_cold_call_toggle():
     except Exception as e:
         print("[sheets] Error mirroring cold call toggle to Sheets:", e)
         if not db_written:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
     clear_cache()
     return jsonify({'success': True, 'cold_call_done': new_state})
@@ -5658,7 +5677,7 @@ def admin_api_cold_call_reset_all():
     except Exception as e:
         print("[sheets] Error resetting cold calls in Sheets:", e)
         if not db_written:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
     clear_cache()
     return jsonify({'success': True})
@@ -5744,7 +5763,7 @@ def admin_api_dura_fill():
             db.session.rollback()
             print("[db] Error updating Dura refill in DB:", e)
             # Return error immediately ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â don't pretend success if DB write failed
-            return jsonify({'success': False, 'error': f'Database write failed: {str(e)}'}), 500
+            return jsonify({'success': False, 'error': f'Database write failed: {'Failed, please try again.'}'}), 500
 
     # 2. Sync to Sheets (best-effort ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DB is source of truth)
     try:
@@ -5910,7 +5929,7 @@ def admin_offers_download(offer_id):
         data = json.loads(offer.form_data)
         return _generate_offer_pdf(offer.customer_name, saved_data=data)
     except Exception as e:
-        flash(f"Error generating PDF from saved data: {str(e)}", "danger")
+        flash(f"Error generating PDF from saved data: {'Failed, please try again.'}", "danger")
         return redirect('/admin/offers')
 
 @app.route('/admin/offers/<int:offer_id>/delete', methods=['POST'])
@@ -7311,9 +7330,9 @@ def admin_scanner_logs_delete(log_id):
             return jsonify({'success': True, 'log_id': log_id})
     except Exception as e:
         db.session.rollback()
-        flash(f"Error deleting log: {str(e)}", "error")
+        flash(f"Error deleting log: {'Failed, please try again.'}", "error")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('admin_scanner_logs'))
 
 @app.route('/admin/scanner/logs/bulk_delete', methods=['POST'])
@@ -7335,7 +7354,7 @@ def admin_scanner_logs_bulk_delete():
         return jsonify({'success': True, 'message': f'Deleted {len(log_ids)} logs'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)})
+        return jsonify({'success': False, 'error': 'Failed, please try again.'})
 
 @app.route('/admin/scanner/submit', methods=['POST'])
 @admin_required
@@ -7428,7 +7447,7 @@ def admin_scanner_submit():
             clear_cache()
         except Exception as e:
             db.session.rollback()
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': 'Failed, please try again.'}), 500
 
     # Auto-save to Accounts Batch (purely internal, no registry changes)
     if os.environ.get('DATABASE_URL') and rows_to_append:
@@ -7557,7 +7576,7 @@ def accounts_batch_edit(batch_id):
         flash('Batch updated successfully.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'Error: {'Failed, please try again.'}', 'error')
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/mark_billed', methods=['POST'])
@@ -7575,9 +7594,9 @@ def accounts_batch_mark_billed(batch_id):
             return jsonify({'success': True, 'status': 'Billed', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'Error: {'Failed, please try again.'}', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/unmark_billed', methods=['POST'])
@@ -7595,9 +7614,9 @@ def accounts_batch_unmark_billed(batch_id):
             return jsonify({'success': True, 'status': 'Pending', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'Error: {'Failed, please try again.'}', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/item/<int:item_id>/delete', methods=['POST'])
@@ -7613,9 +7632,9 @@ def accounts_batch_item_delete(batch_id, item_id):
             return jsonify({'success': True, 'item_id': item_id, 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'Error: {'Failed, please try again.'}', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'error': str(e)}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/delete', methods=['POST'])
@@ -7629,7 +7648,7 @@ def accounts_batch_delete(batch_id):
         flash('Batch deleted.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {str(e)}', 'error')
+        flash(f'Error: {'Failed, please try again.'}', 'error')
     return redirect(url_for('accounts_dashboard'))
 
 @app.route('/accounts/batches/bulk_delete', methods=['POST'])
@@ -7652,7 +7671,7 @@ def accounts_batches_bulk_delete():
         return jsonify({'success': True, 'message': f'Deleted {len(batch_ids)} batches'})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
 # Admin read-only view of accounts batches
 @app.route('/admin/accounts_batches')
@@ -7750,8 +7769,8 @@ def admin_assign_job():
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'ok': False, 'msg': str(e)}), 500
-        flash(f'Error assigning job: {str(e)}', 'error')
+            return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
+        flash(f'Error assigning job: {'Failed, please try again.'}', 'error')
 
     return redirect('/admin/drivers')
 
@@ -7768,7 +7787,7 @@ def admin_clear_driver_queue(username):
         return jsonify({'ok': True})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'ok': False, 'msg': str(e)}), 500
+        return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
 
 @app.route('/admin/drivers/job/<int:job_id>/cancel', methods=['POST'])
 @admin_required
@@ -7798,8 +7817,8 @@ def admin_cancel_job(job_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'ok': False, 'msg': str(e)}), 500
-        flash(f'Error: {str(e)}', 'error')
+            return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
+        flash(f'Error: {'Failed, please try again.'}', 'error')
     return redirect('/admin/drivers')
 
 
@@ -7831,7 +7850,7 @@ def admin_job_move_up(job_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'ok': False, 'msg': str(e)}), 500
+            return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
     return redirect('/admin/drivers')
 
 
@@ -7862,7 +7881,7 @@ def admin_job_move_down(job_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'ok': False, 'msg': str(e)}), 500
+            return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
     return redirect('/admin/drivers')
 
 
@@ -7898,7 +7917,7 @@ def admin_get_driver_jobs(username):
             })
         return jsonify({'ok': True, 'jobs': jobs_list})
     except Exception as e:
-        return jsonify({'ok': False, 'msg': str(e)}), 500
+        return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
 
 
 @app.route('/api/driver/active_job')
@@ -7996,7 +8015,7 @@ def admin_spares_add():
         return jsonify({'success': True, 'item': item.to_dict() | {'id': item.id}})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
 
 @app.route('/admin/spares/<int:item_id>/restock', methods=['POST'])
@@ -8024,7 +8043,7 @@ def admin_spares_restock(item_id):
         return jsonify({'success': True, 'new_stock': item.current_stock})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
 
 @app.route('/admin/spares/<int:item_id>/use', methods=['POST'])
@@ -8053,7 +8072,7 @@ def admin_spares_use(item_id):
         return jsonify({'success': True, 'new_stock': item.current_stock})
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
 
 def _sync_refuelling_to_sheets(vehicle_number, ref_data):
@@ -8304,7 +8323,7 @@ def admin_vehicles_new():
                 return redirect(f'/admin/vehicles/{v.id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {str(e)[:120]}")
+                errors.append(f"Database error: {\'Failed, please try again.\'}")
                 if is_ajax:
                     return jsonify({'success': False, 'errors': errors}), 400
         else:
@@ -8330,7 +8349,7 @@ def admin_vehicle_toggle_status(vehicle_id):
     except Exception as e:
         db.session.rollback()
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'error': str(e)}), 500
+            return jsonify({'error': 'Failed, please try again.'}), 500
     return redirect('/admin/vehicles')
 
 
@@ -8549,7 +8568,7 @@ def admin_vehicle_edit(vehicle_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {str(e)[:120]}")
+                errors.append(f"Database error: {\'Failed, please try again.\'}")
     else:
         form_data = v.to_dict()
     return render_template('vehicle_form.html',
@@ -8583,7 +8602,7 @@ def admin_vehicle_delete(vehicle_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'success': False, 'error': str(e)[:120]}), 500
+            return jsonify({'success': False, 'error': \'Failed, please try again.\'}), 500
         return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
@@ -8628,7 +8647,7 @@ def admin_refuelling_new(vehicle_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {str(e)[:120]}")
+                errors.append(f"Database error: {\'Failed, please try again.\'}")
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
@@ -8701,7 +8720,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {str(e)[:120]}")
+                errors.append(f"Database error: {\'Failed, please try again.\'}")
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
@@ -8741,7 +8760,7 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'success': False, 'error': str(e)[:120]}), 500
+            return jsonify({'success': False, 'error': \'Failed, please try again.\'}), 500
     return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
@@ -9663,7 +9682,7 @@ def api_admin_scan_submit_manual():
 
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Failed, please try again.'}), 500
 
     # Run through existing permanent transaction + Accounts logic
     try:
@@ -9792,7 +9811,7 @@ def api_admin_scan_submit_manual():
             'batch_ref':  batch_ref,
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'error': 'Failed, please try again.'}), 500
 
 
 # ── Route: Full Data Backup Export (ZIP of CSVs) ─────────────────────
