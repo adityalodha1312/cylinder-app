@@ -8664,10 +8664,11 @@ def admin_refuelling_new(vehicle_id):
         else:
             form_data['fuel_pump'] = 'ATC'
 
-        if not form_data.get('fuel_rate_per_litre'):
-            fleet_last = VehicleRefuelling.query.filter(
+        if not form_data.get('fuel_rate_per_litre') and v.fuel_type:
+            fleet_last = VehicleRefuelling.query.join(Vehicle).filter(
                 VehicleRefuelling.fuel_rate_per_litre.isnot(None),
-                VehicleRefuelling.fuel_rate_per_litre > 0
+                VehicleRefuelling.fuel_rate_per_litre > 0,
+                Vehicle.fuel_type == v.fuel_type
             ).order_by(VehicleRefuelling.id.desc()).first()
             if fleet_last and fleet_last.fuel_rate_per_litre:
                 form_data['fuel_rate_per_litre'] = f"{float(fleet_last.fuel_rate_per_litre):.2f}"
