@@ -7351,9 +7351,20 @@ def admin_scanner_submit():
     d_str = now.strftime('%d-%m-%Y')
     t_str = now.strftime('%H:%M:%S')
 
-    # Resolve context data for each uid
+    # Resolve aliases and context data for each uid
     cyls_dict = {}
     if os.environ.get('DATABASE_URL'):
+        from models import CylinderAlias
+        resolved_uids = []
+        for uid in uids:
+            uid_upper = uid.upper()
+            alias = CylinderAlias.query.filter_by(alias_name=uid_upper).first()
+            if alias and alias.cylinder:
+                resolved_uids.append(alias.cylinder.uid.upper())
+            else:
+                resolved_uids.append(uid_upper)
+        uids = resolved_uids
+
         db_cyls = Cylinder.query.filter(Cylinder.uid.in_(uids)).all()
         for c in db_cyls:
             cyls_dict[c.uid.upper()] = {

@@ -205,7 +205,7 @@
   .submit-btn:active { transform: scale(0.98); }
   .submit-btn:disabled { background: var(--gray-200); cursor: not-allowed; }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ SUCCESS SCREEN Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ SUCCESS SCREEN ──â€â‚¬ */
   #success-screen {
     display: none;
     position: fixed;
@@ -310,7 +310,7 @@
   .status-badge.conflict { background: #f8d7da; color: #721c24; border: 1.5px solid #f5c6cb; }
   .status-badge.warning { background: #fffbeb; color: #b45309; border: 1.5px solid #fde68a; }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ CUSTOM SEARCHABLE DROPDOWN Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ CUSTOM SEARCHABLE DROPDOWN ──â€â‚¬ */
   .autocomplete-container {
     position: relative;
   }
@@ -346,7 +346,7 @@
     font-weight: 500;
   }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ TOP STATS BAR Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ TOP STATS BAR ──â€â‚¬ */
   .top-stats-bar {
     display: flex;
     flex-direction: column;
@@ -432,7 +432,7 @@
     flex-shrink: 0;
   }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ WIZARD LAYOUT & PROGRESS BAR Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ WIZARD LAYOUT & PROGRESS BAR ──â€â‚¬ */
   .step-container {
     display: none;
     animation: fadeIn 0.2s ease-in-out;
@@ -484,7 +484,7 @@
     transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s;
   }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ WIZARD BACK BUTTON Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ WIZARD BACK BUTTON ──â€â‚¬ */
   .nav-back-btn {
     padding: 15px;
     background: white;
@@ -503,7 +503,7 @@
     background: #fcfcfb;
   }
 
-  /* Ã¢â€â‚¬Ã¢â€â‚¬ STEP 2 FEED Ã¢â€â‚¬Ã¢â€â‚¬ */
+  /* ──â€â‚¬ STEP 2 FEED ──â€â‚¬ */
   .scan-feed {
     margin-top: 14px;
     margin-bottom: 20px;
@@ -587,7 +587,7 @@
 </div>
 
 <div id="offline-banner">
-  Ã¢Å¡Â Ã¯Â¸Â You are currently offline. Scans will be saved and synced automatically when you reconnect.
+  ⚠️ You are currently offline. Scans will be saved and synced automatically when you reconnect.
 </div>
 
 
@@ -653,7 +653,7 @@
     </div>
 
 
-    <!-- Customer field Ã¢â‚¬â€ shown below scan mode when Delivery or Collection is selected -->
+    <!-- Customer field → shown below scan mode when Delivery or Collection is selected -->
     <div class="field" id="customer-field" style="display: none; margin-top: 12px;">
       <label>Customer Name</label>
       <div class="autocomplete-container">
@@ -742,7 +742,7 @@
           <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
           <div class="status-badge" style="display: none;"></div>
         </div>
-        <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>
+        <button class="remove-btn" onclick="removeRow(this)">×</button>
       </div>
     </div>
 
@@ -1612,7 +1612,7 @@ async function fetchActiveJob(isBackground = false) {
       // Empty state
       html = `
         <div style="background:#fff; border-radius:12px; border:1.5px solid var(--gray-bd); padding:24px 16px; text-align:center;">
-          <div style="font-size:24px; margin-bottom:8px;">Ã¢ÂÂ³</div>
+          <div style="font-size:24px; margin-bottom:8px;">⏳</div>
           <div style="font-weight:700; color:var(--dark-text); font-size:14px;">No Jobs Assigned Yet</div>
           <div style="font-size:12px; color:var(--gray-text); margin-top:4px;">Please check back later or contact admin.</div>
         </div>
@@ -1845,7 +1845,7 @@ function updateScanFeedList() {
         <div class="scan-feed-row">
           <span class="scan-feed-uid">${val.toUpperCase()}</span>
           <span class="scan-feed-status" style="color: ${statusColor};">
-            ${isConflict ? 'Ã¢Å¡Â Ã¯Â¸Â' : isWarning ? 'Ã¢Å¡Â Ã¯Â¸Â' : 'Ã¢Å“â€œ'} ${badgeText}
+            ${isConflict ? '⚠️' : isWarning ? '⚠️' : '✓'} ${badgeText}
           </span>
         </div>
       `;
@@ -1868,7 +1868,7 @@ function addCylinder() {
       <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
       <div class="status-badge" style="display: none;"></div>
     </div>
-    <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>`;
+    <button class="remove-btn" onclick="removeRow(this)">×</button>`;
   container.appendChild(div);
 }
 
@@ -1977,7 +1977,7 @@ async function validateRow(inputEl) {
   if (isDuplicate) {
     badgeEl.style.display = "inline-block";
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Duplicate: Already in this scan list";
+    badgeEl.innerText = "⚠️ Duplicate: Already in this scan list";
     inputEl.dataset.action = "";
     invalidRows.add(rowDiv);
     updateSubmitButton();
@@ -2006,16 +2006,16 @@ async function validateRow(inputEl) {
       if (currentStatus === "Empty") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Empty (Ready to Fill)";
+          badgeEl.innerText = "⚠️ Unregistered - Empty (Ready to Fill)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "Ã¢Å“â€œ Empty (Ready to Fill)";
+          badgeEl.innerText = "✓ Empty (Ready to Fill)";
         }
         inputEl.dataset.action = "Filling";
       } else {
         badgeEl.classList.add("conflict");
         let details = currentStatus === "Delivered" ? `with ${owner}` : "Already Filled";
-        badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Conflict: Cylinder is ${details}`;
+        badgeEl.innerText = `⚠️ Conflict: Cylinder is ${details}`;
         inputEl.dataset.action = "";
         invalidRows.add(rowDiv);
       }
@@ -2024,19 +2024,19 @@ async function validateRow(inputEl) {
       if (currentStatus === "Filled") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Filled (Ready to Deliver)";
+          badgeEl.innerText = "⚠️ Unregistered - Filled (Ready to Deliver)";
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = "Ã¢Å“â€œ Filled (Ready to Deliver)";
+          badgeEl.innerText = "✓ Filled (Ready to Deliver)";
         }
         inputEl.dataset.action = "Delivery";
       } else if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Unregistered - Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `⚠️ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
         } else {
           badgeEl.classList.add("delivered");
-          badgeEl.innerText = `Ã¢â€ Âº Collected (Auto-Switched: Was with ${owner})`;
+          badgeEl.innerText = `➔ Collected (Auto-Switched: Was with ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -2046,7 +2046,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`Ã¢Å¡Â Ã¯Â¸Â Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -2057,17 +2057,17 @@ async function validateRow(inputEl) {
         if (FILL_REQUIRED) {
           // Rule ON: block delivery of empty cylinders
           badgeEl.classList.add("conflict");
-          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Conflict: Cylinder is Empty (Must refill first)";
+          badgeEl.innerText = "⚠️ Conflict: Cylinder is Empty (Must refill first)";
           inputEl.dataset.action = "";
           invalidRows.add(rowDiv);
         } else {
           // Rule OFF: allow delivery of empty cylinders without warning
           if (data.registered === false) {
             badgeEl.classList.add("warning");
-            badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Unregistered - Empty (Delivering as-is)";
+            badgeEl.innerText = "⚠️ Unregistered - Empty (Delivering as-is)";
           } else {
             badgeEl.classList.add("filled");
-            badgeEl.innerText = "Ã¢Å“â€œ Empty (Delivering as-is)";
+            badgeEl.innerText = "✓ Empty (Delivering as-is)";
           }
           inputEl.dataset.action = "Delivery";
         }
@@ -2077,10 +2077,10 @@ async function validateRow(inputEl) {
       if (currentStatus === "Delivered") {
         if (data.registered === false) {
           badgeEl.classList.add("warning");
-          badgeEl.innerText = `Ã¢Å¡Â Ã¯Â¸Â Unregistered - Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `⚠️ Unregistered - Delivered (Collecting from ${owner})`;
         } else {
           badgeEl.classList.add("filled");
-          badgeEl.innerText = `Ã¢Å“â€œ Delivered (Collecting from ${owner})`;
+          badgeEl.innerText = `✓ Delivered (Collecting from ${owner})`;
         }
         inputEl.dataset.action = "Collection";
         if (owner && !window.currentJob) {
@@ -2090,7 +2090,7 @@ async function validateRow(inputEl) {
             custSelect.value = owner;
             revalidateAllRows();
           } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`Ã¢Å¡Â Ã¯Â¸Â Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
+            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
             if (change) {
               custSelect.value = owner;
               revalidateAllRows();
@@ -2100,16 +2100,16 @@ async function validateRow(inputEl) {
       } else {
         badgeEl.classList.add("warning");
         if (currentStatus === "Filled") {
-          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Collection (Warning: Cylinder marked Filled/In Depot)";
+          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Filled/In Depot)";
         } else {
-          badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Collection (Warning: Cylinder marked Empty/In Depot)";
+          badgeEl.innerText = "⚠️ Collection (Warning: Cylinder marked Empty/In Depot)";
         }
         inputEl.dataset.action = "Collection";
       }
     }
   } catch (err) {
     badgeEl.className = "status-badge conflict";
-    badgeEl.innerText = "Ã¢Å¡Â Ã¯Â¸Â Error verifying cylinder status";
+    badgeEl.innerText = "⚠️ Error verifying cylinder status";
     invalidRows.add(rowDiv);
   }
   
@@ -2264,7 +2264,7 @@ function resetForm() {
         <input type="text" name="cylinders" placeholder="Cylinder UID" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>
+      <button class="remove-btn" onclick="removeRow(this)">×</button>
     </div>`;
   invalidRows.clear();
   updateCount();
