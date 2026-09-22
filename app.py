@@ -7513,7 +7513,22 @@ def accounts_dashboard():
 @accounts_required
 def accounts_batch_detail(batch_id):
     batch = AccountsBatch.query.get_or_404(batch_id)
-    return render_template('accounts_batch_detail.html', batch=batch)
+    deleted_uids = set()
+    if os.environ.get('DATABASE_URL'):
+        from models import Scan, AdminScanLog
+        valid_uids = set()
+        scans = Scan.query.filter_by(scan_date=batch.batch_date).all()
+        for s in scans:
+            valid_uids.add(s.cylinder_uid.upper())
+        admin_logs = AdminScanLog.query.filter_by(scan_date=batch.batch_date).all()
+        for l in admin_logs:
+            valid_uids.add(l.cylinder_uid.upper())
+            
+        for item in batch.items:
+            if item.cylinder_uid.upper() not in valid_uids:
+                deleted_uids.add(item.cylinder_uid.upper())
+                
+    return render_template('accounts_batch_detail.html', batch=batch, deleted_uids=deleted_uids)
 
 @app.route('/accounts/batch/<int:batch_id>/edit', methods=['POST'])
 @accounts_required
