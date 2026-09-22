@@ -5220,7 +5220,7 @@ def admin_customers():
                 'outstanding'    : 0,
                 'total_delivered': 0,
                 'total_collected': 0,
-                'last_activity'  : 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â',
+                'last_activity'  : '',
                 'has_overdue'    : False,
             })
 

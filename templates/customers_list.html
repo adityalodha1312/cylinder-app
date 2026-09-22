@@ -176,7 +176,7 @@
         {% for c in recent3[:3] %}
         <div class="pop-row">
           <span class="pop-name">{{ c.name }}</span>
-          <span class="pop-val" style="font-size:11.5px;font-weight:500;color:#5F5E5A;">{{ c.last_activity }}</span>
+          <span class="pop-val" style="font-size:11.5px;font-weight:500;color:#5F5E5A;">{{ '—' if not c.last_activity or 'Ã' in c.last_activity else c.last_activity }}</span>
         </div>
         {% endfor %}
       {% else %}
@@ -276,8 +276,8 @@
         Outstanding
       </div>
       <div class="cust-stat" style="margin-left:auto; text-align:right;">
-        <strong style="font-size:12px; {% if c.last_activity == '—' or not c.last_activity %}font-style:italic; font-weight:normal; color:var(--gray-text);{% endif %}">
-          {% if c.last_activity == '—' or not c.last_activity %}
+        <strong style="font-size:12px; {% if not c.last_activity or c.last_activity in ('—', '-', 'None') or 'Ã' in c.last_activity %}font-style:italic; font-weight:normal; color:var(--gray-text);{% endif %}">
+          {% if not c.last_activity or c.last_activity in ('—', '-', 'None') or 'Ã' in c.last_activity %}
             No activity yet
           {% else %}
             {{ c.last_activity }}
