@@ -220,18 +220,11 @@
     if (scanLocked) return;
     scanLocked = true;
     
-    if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.pause === "function") {
-      try { html5QrcodeScanner.pause(true); } catch (e) { }
-    }
-    
     addUID(decodedText);
     
     setTimeout(() => {
       scanLocked = false;
-      if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
-        try { html5QrcodeScanner.resume(); } catch (e) { }
-      }
-    }, 0); // 0ms delay for rapid scanning
+    }, 1000); // 1s delay to prevent duplicate scans
   }
 
   const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });

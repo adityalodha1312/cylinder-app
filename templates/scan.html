@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -2293,21 +2293,15 @@ function onScanSuccess(decodedText) {
   if (scanLocked) return;
   scanLocked = true;
 
-  // Pause the scanner to prevent continuous rapid scanning
-  if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.pause === "function") {
-    try { html5QrcodeScanner.pause(true); } catch (e) { console.log("Scanner pause error:", e); }
-  }
+  // Removed pause() as it causes removeChild errors in html5-qrcode
 
   let inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i].value === decodedText) {
-      showStatus("Ã¢Å¡Â  Already scanned: " + decodedText);
+      showStatus("⚠ Already scanned: " + decodedText);
       setTimeout(() => {
         scanLocked = false;
-        if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
-          try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
-        }
-      }, 0);
+      }, 1000);
       return;
     }
   }
@@ -2332,7 +2326,7 @@ function onScanSuccess(decodedText) {
         <input type="text" name="cylinders" value="${decodedText}" onchange="validateRow(this)" onkeyup="updateCount()">
         <div class="status-badge" style="display: none;"></div>
       </div>
-      <button class="remove-btn" onclick="removeRow(this)">Ãƒâ€”</button>`;
+      <button class="remove-btn" onclick="removeRow(this)">×</button>`;
     container.appendChild(div);
     let newlyAddedInput = div.querySelector('input');
     validateRow(newlyAddedInput);
@@ -2340,13 +2334,10 @@ function onScanSuccess(decodedText) {
 
   updateCount();
   beep.play();
-  showStatus("Ã¢Å“â€œ Added: " + decodedText);
+  showStatus("✓ Added: " + decodedText);
   setTimeout(() => {
     scanLocked = false;
-    if (typeof html5QrcodeScanner !== "undefined" && typeof html5QrcodeScanner.resume === "function") {
-      try { html5QrcodeScanner.resume(); } catch (e) { console.log("Scanner resume error:", e); }
-    }
-  }, 0);
+  }, 1000); // 1000ms delay to prevent duplicate scans
 }
 
 const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
@@ -2395,14 +2386,12 @@ function setEntryMode(mode) {
     if (btnMan) { btnMan.classList.remove('active'); btnMan.setAttribute('aria-pressed', 'false'); }
     if (fmQr)  fmQr.style.display  = 'block';
     if (fmMan) fmMan.style.display  = 'none';
-    try { if (html5QrcodeScanner) html5QrcodeScanner.resume(); } catch(e){}
   } else {
     document.body.classList.add('manual-mode-active');
     if (btnMan) { btnMan.classList.add('active'); btnMan.setAttribute('aria-pressed', 'true'); }
     if (btnQr)  { btnQr.classList.remove('active'); btnQr.setAttribute('aria-pressed', 'false'); }
     if (fmQr)  fmQr.style.display  = 'none';
     if (fmMan) fmMan.style.display  = 'block';
-    try { if (html5QrcodeScanner) html5QrcodeScanner.pause(true); } catch(e){}
     manualSelectAction(document.getElementById('manual-action').value || 'Delivery');
   }
 }
