@@ -131,6 +131,9 @@
       {% if session.user %}
         <span class="topbar-user-name">{{ session.user.name or session.user.username }}</span>
       {% endif %}
+      {% if session.user and session.user.role in ['manager', 'owner'] %}
+        <a href="/admin/dashboard" class="logout-btn" style="border-color: rgba(255,255,255,0.4);">Switch to Admin</a>
+      {% endif %}
       <a href="/accounts/logout" class="logout-btn">Logout</a>
     </div>
   </nav>

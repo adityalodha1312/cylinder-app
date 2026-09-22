@@ -7505,9 +7505,24 @@ def accounts_logout():
 @accounts_required
 def accounts_dashboard():
     batches = []
+    deleted_counts = {}
     if os.environ.get('DATABASE_URL'):
         batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
-    return render_template('accounts_dashboard.html', batches=batches)
+        from models import Scan, AdminScanLog
+        batch_dates = list(set([b.batch_date for b in batches]))
+        valid_uids_by_date = {d: set() for d in batch_dates}
+        if batch_dates:
+            scans = Scan.query.filter(Scan.scan_date.in_(batch_dates)).all()
+            for s in scans:
+                valid_uids_by_date[s.scan_date].add(s.cylinder_uid.upper())
+            admin_logs = AdminScanLog.query.filter(AdminScanLog.scan_date.in_(batch_dates)).all()
+            for l in admin_logs:
+                valid_uids_by_date[l.scan_date].add(l.cylinder_uid.upper())
+        for b in batches:
+            valid_set = valid_uids_by_date.get(b.batch_date, set())
+            del_count = sum(1 for i in b.items if i.cylinder_uid.upper() not in valid_set)
+            deleted_counts[b.id] = del_count
+    return render_template('accounts_dashboard.html', batches=batches, deleted_counts=deleted_counts)
 
 @app.route('/accounts/batch/<int:batch_id>')
 @accounts_required
@@ -7622,9 +7637,24 @@ def accounts_batch_delete(batch_id):
 @admin_required
 def admin_accounts_batches():
     batches = []
+    deleted_counts = {}
     if os.environ.get('DATABASE_URL'):
         batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
-    return render_template('admin_accounts_batches.html', batches=batches)
+        from models import Scan, AdminScanLog
+        batch_dates = list(set([b.batch_date for b in batches]))
+        valid_uids_by_date = {d: set() for d in batch_dates}
+        if batch_dates:
+            scans = Scan.query.filter(Scan.scan_date.in_(batch_dates)).all()
+            for s in scans:
+                valid_uids_by_date[s.scan_date].add(s.cylinder_uid.upper())
+            admin_logs = AdminScanLog.query.filter(AdminScanLog.scan_date.in_(batch_dates)).all()
+            for l in admin_logs:
+                valid_uids_by_date[l.scan_date].add(l.cylinder_uid.upper())
+        for b in batches:
+            valid_set = valid_uids_by_date.get(b.batch_date, set())
+            del_count = sum(1 for i in b.items if i.cylinder_uid.upper() not in valid_set)
+            deleted_counts[b.id] = del_count
+    return render_template('admin_accounts_batches.html', batches=batches, deleted_counts=deleted_counts)
 
 
 # ================================================================
