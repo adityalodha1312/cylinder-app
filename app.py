@@ -294,7 +294,7 @@ Return exactly 5 bullet points, one per line, no numbering, no extra text."""
         if cached:
             import json
             return json.loads(cached), -2  # -2 = using stale cache
-        return [f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Could not generate insights: {\'Failed, please try again.\'}'], -1
+        return ['ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Could not generate insights: Failed, please try again.'], -1
 
 
 # SQLAlchemy Database Configuration
@@ -1283,7 +1283,7 @@ Answer:"""
         return jsonify({'answer': answer})
     except Exception as e:
         print(f"[Groq] Chat error: {e}")
-        return jsonify({'answer': f'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Error generating response: {\'Failed, please try again.\'}'}), 500
+        return jsonify({'answer': 'ÃƒÂ¢Ã…Â¡ÃƒÂ¯ Error generating response: Failed, please try again.'}), 500
 
 
 def accounts_required(f):
@@ -2066,9 +2066,9 @@ def admin_sync_from_sheets():
                 return jsonify({'success': False, 'message': 'Sheets document is not connected. Unable to sync.'}), 500
     except Exception as e:
         print("[sync] Manual sync error:", e)
-        flash(f"Sync error: {'Failed, please try again.'}", "danger")
+        flash("Sync error: Failed, please try again.", "danger")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': False, 'message': f'Sync error: {'Failed, please try again.'}'}), 500
+            return jsonify({'success': False, 'message': 'Sync error: Failed, please try again.'}), 500
         
     return redirect('/admin/dashboard')
 
@@ -4171,7 +4171,7 @@ def admin_cylinders_upload():
         db.session.rollback()
         print(f"[bulk_upload] FATAL ERROR: {e}")
         traceback.print_exc()
-        flash(f"Error processing file: {'Failed, please try again.'}", "danger")
+        flash("Error processing file: Failed, please try again.", "danger")
         
     return redirect('/admin/cylinders')
 
@@ -4292,7 +4292,7 @@ def admin_cylinders_add():
             flash(f"Cylinder '{uid}' added successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
-            flash(f"Error adding cylinder: {'Failed, please try again.'}", "danger")
+            flash("Error adding cylinder: Failed, please try again.", "danger")
             return render_template('cylinders_form.html',
                 user=session['user'], mode='add',
                 error='Failed, please try again.', form=data,
@@ -4359,7 +4359,7 @@ def admin_cylinders_delete(uid):
 
         flash(f"Cylinder {uid} deleted successfully.", "success")
     except Exception as e:
-        flash(f"Error deleting cylinder: {'Failed, please try again.'}", "danger")
+        flash("Error deleting cylinder: Failed, please try again.", "danger")
         
     return redirect('/admin/cylinders')
 
@@ -4467,7 +4467,7 @@ def admin_cylinders_edit(uid):
             flash("Cylinder updated successfully!", "success")
             return redirect('/admin/cylinders')
         except Exception as e:
-            flash(f"Error updating cylinder: {'Failed, please try again.'}", "danger")
+            flash("Error updating cylinder: Failed, please try again.", "danger")
             merged = {**cyl, **maint}
             return render_template('cylinders_form.html',
                 user=session['user'], mode='edit',
@@ -5056,8 +5056,8 @@ def admin_users_add():
             
         except Exception as e:
             db.session.rollback()
-            flash(f"Error adding user: {'Failed, please try again.'}", "danger")
-            return render_template('users_form.html', user=session['user'], mode='add', error=f"Database error: {'Failed, please try again.'}", form=request.form)
+            flash("Error adding user: Failed, please try again.", "danger")
+            return render_template('users_form.html', user=session['user'], mode='add', error="Database error: Failed, please try again.", form=request.form)
 
     return render_template('users_form.html', user=session['user'], mode='add', error=None, form={})
 
@@ -5133,8 +5133,8 @@ def admin_users_edit(user_id):
             
         except Exception as e:
             db.session.rollback()
-            flash(f"Error updating user: {'Failed, please try again.'}", "danger")
-            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error=f"Database error: {'Failed, please try again.'}", form=request.form)
+            flash("Error updating user: Failed, please try again.", "danger")
+            return render_template('users_form.html', user=session['user'], mode='edit', user_id=user_id, error="Database error: Failed, please try again.", form=request.form)
 
     # Prepopulate form
     form_data = {
@@ -5185,7 +5185,7 @@ def admin_users_delete(user_id):
         
     except Exception as e:
         db.session.rollback()
-        flash(f"Database error deleting user: {'Failed, please try again.'}", "danger")
+        flash("Database error deleting user: Failed, please try again.", "danger")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
         
@@ -5410,7 +5410,7 @@ def admin_customers_add():
             flash("Customer added successfully!", "success")
             return redirect('/admin/customers')
         except Exception as e:
-            flash(f"Error adding customer: {'Failed, please try again.'}", "danger")
+            flash("Error adding customer: Failed, please try again.", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='add',
                 error='Failed, please try again.', form=request.form)
@@ -5508,7 +5508,7 @@ def admin_customers_edit(customer_name):
             flash("Customer updated successfully!", "success")
             return redirect(f'/admin/customers/{name}')
         except Exception as e:
-            flash(f"Error updating customer: {'Failed, please try again.'}", "danger")
+            flash("Error updating customer: Failed, please try again.", "danger")
             return render_template('customers_form.html',
                 user=session['user'], mode='edit', uid=customer_name,
                 error='Failed, please try again.', form=request.form)
@@ -5763,7 +5763,7 @@ def admin_api_dura_fill():
             db.session.rollback()
             print("[db] Error updating Dura refill in DB:", e)
             # Return error immediately ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â don't pretend success if DB write failed
-            return jsonify({'success': False, 'error': f'Database write failed: {'Failed, please try again.'}'}), 500
+            return jsonify({'success': False, 'error': 'Database write failed: Failed, please try again.'}), 500
 
     # 2. Sync to Sheets (best-effort ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â DB is source of truth)
     try:
@@ -5929,7 +5929,7 @@ def admin_offers_download(offer_id):
         data = json.loads(offer.form_data)
         return _generate_offer_pdf(offer.customer_name, saved_data=data)
     except Exception as e:
-        flash(f"Error generating PDF from saved data: {'Failed, please try again.'}", "danger")
+        flash("Error generating PDF from saved data: Failed, please try again.", "danger")
         return redirect('/admin/offers')
 
 @app.route('/admin/offers/<int:offer_id>/delete', methods=['POST'])
@@ -7330,7 +7330,7 @@ def admin_scanner_logs_delete(log_id):
             return jsonify({'success': True, 'log_id': log_id})
     except Exception as e:
         db.session.rollback()
-        flash(f"Error deleting log: {'Failed, please try again.'}", "error")
+        flash("Error deleting log: Failed, please try again.", "error")
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('admin_scanner_logs'))
@@ -7576,7 +7576,7 @@ def accounts_batch_edit(batch_id):
         flash('Batch updated successfully.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/mark_billed', methods=['POST'])
@@ -7594,7 +7594,7 @@ def accounts_batch_mark_billed(batch_id):
             return jsonify({'success': True, 'status': 'Billed', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
@@ -7614,7 +7614,7 @@ def accounts_batch_unmark_billed(batch_id):
             return jsonify({'success': True, 'status': 'Pending', 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
@@ -7632,7 +7632,7 @@ def accounts_batch_item_delete(batch_id, item_id):
             return jsonify({'success': True, 'item_id': item_id, 'batch_id': batch_id})
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
             return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
@@ -7648,7 +7648,7 @@ def accounts_batch_delete(batch_id):
         flash('Batch deleted.', 'success')
     except Exception as e:
         db.session.rollback()
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
     return redirect(url_for('accounts_dashboard'))
 
 @app.route('/accounts/batches/bulk_delete', methods=['POST'])
@@ -7770,7 +7770,7 @@ def admin_assign_job():
         db.session.rollback()
         if is_ajax:
             return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
-        flash(f'Error assigning job: {'Failed, please try again.'}', 'error')
+        flash('Error assigning job: Failed, please try again.', 'error')
 
     return redirect('/admin/drivers')
 
@@ -7818,7 +7818,7 @@ def admin_cancel_job(job_id):
         db.session.rollback()
         if is_ajax:
             return jsonify({'ok': False, 'msg': 'Failed, please try again.'}), 500
-        flash(f'Error: {'Failed, please try again.'}', 'error')
+        flash('Error: Failed, please try again.', 'error')
     return redirect('/admin/drivers')
 
 
@@ -8323,7 +8323,7 @@ def admin_vehicles_new():
                 return redirect(f'/admin/vehicles/{v.id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {\'Failed, please try again.\'}")
+                errors.append("Database error: Failed, please try again.")
                 if is_ajax:
                     return jsonify({'success': False, 'errors': errors}), 400
         else:
@@ -8568,7 +8568,7 @@ def admin_vehicle_edit(vehicle_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {\'Failed, please try again.\'}")
+                errors.append("Database error: Failed, please try again.")
     else:
         form_data = v.to_dict()
     return render_template('vehicle_form.html',
@@ -8602,7 +8602,7 @@ def admin_vehicle_delete(vehicle_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'success': False, 'error': \'Failed, please try again.\'}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
         return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
@@ -8647,7 +8647,7 @@ def admin_refuelling_new(vehicle_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {\'Failed, please try again.\'}")
+                errors.append("Database error: Failed, please try again.")
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
@@ -8720,7 +8720,7 @@ def admin_refuelling_edit(vehicle_id, refuelling_id):
                 return redirect(f'/admin/vehicles/{vehicle_id}')
             except Exception as e:
                 db.session.rollback()
-                errors.append(f"Database error: {\'Failed, please try again.\'}")
+                errors.append("Database error: Failed, please try again.")
         elif not errors:
             errors.append("Could not calculate distance and mileage. Please check odometer values.")
     else:
@@ -8760,7 +8760,7 @@ def admin_refuelling_delete(vehicle_id, refuelling_id):
     except Exception as e:
         db.session.rollback()
         if is_ajax:
-            return jsonify({'success': False, 'error': \'Failed, please try again.\'}), 500
+            return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
     return redirect(f'/admin/vehicles/{vehicle_id}')
 
 
