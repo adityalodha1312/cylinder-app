@@ -34,6 +34,7 @@
       <option value="Pending">Pending</option>
       <option value="Billed">Billed</option>
     </select>
+    <button type="button" class="btn btn-outline" style="color:#b91c1c; border-color:#fca5a5; background:#fff;" onclick="deleteSelectedBatches()">🗑 Delete Selected</button>
   </div>
 </div>
 
@@ -42,6 +43,7 @@
     <table id="batches-table">
       <thead>
         <tr>
+          <th style="width:40px; text-align:center;"><input type="checkbox" id="selectAllBatches" onclick="toggleAllBatches(this)"></th>
           <th>Batch Ref</th>
           <th>Date & Time</th>
           <th>Customer</th>
@@ -56,6 +58,7 @@
         {% for b in batches %}
         {% set gas_sum = b.gas_summary() %}
         <tr data-customer="{{ b.customer | lower }}" data-ref="{{ b.batch_ref | lower }}" data-status="{{ b.status }}">
+          <td style="text-align:center;"><input type="checkbox" class="batch-checkbox" value="{{ b.id }}"></td>
           <td style="font-weight:700; color:var(--green-700); font-size:12px;">
             {% if deleted_counts.get(b.id, 0) == b.items|length and b.items|length > 0 %}
               <span style="text-decoration: line-through; color: #a0aec0;" title="All items deleted from logs">{{ b.batch_ref or '—' }}</span>
@@ -128,6 +131,41 @@
   }
   searchInput.addEventListener('input', filterRows);
   statusFilter.addEventListener('change', filterRows);
+
+  function toggleAllBatches(source) {
+    const checkboxes = document.querySelectorAll('.batch-checkbox');
+    checkboxes.forEach(cb => {
+      // only check visible rows
+      const row = cb.closest('tr');
+      if (row.style.display !== 'none') {
+        cb.checked = source.checked;
+      }
+    });
+  }
+
+  function deleteSelectedBatches() {
+    const selected = Array.from(document.querySelectorAll('.batch-checkbox:checked')).map(cb => parseInt(cb.value));
+    if (selected.length === 0) {
+      alert("No batches selected.");
+      return;
+    }
+    if (!confirm(`Are you sure you want to delete ${selected.length} batch(es)?`)) return;
+
+    fetch('/accounts/batches/bulk_delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ batch_ids: selected })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        window.location.reload();
+      } else {
+        alert("Failed to delete batches: " + data.error);
+      }
+    })
+    .catch(err => alert("Error: " + err));
+  }
 
   // Auto-refresh logic (Polling)
   let refreshInterval = setInterval(() => {

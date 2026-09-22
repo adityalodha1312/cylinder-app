@@ -7632,6 +7632,28 @@ def accounts_batch_delete(batch_id):
         flash(f'Error: {str(e)}', 'error')
     return redirect(url_for('accounts_dashboard'))
 
+@app.route('/accounts/batches/bulk_delete', methods=['POST'])
+@accounts_required
+def accounts_batches_bulk_delete():
+    data = request.json
+    batch_ids = data.get('batch_ids', [])
+    if not batch_ids:
+        return jsonify({'success': False, 'error': 'No batches selected'})
+        
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({'success': False, 'error': 'Database required'})
+        
+    try:
+        batches = AccountsBatch.query.filter(AccountsBatch.id.in_(batch_ids)).all()
+        for b in batches:
+            db.session.delete(b)
+        db.session.commit()
+        clear_cache()
+        return jsonify({'success': True, 'message': f'Deleted {len(batch_ids)} batches'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 # Admin read-only view of accounts batches
 @app.route('/admin/accounts_batches')
 @admin_required
