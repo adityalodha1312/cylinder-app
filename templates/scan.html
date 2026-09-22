@@ -2064,10 +2064,10 @@ async function validateRow(inputEl) {
           // Rule OFF: allow delivery of empty cylinders without warning
           if (data.registered === false) {
             badgeEl.classList.add("warning");
-            badgeEl.innerText = "⚠️ Unregistered - Empty (Delivering as-is)";
+            badgeEl.innerText = "⚠️ Unregistered - Empty (Ready to Deliver)";
           } else {
             badgeEl.classList.add("filled");
-            badgeEl.innerText = "✓ Empty (Delivering as-is)";
+            badgeEl.innerText = "✓ Empty (Ready to Deliver)";
           }
           inputEl.dataset.action = "Delivery";
         }
