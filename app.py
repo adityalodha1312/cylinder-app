@@ -325,6 +325,7 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS gas_type VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             # Auto-add new internal log context fields
+            db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_activity_date VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS days_outstanding INTEGER;"))
