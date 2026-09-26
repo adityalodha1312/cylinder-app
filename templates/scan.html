@@ -2369,6 +2369,8 @@ html5QrcodeScanner.render(onScanSuccess);
 
 <script>
 // ─── Admin Manual Entry State ──────────────────────────────────────────────
+var GAS_LABELS = {{ (gas_types or []) | tojson }};
+var GAS_OPTS   = (GAS_LABELS || []).map(function(o) { return typeof o === 'string' ? o : (o.value || ''); });
 let manualItems   = [];   // verified items from last verify call
 let activeFilter  = 'all';
 let isSubmitting  = false;
@@ -2446,16 +2448,17 @@ function manualClear() {
 }
 
 // ─── Gas-type select helper ────────────────────────────────────────────────
-// GAS_LABELS is read from the hidden data element injected by Jinja
-const GAS_LABELS = JSON.parse(document.getElementById('gas-types-data').dataset.gasTypes || '[]');
-const GAS_OPTS = GAS_LABELS.map(o => o.value);
 function gasSelectHtml(key, preselect, isUnregistered=false) {
-  const defGas = document.getElementById('manual-default-gas').value;
+  const defGas = (document.getElementById('manual-default-gas') || {}).value || '';
   const sel = preselect || defGas || '';
-  const missingClass = '';
-  return `<select id="gas-${key}" class="styled-select${missingClass}" onchange="manualOnGasChange(${key.toString().replace('_m','')})">
+  const list = (Array.isArray(GAS_LABELS) && GAS_LABELS.length > 0) ? GAS_LABELS : [];
+  return `<select id="gas-${key}" class="styled-select" onchange="manualOnGasChange(${key.toString().replace('_m','')})">
     <option value="">Select gas…</option>
-    ${GAS_LABELS.map(o => `<option value="${o.value}"${sel===o.value?' selected':''}>${o.label}</option>`).join('')}
+    ${list.map(o => {
+      const v = typeof o === 'string' ? o : (o.value || '');
+      const l = typeof o === 'string' ? o : (o.label || o.value || '');
+      return `<option value="${v}"${sel===v?' selected':''}>${l}</option>`;
+    }).join('')}
   </select>`;
 }
 
