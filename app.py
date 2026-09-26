@@ -9636,7 +9636,7 @@ def api_admin_scan_verify():
 
 
 @app.route('/api/admin/scan/search_cylinder', methods=['POST'])
-@admin_required
+@login_required
 def api_admin_scan_search_cylinder():
     """Search cylinder registry by partial UID for the inline mapping panel."""
     data = request.json or {}
@@ -9655,7 +9655,7 @@ def api_admin_scan_search_cylinder():
 
 
 @app.route('/api/admin/scan/submit_manual', methods=['POST'])
-@admin_required
+@login_required
 def api_admin_scan_submit_manual():
     """Submit a verified batch of cylinder IDs entered manually by an admin."""
     data = request.json or {}
