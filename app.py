@@ -9337,7 +9337,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
     
     # ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ VALIDATE SCANS ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
     if os.environ.get('DATABASE_URL'):
-        # Database-first validation: Check if we are collecting a cylinder that is already in stock/empty at the Depot
+        # Database-first validation: Check if collecting already in depot or delivering already delivered
         for row_data in rows_to_append:
             scan_action = row_data[3]
             scan_uid    = row_data[4]
@@ -9346,6 +9346,24 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                 if c_db:
                     if c_db.status in ['Empty', 'Filled'] or c_db.location == 'Depot':
                         return f"Validation Error: Cylinder '{scan_uid}' is already at the Depot (status: {c_db.status or 'Empty'}). Cannot collect twice.", 400
+                else:
+                    status_info = get_cylinder_status(scan_uid)
+                    if status_info.get('status') in ['Empty', 'Filled'] and (not status_info.get('owner') or status_info.get('owner') == 'Depot') and status_info.get('date'):
+                        return f"Validation Error: Cylinder '{scan_uid}' is already at the Depot according to scan logs. Cannot collect twice.", 400
+            elif scan_action == 'Delivery':
+                c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
+                if not c_db:
+                    alias_obj = CylinderAlias.query.filter_by(alias_name=scan_uid.upper()).first()
+                    if alias_obj:
+                        c_db = Cylinder.query.get(alias_obj.cylinder_id)
+                if c_db and c_db.status == 'Delivered':
+                    return f"Validation Error: Cylinder '{scan_uid}' is already delivered to {c_db.location or 'Customer'}. Cannot deliver twice.", 400
+                elif not c_db:
+                    status_info = get_cylinder_status(scan_uid)
+                    if status_info.get('status') == 'Delivered':
+                        owner_msg = f" to {status_info.get('owner')}" if status_info.get('owner') else ""
+                        date_msg = f" on {status_info.get('date')}" if status_info.get('date') else ""
+                        return f"Validation Error: Cylinder '{scan_uid}' is already delivered{owner_msg}{date_msg} according to scan logs. Cannot deliver twice.", 400
     else:
         # Fallback validation using Google Sheets
         if cyl_ws is None and doc:
@@ -9373,6 +9391,16 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                         status, location = cyl_status_map[scan_uid]
                         if status in ['Empty', 'Filled'] or location == 'Depot':
                             return f"Validation Error: Cylinder '{row_data[4]}' is already at the Depot (status: {status}). Cannot collect twice.", 400
+                    elif scan_action == 'Delivery' and scan_uid in cyl_status_map:
+                        status, location = cyl_status_map[scan_uid]
+                        if status == 'Delivered':
+                            return f"Validation Error: Cylinder '{row_data[4]}' is already delivered to {location}. Cannot deliver twice.", 400
+                    elif scan_action == 'Delivery' and scan_uid not in cyl_status_map:
+                        status_info = get_cylinder_status(scan_uid)
+                        if status_info.get('status') == 'Delivered':
+                            owner_msg = f" to {status_info.get('owner')}" if status_info.get('owner') else ""
+                            date_msg = f" on {status_info.get('date')}" if status_info.get('date') else ""
+                            return f"Validation Error: Cylinder '{row_data[4]}' is already delivered{owner_msg}{date_msg} according to scan logs. Cannot deliver twice.", 400
             except Exception as se:
                 print("[validation] Error validating against Google Sheets registry:", se)
     # ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬ÃƒÂ¢Ã¢â‚¬ÂÃ¢â€šÂ¬
@@ -9708,12 +9736,13 @@ def api_admin_scan_verify():
                 except Exception as e_scan:
                     print("[verify] Warning checking recent Scan:", e_scan)
 
+                act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
                 if recent:
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'result_msg': f'Already {action.lower()}d today.',
+                        'result_msg': f'Already {act_past} today.',
                         'error': True, 'is_duplicate': False,
                     })
                 elif action == 'Collection' and (
@@ -9743,14 +9772,56 @@ def api_admin_scan_verify():
                         'error': False, 'is_duplicate': False,
                     })
             else:
-                # Not in registry — allow submission without blocking
-                results.append({
-                    'entered_id': entered_id, 'master_id': entered_id,
-                    'status': 'Unregistered', 'registry_gas': '',
-                    'cyl_status': '', 'cyl_location': '',
-                    'result_msg': 'Not found in registry. Transaction will be logged.',
-                    'error': False, 'is_duplicate': False,
-                })
+                # Not in registry — cross check scan logs if already delivered or at depot
+                status_info = get_cylinder_status(entered_id)
+                current_status = status_info.get('status', 'Empty')
+                owner = status_info.get('owner')
+                last_date = status_info.get('date')
+
+                # Check if already scanned for this action today
+                recent_today = None
+                try:
+                    if os.environ.get('DATABASE_URL'):
+                        recent_today = Scan.query.filter_by(
+                            cylinder_uid=entered_id, action=action, scan_date=today_str).first()
+                except Exception as e_scan:
+                    pass
+
+                act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
+                if recent_today:
+                    results.append({
+                        'entered_id': entered_id, 'master_id': entered_id,
+                        'status': 'Error', 'registry_gas': '',
+                        'cyl_status': current_status, 'cyl_location': owner or '',
+                        'result_msg': f'Already {act_past} today in scan logs.',
+                        'error': True, 'is_duplicate': False,
+                    })
+                elif action == 'Delivery' and current_status == 'Delivered':
+                    cust_msg = f" to {owner}" if owner else ""
+                    date_msg = f" on {last_date}" if last_date else ""
+                    results.append({
+                        'entered_id': entered_id, 'master_id': entered_id,
+                        'status': 'Error', 'registry_gas': '',
+                        'cyl_status': 'Delivered', 'cyl_location': owner or '',
+                        'result_msg': f'Already delivered{cust_msg}{date_msg} according to scan logs. Must collect first.',
+                        'error': True, 'is_duplicate': False,
+                    })
+                elif action == 'Collection' and current_status in ('Empty', 'Filled') and (not owner or owner == 'Depot'):
+                    results.append({
+                        'entered_id': entered_id, 'master_id': entered_id,
+                        'status': 'Error', 'registry_gas': '',
+                        'cyl_status': current_status, 'cyl_location': 'Depot',
+                        'result_msg': f'Already at Depot (status: {current_status}) in scan logs.',
+                        'error': True, 'is_duplicate': False,
+                    })
+                else:
+                    results.append({
+                        'entered_id': entered_id, 'master_id': entered_id,
+                        'status': 'Unregistered', 'registry_gas': '',
+                        'cyl_status': current_status, 'cyl_location': owner or '',
+                        'result_msg': 'Not in registry. Will be logged & queued for review.',
+                        'error': False, 'is_duplicate': False,
+                    })
 
         # Also add duplicate entries at the end of the list
         for dup_id in duplicate_ids:

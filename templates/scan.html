@@ -1474,7 +1474,6 @@
           <button type="button" class="filter-pill-btn active" id="pill-all" onclick="manualFilter('all')" aria-pressed="true">All (<span id="pc-all">0</span>)</button>
           <button type="button" class="filter-pill-btn" id="pill-ready" onclick="manualFilter('ready')" aria-pressed="false">Ready (<span id="pc-ready">0</span>)</button>
           <button type="button" class="filter-pill-btn" id="pill-unreg" onclick="manualFilter('unreg')" aria-pressed="false">Unregistered (<span id="pc-unreg">0</span>)</button>
-          <button type="button" class="filter-pill-btn" id="pill-mapped" onclick="manualFilter('mapped')" aria-pressed="false">Mapped (<span id="pc-mapped">0</span>)</button>
           <button type="button" class="filter-pill-btn" id="pill-dup" onclick="manualFilter('dup')" aria-pressed="false">Duplicates (<span id="pc-dup">0</span>)</button>
           <button type="button" class="filter-pill-btn" id="pill-err" onclick="manualFilter('err')" aria-pressed="false">Errors (<span id="pc-err">0</span>)</button>
         </div>
@@ -2030,28 +2029,12 @@ async function validateRow(inputEl) {
         }
         inputEl.dataset.action = "Delivery";
       } else if (currentStatus === "Delivered") {
-        if (data.registered === false) {
-          badgeEl.classList.add("warning");
-          badgeEl.innerText = `⚠️ Unregistered - Collected (Auto-Switched: Was with ${owner})`;
-        } else {
-          badgeEl.classList.add("delivered");
-          badgeEl.innerText = `➔ Collected (Auto-Switched: Was with ${owner})`;
-        }
-        inputEl.dataset.action = "Collection";
-        if (owner && !window.currentJob) {
-          let custSelect = document.getElementById("customer-select");
-          let currentCustomer = custSelect.value.trim();
-          if (!currentCustomer) {
-            custSelect.value = owner;
-            revalidateAllRows();
-          } else if (currentCustomer.toLowerCase() !== owner.toLowerCase()) {
-            let change = confirm(`⚠️ Customer Mismatch!\n\nCylinder ${uid} is currently delivered to "${owner}", but you selected "${currentCustomer}".\n\nWould you like to change the selected customer to "${owner}"?`);
-            if (change) {
-              custSelect.value = owner;
-              revalidateAllRows();
-            }
-          }
-        }
+        badgeEl.classList.add("conflict");
+        let details = owner ? `to ${owner}` : "Already Delivered";
+        let dateInfo = data.date ? ` on ${data.date}` : "";
+        badgeEl.innerText = `⚠️ Conflict: Cylinder already delivered ${details}${dateInfo}. Must collect first.`;
+        inputEl.dataset.action = "";
+        invalidRows.add(rowDiv);
       } else if (currentStatus === "Empty") {
         if (FILL_REQUIRED) {
           // Rule ON: block delivery of empty cylinders
@@ -2567,7 +2550,7 @@ async function manualVerify() {
 // ─── Filter ────────────────────────────────────────────────────────────────
 function manualFilter(f) {
   activeFilter = f;
-  ['all','ready','unreg','mapped','dup','err'].forEach(id => {
+  ['all','ready','unreg','dup','err'].forEach(id => {
     const el = document.getElementById('pill-' + id);
     if (el) {
       const isActive = (id === f);
@@ -2583,7 +2566,6 @@ function itemCategory(item) {
   if (item.is_duplicate || item.status === 'Duplicate') return 'dup';
   if (item.error)                                        return 'err';
   if (item.status === 'Unregistered')                    return 'unreg';
-  if (item._mapped)                                      return 'mapped';
   return 'ready';
 }
 
@@ -2593,15 +2575,14 @@ function manualRender() {
   const cards = document.getElementById('verif-cards');
   tbody.innerHTML = ''; cards.innerHTML = '';
 
-  let tot=0, ok=0, warn=0, err=0, dup=0, mapped=0;
+  let tot=0, ok=0, warn=0, err=0, dup=0;
 
   manualItems.forEach((item, idx) => {
     tot++;
     const cat = itemCategory(item);
-    if (cat === 'dup')    dup++;
+    if (cat === 'dup')      dup++;
     else if (cat === 'err') err++;
     else if (cat === 'unreg') warn++;
-    else if (cat === 'mapped') { ok++; mapped++; }
     else ok++;
 
     if (activeFilter !== 'all' && activeFilter !== cat) return;
@@ -2610,42 +2591,27 @@ function manualRender() {
     const badgeMap = {
       ready:  ['Registered', 'badge-reg'],
       unreg:  ['Unregistered', 'badge-unreg'],
-      mapped: ['Mapped', 'badge-mapped'],
       dup:    ['Duplicate', 'badge-dup'],
       err:    ['Error', 'badge-err'],
     };
     const [badgeLabel, badgeClass] = badgeMap[cat] || ['Unknown','badge-dup'];
-    const displayStatus = item._mapped ? 'Mapped' : (item.status === 'Registered (via alias)' ? 'Registered' : badgeLabel);
+    const displayStatus = (item.status === 'Registered (via alias)' ? 'Registered' : badgeLabel);
 
-    // Alias / Mapped note
-    const aliasNote = (item.master_id && item.master_id !== item.entered_id && !item._mapped)
+    // Alias note
+    const aliasNote = (item.master_id && item.master_id !== item.entered_id)
       ? `<div style="font-size:11px;color:#5F5E5A;margin-top:2px;">→ ${item.master_id}</div>` : '';
-    const mappedNote = item._mapped
-      ? `<div style="font-size:11px;color:#1d4ed8;margin-top:2px;">→ ${item._mapped_to_uid} (${item._mapped_to_gas || '—'})</div>` : '';
 
     // Gas cell
     const isUnreg = (cat === 'unreg');
-    const canSelectGas = (isUnreg || cat === 'mapped');
-    const preGas = item._mapped ? (item._mapped_to_gas || '') : (item.registry_gas || '');
-    const gasCell = canSelectGas
+    const preGas = (item.registry_gas || '');
+    const gasCell = isUnreg
       ? gasSelectHtml(idx, preGas, isUnreg)
       : `<span style="font-size:13px;font-weight:600;color:#2C2C2A;">${preGas || '—'}</span>`;
 
     // Action column
     let actionCell = '';
     if (cat === 'unreg') {
-      actionCell = `
-        <button type="button" onclick="manualOpenMap(${idx})"
-          style="font-size:12px;padding:6px 12px;border:1.5px solid #1D9E75;background:white;color:#0F6E56;border-radius:8px;cursor:pointer;font-weight:600;">
-          🔗 Map to Existing
-        </button>`;
-    } else if (cat === 'mapped') {
-      actionCell = `
-        <div style="font-size:12px;color:#1d4ed8;font-weight:600;">Mapped ✓</div>
-        <button type="button" onclick="manualClearMap(${idx})"
-          style="font-size:11px;margin-top:3px;padding:2px 8px;border:1px solid #d8d9d4;background:white;border-radius:4px;cursor:pointer;color:#5F5E5A;">
-          Unmap
-        </button>`;
+      actionCell = `<span style="font-size:12px;color:#d97706;font-weight:600;">Queued for Review</span>`;
     } else if (cat === 'err' || cat === 'dup') {
       actionCell = `<span style="font-size:12px;color:#b91c1c;font-weight:500;">Blocked</span>`;
     } else {
@@ -2657,7 +2623,7 @@ function manualRender() {
     tr.innerHTML = `
       <td>
         <strong style="font-size:14px;color:#0F6E56;">${item.entered_id}</strong>
-        ${aliasNote}${mappedNote}
+        ${aliasNote}
       </td>
       <td>
         <span class="badge ${badgeClass}">${displayStatus}</span>
@@ -2670,40 +2636,8 @@ function manualRender() {
       </td>`;
     tbody.appendChild(tr);
 
-    // Inline Map Panel Row (hidden initially)
-    const mapRow = document.createElement('tr');
-    mapRow.id = `map-row-${idx}`;
-    mapRow.style.display = 'none';
-    mapRow.innerHTML = `<td colspan="5" style="padding:0 10px 10px;">
-      <div class="map-panel">
-        <div style="font-size:12.5px;font-weight:700;margin-bottom:8px;color:#0F6E56;">
-          Map "${item.entered_id}" to an existing registered cylinder
-        </div>
-        <div class="map-search-wrap">
-          <input class="map-search-input" id="msi-${idx}" placeholder="Search by cylinder UID…"
-            oninput="manualSearchCyl(${idx})">
-          <button type="button" onclick="manualSearchCyl(${idx})"
-            style="padding:0 14px;min-height:40px;background:#0F6E56;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">
-            Search
-          </button>
-        </div>
-        <div class="map-results-list" id="mrl-${idx}"></div>
-        <div class="map-confirm-row" id="mcr-${idx}" style="display:none;align-items:center;gap:10px;margin-top:10px;">
-          <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer;color:#2C2C2A;">
-            <input type="checkbox" id="alias-chk-${idx}">
-            Save as permanent alias
-          </label>
-          <button type="button" onclick="manualConfirmMap(${idx})"
-            class="btn-submit-main" style="width:auto;min-height:36px;padding:0 16px;font-size:13px;">Confirm Mapping</button>
-          <button type="button" onclick="manualCancelMap(${idx})"
-            style="padding:0 14px;min-height:36px;border:1.5px solid #d8d9d4;background:white;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;color:#5F5E5A;">Cancel</button>
-        </div>
-      </div>
-    </td>`;
-    tbody.appendChild(mapRow);
-
     // ── Mobile Card ─────────────────────────────────────────────────
-    const cardClass = {ready:'c-reg', unreg:'c-unreg', mapped:'c-mapped', dup:'c-dup', err:'c-err'}[cat] || 'c-dup';
+    const cardClass = {ready:'c-reg', unreg:'c-unreg', dup:'c-dup', err:'c-err'}[cat] || 'c-dup';
     const card = document.createElement('div');
     card.className = `res-card ${cardClass}`;
     card.innerHTML = `
@@ -2714,32 +2648,9 @@ function manualRender() {
         </div>
         <button type="button" class="row-remove-btn" title="Remove" onclick="manualRemoveRow(${idx})">×</button>
       </div>
-      ${item.master_id !== item.entered_id && !item._mapped ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Matched ID</span><span style="font-weight:600;">${item.master_id}</span></div>` : ''}
-      ${item._mapped ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Mapped to</span><span style="font-weight:600;color:#1d4ed8;">${item._mapped_to_uid}</span></div>` : ''}
+      ${item.master_id !== item.entered_id ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Matched ID</span><span style="font-weight:600;">${item.master_id}</span></div>` : ''}
       ${item.result_msg ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Note</span><span style="font-size:12px;">${item.result_msg}</span></div>` : ''}
-      ${canSelectGas ? `<div style="margin-top:10px;"><span class="f-label">Gas Type</span>${gasSelectHtml(idx + '_m', preGas, isUnreg)}</div>` : `<div class="res-card-fld"><span style="color:#5F5E5A;">Gas Type</span><span style="font-weight:600;">${preGas || '—'}</span></div>`}
-      ${cat === 'unreg' ? `<div style="margin-top:12px;">
-        <button type="button" onclick="manualOpenMapMob(${idx})"
-          style="width:100%;min-height:44px;padding:8px;border:1.5px solid #1D9E75;background:white;color:#0F6E56;border-radius:8px;cursor:pointer;font-weight:600;font-size:13.5px;">
-          🔗 Map to Existing Cylinder
-        </button>
-        <div id="mob-map-${idx}" style="display:none;margin-top:10px;" class="map-panel">
-          <div class="map-search-wrap">
-            <input class="map-search-input" id="mmsi-${idx}" placeholder="Search by UID…" oninput="manualSearchCylMob(${idx})">
-            <button type="button" onclick="manualSearchCylMob(${idx})" style="padding:0 14px;min-height:40px;background:#0F6E56;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:600;">Go</button>
-          </div>
-          <div class="map-results-list" id="mmrl-${idx}"></div>
-          <div id="mmcr-${idx}" style="display:none;margin-top:8px;">
-            <label style="font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer;margin-bottom:8px;">
-              <input type="checkbox" id="malias-chk-${idx}"> Save as permanent alias
-            </label>
-            <div style="display:flex;gap:8px;">
-              <button type="button" onclick="manualConfirmMapMob(${idx})" class="btn-submit-main" style="flex:1;min-height:42px;font-size:13px;">Confirm</button>
-              <button type="button" onclick="manualCancelMapMob(${idx})" style="flex:1;min-height:42px;border:1.5px solid #d8d9d4;background:white;border-radius:8px;cursor:pointer;font-weight:600;color:#5F5E5A;">Cancel</button>
-            </div>
-          </div>
-        </div>
-      </div>` : ''}
+      ${isUnreg ? `<div style="margin-top:10px;"><span class="f-label">Gas Type</span>${gasSelectHtml(idx + '_m', preGas, isUnreg)}</div>` : `<div class="res-card-fld"><span style="color:#5F5E5A;">Gas Type</span><span style="font-weight:600;">${preGas || '—'}</span></div>`}
     `;
     cards.appendChild(card);
   });
@@ -2758,9 +2669,8 @@ function manualRender() {
   updateMetric('s-err', err);
 
   document.getElementById('pc-all').innerText    = tot;
-  document.getElementById('pc-ready').innerText  = ok - mapped;
+  document.getElementById('pc-ready').innerText  = ok;
   document.getElementById('pc-unreg').innerText  = warn;
-  document.getElementById('pc-mapped').innerText = mapped;
   document.getElementById('pc-dup').innerText    = dup;
   document.getElementById('pc-err').innerText    = err;
 
@@ -2791,7 +2701,6 @@ function manualValidateSubmission() {
       const mSel = document.getElementById(`gas-${idx}_m`);
       const val = (dSel ? dSel.value : (mSel ? mSel.value : ''));
       if (!val) {
-      // hasMissingGas = true;
         if (dSel) dSel.classList.add('missing-gas');
         if (mSel) mSel.classList.add('missing-gas');
       } else {
@@ -2800,11 +2709,6 @@ function manualValidateSubmission() {
       }
     }
   });
-
-    const deskWarn = null;
-    const mobWarn  = null;
-  if (deskWarn) deskWarn.style.display = hasMissingGas ? 'block' : 'none';
-  if (mobWarn)  mobWarn.style.display  = hasMissingGas ? 'block' : 'none';
 
   const canSubmit = (validCount > 0) && (errCount === 0) && !hasMissingGas;
 
@@ -2832,112 +2736,6 @@ function manualValidateSubmission() {
   }
 }
 
-// ── Mapping: Desktop ──────────────────────────────────────────────────────
-let _mapSelections = {};
-
-function manualOpenMap(idx) {
-  document.getElementById('map-row-' + idx).style.display = '';
-}
-function manualCancelMap(idx) {
-  document.getElementById('map-row-' + idx).style.display = 'none';
-  _mapSelections[idx] = null;
-}
-function manualClearMap(idx) {
-  if (manualItems[idx]) {
-    manualItems[idx]._mapped = false;
-    manualItems[idx]._mapped_to_uid = '';
-    manualItems[idx]._mapped_to_gas = '';
-    manualItems[idx]._save_alias = false;
-  }
-  manualRender();
-}
-
-async function manualSearchCyl(idx) {
-  const q = (document.getElementById('msi-' + idx).value || '').trim();
-  if (q.length < 2) return;
-  try {
-    const res  = await fetch('/api/admin/scan/search_cylinder', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query: q})
-    });
-    const data = await res.json();
-    _renderMapResults(data.results || [], idx, false);
-  } catch(e) {}
-}
-
-function _renderMapResults(results, idx, isMob) {
-  const listId = isMob ? `mmrl-${idx}` : `mrl-${idx}`;
-  const list = document.getElementById(listId);
-  if (!list) return;
-  if (!results.length) { list.innerHTML = '<div style="padding:10px;font-size:13px;color:#5F5E5A;text-align:center;">No cylinders found.</div>'; return; }
-  list.innerHTML = results.map(r => `
-    <div class="map-result-row" onclick="_selectMapResult(${idx}, '${r.uid}', '${r.gas_type}', ${isMob})" data-uid="${r.uid}">
-      <span style="font-weight:700;color:#0F6E56;">${r.uid}</span>
-      <span style="color:#5F5E5A;font-size:12px;">${r.gas_type || '—'} · ${r.status || '—'}</span>
-    </div>`).join('');
-}
-
-function _selectMapResult(idx, uid, gasType, isMob) {
-  _mapSelections[idx] = {uid, gas_type: gasType};
-  const listId = isMob ? `mmrl-${idx}` : `mrl-${idx}`;
-  const list   = document.getElementById(listId);
-  if (list) list.querySelectorAll('.map-result-row').forEach(r => {
-    r.classList.toggle('selected', r.dataset.uid === uid);
-  });
-  const confirmId = isMob ? `mmcr-${idx}` : `mcr-${idx}`;
-  const confirmDiv = document.getElementById(confirmId);
-  if (confirmDiv) confirmDiv.style.display = 'flex';
-}
-
-function manualConfirmMap(idx) {
-  const sel = _mapSelections[idx];
-  if (!sel) return;
-  const aliasChk = document.getElementById('alias-chk-' + idx);
-  if (manualItems[idx]) {
-    manualItems[idx]._mapped        = true;
-    manualItems[idx]._mapped_to_uid = sel.uid;
-    manualItems[idx]._mapped_to_gas = sel.gas_type;
-    manualItems[idx]._save_alias    = aliasChk ? aliasChk.checked : false;
-    manualItems[idx].error          = false;
-  }
-  document.getElementById('map-row-' + idx).style.display = 'none';
-  manualRender();
-}
-
-// ── Mapping: Mobile ──────────────────────────────────────────────────────
-function manualOpenMapMob(idx) {
-  const el = document.getElementById('mob-map-' + idx);
-  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
-}
-function manualCancelMapMob(idx) {
-  const el = document.getElementById('mob-map-' + idx); if(el) el.style.display = 'none';
-}
-async function manualSearchCylMob(idx) {
-  const q = (document.getElementById('mmsi-' + idx).value || '').trim();
-  if (q.length < 2) return;
-  try {
-    const res  = await fetch('/api/admin/scan/search_cylinder', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({query: q})
-    });
-    const data = await res.json();
-    _renderMapResults(data.results || [], idx, true);
-  } catch(e) {}
-}
-function manualConfirmMapMob(idx) {
-  const sel = _mapSelections[idx];
-  if (!sel) return;
-  const aliasChk = document.getElementById('malias-chk-' + idx);
-  if (manualItems[idx]) {
-    manualItems[idx]._mapped        = true;
-    manualItems[idx]._mapped_to_uid = sel.uid;
-    manualItems[idx]._mapped_to_gas = sel.gas_type;
-    manualItems[idx]._save_alias    = aliasChk ? aliasChk.checked : false;
-    manualItems[idx].error          = false;
-  }
-  manualRender();
-}
-
 // ─── Submit ────────────────────────────────────────────────────────────────
 async function manualSubmit() {
   if (isSubmitting) return;
@@ -2958,22 +2756,18 @@ async function manualSubmit() {
     const deskSel = document.getElementById(`gas-${i}`);
     const mobSel  = document.getElementById(`gas-${i}_m`);
     let gas = item.registry_gas || '';
-    if (item._mapped) {
-      gas = item._mapped_to_gas || '';
-    } else if (isMob && mobSel) {
+    if (isMob && mobSel) {
       gas = mobSel.value || gas;
     } else if (deskSel) {
       gas = deskSel.value || gas;
     }
 
-      // gas check disabled
-
     itemsToSubmit.push({
       entered_id:      item.entered_id,
-      master_id:       item._mapped ? item._mapped_to_uid : item.master_id,
+      master_id:       item.master_id,
       transaction_gas: gas,
-      registry_status: cat === 'mapped' ? 'mapped' : (cat === 'unreg' ? 'unregistered' : 'registered'),
-      save_alias:      item._save_alias || false,
+      registry_status: cat === 'unreg' ? 'unregistered' : 'registered',
+      save_alias:      false,
     });
   }
 
