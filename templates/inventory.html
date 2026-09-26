@@ -409,7 +409,117 @@
   .matrix-table .border-right-thick {
     border-right: 1.5px solid var(--gray-bd);
   }
+
+  /* Responsive fixes & Action buttons for Dispatch Report */
+  .matrix-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .btn-matrix-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    background: #ffffff;
+    color: var(--green-700, #0F6E56);
+    border: 1.5px solid var(--green-700, #0F6E56);
+    border-radius: 8px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .btn-matrix-copy:hover {
+    background: var(--green-50, #E1F5EE);
+    border-color: var(--green-500, #1D9E75);
+    color: var(--green-900, #04342C);
+  }
+  .btn-matrix-copy:disabled {
+    opacity: 0.65;
+    cursor: not-allowed;
+  }
+  .btn-matrix-copy.btn-matrix-dl {
+    color: #4b5563;
+    border-color: #d1d5db;
+  }
+  .btn-matrix-copy.btn-matrix-dl:hover {
+    background: #f3f4f6;
+    color: #111827;
+  }
+  .matrix-scroll-hint {
+    display: none;
+    font-size: 11px;
+    color: #6b7280;
+    margin-top: 4px;
+  }
+
+  @media (max-width: 768px) {
+    .matrix-card {
+      padding: 12px;
+      margin-left: -4px;
+      margin-right: -4px;
+      border-radius: 8px;
+    }
+    .tbl-title-bar {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .matrix-actions-bar {
+      width: 100%;
+      justify-content: flex-start;
+    }
+    .matrix-scroll-hint {
+      display: block;
+    }
+    .matrix-table {
+      font-size: 11.5px;
+      min-width: 900px;
+    }
+    .matrix-table th, .matrix-table td {
+      padding: 7px 5px;
+      font-size: 11px;
+    }
+    .matrix-table td:first-child, .matrix-table th:first-child {
+      padding-left: 8px;
+      min-width: 140px !important;
+      position: sticky;
+      left: 0;
+      background: #ffffff;
+      z-index: 2;
+      box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+    }
+    .matrix-table thead tr th:first-child {
+      background: #f7f8f6;
+      z-index: 3;
+    }
+    .matrix-table tr.total-row-sub td:first-child {
+      background: #fcfdfc;
+    }
+    .matrix-table tr.total-row-summary td:first-child {
+      background: #ffffcc;
+    }
+    .matrix-table tr.section-divider-row td:first-child {
+      background: #f1efe8;
+    }
+    .matrix-table tr.grand-total-row td:first-child {
+      background: #fbeee9;
+    }
+  }
+
+  @keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .spin {
+    animation: spin 0.9s linear infinite;
+  }
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 {% endblock %}
 
 {% block content %}
@@ -493,13 +603,31 @@
 </div>
 
 <!-- Daily Dispatch Report (Matrix) Section -->
-<div class="matrix-card">
-  <div class="tbl-title-bar" style="margin-bottom: 16px;">
+<div class="matrix-card" id="dispatchMatrixCard">
+  <div class="tbl-title-bar" style="margin-bottom: 14px;">
     <div>
       <h3 class="tbl-title">Daily Dispatch Report (Matrix)</h3>
       <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--gray-text);">
         Party-wise dispatch (Delivery) and empty cylinder collection grid for {{ target_date }}
       </p>
+      <div class="matrix-scroll-hint">👉 Swipe horizontally to view all gas columns</div>
+    </div>
+    <div class="matrix-actions-bar">
+      <button type="button" class="btn-matrix-copy" id="btnCopyMatrixImage" onclick="copyMatrixTableImage()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Copy Table Image</span>
+      </button>
+      <button type="button" class="btn-matrix-copy btn-matrix-dl" id="btnDlMatrixImage" onclick="downloadMatrixTableImage()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Download PNG</span>
+      </button>
     </div>
   </div>
   
@@ -898,6 +1026,204 @@
   
   function closeTanksModal() {
     document.getElementById('tanks-modal').classList.remove('active');
+  }
+
+  function loadHtml2Canvas() {
+    if (window.html2canvas) return Promise.resolve(window.html2canvas);
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = function() { resolve(window.html2canvas); };
+      s.onerror = function() {
+        var s2 = document.createElement('script');
+        s2.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+        s2.onload = function() { resolve(window.html2canvas); };
+        s2.onerror = function() { reject(new Error('Unable to load screenshot library.')); };
+        document.head.appendChild(s2);
+      };
+      document.head.appendChild(s);
+    });
+  }
+
+  async function renderMatrixCanvas(card) {
+    var h2c = await loadHtml2Canvas();
+    var tableEl = card.querySelector('.matrix-table');
+    var tableWidth = 1100;
+    if (tableEl) {
+      tableWidth = Math.max(tableEl.scrollWidth || 0, tableEl.offsetWidth || 0, 1100);
+    }
+    var targetWidth = tableWidth + 40;
+    var winWidth = Math.max(targetWidth + 60, 1200);
+
+    return await h2c(card, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: targetWidth,
+      windowWidth: winWidth,
+      scrollX: 0,
+      scrollY: 0,
+      onclone: function(clonedDoc) {
+        var clonedCard = clonedDoc.getElementById('dispatchMatrixCard');
+        if (clonedCard) {
+          clonedCard.style.backgroundColor = '#ffffff';
+          clonedCard.style.boxShadow = 'none';
+          clonedCard.style.width = targetWidth + 'px';
+          clonedCard.style.minWidth = targetWidth + 'px';
+          clonedCard.style.maxWidth = targetWidth + 'px';
+          clonedCard.style.boxSizing = 'border-box';
+          clonedCard.style.padding = '18px 20px';
+          clonedCard.style.margin = '0 auto';
+
+          var actions = clonedCard.querySelector('.matrix-actions-bar');
+          if (actions) actions.style.display = 'none';
+
+          var hint = clonedCard.querySelector('.matrix-scroll-hint');
+          if (hint) hint.style.display = 'none';
+
+          var parent = clonedCard.parentElement;
+          while (parent && parent !== clonedDoc.body) {
+            parent.style.width = '100%';
+            parent.style.maxWidth = 'none';
+            parent.style.overflow = 'visible';
+            parent = parent.parentElement;
+          }
+          if (clonedDoc.body) {
+            clonedDoc.body.style.width = winWidth + 'px';
+            clonedDoc.body.style.overflow = 'visible';
+          }
+
+          var wrap = clonedCard.querySelector('.matrix-table-wrap');
+          if (wrap) {
+            wrap.scrollLeft = 0;
+            wrap.style.overflow = 'visible';
+            wrap.style.overflowX = 'visible';
+            wrap.style.width = '100%';
+            wrap.style.maxWidth = 'none';
+            wrap.style.border = '1px solid #d8d9d4';
+          }
+
+          var t = clonedCard.querySelector('.matrix-table');
+          if (t) {
+            t.style.width = '100%';
+            t.style.minWidth = (targetWidth - 40) + 'px';
+            // Unset sticky positioning during export clone
+            var stickyCells = t.querySelectorAll('td:first-child, th:first-child');
+            stickyCells.forEach(function(c) {
+              c.style.position = 'static';
+              c.style.boxShadow = 'none';
+            });
+          }
+        }
+      }
+    });
+  }
+
+  async function copyMatrixTableImage() {
+    var btn = document.getElementById('btnCopyMatrixImage');
+    var card = document.getElementById('dispatchMatrixCard');
+    if (!card) {
+      alert('Dispatch matrix table not found.');
+      return;
+    }
+
+    var originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Copying...</span>';
+    }
+
+    try {
+      var canvas = await renderMatrixCanvas(card);
+
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Direct clipboard copy is not supported in this browser. Falling back to download.');
+      }
+
+      await new Promise(function(resolve, reject) {
+        canvas.toBlob(async function(blob) {
+          if (!blob) {
+            reject(new Error('Failed to create image blob.'));
+            return;
+          }
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            resolve();
+          } catch (writeErr) {
+            reject(writeErr);
+          }
+        }, 'image/png');
+      });
+
+      if (btn) {
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied to Clipboard!</span>';
+        btn.style.background = '#04342C';
+        btn.style.borderColor = '#04342C';
+        btn.style.color = '#ffffff';
+        setTimeout(function() {
+          btn.innerHTML = originalHtml;
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 2500);
+      }
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+      if (confirm('Could not write directly to clipboard (' + (err.message || 'Permission denied') + '). Would you like to download the PNG image instead?')) {
+        downloadMatrixTableImage();
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+  }
+
+  async function downloadMatrixTableImage() {
+    var btn = document.getElementById('btnDlMatrixImage');
+    var card = document.getElementById('dispatchMatrixCard');
+    if (!card) {
+      alert('Dispatch matrix table not found.');
+      return;
+    }
+
+    var originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Saving PNG...</span>';
+    }
+
+    try {
+      var canvas = await renderMatrixCanvas(card);
+      var dateStr = '{{ target_date }}'.replace(/[^a-zA-Z0-9_-]/g, '_');
+      var filename = 'Daily_Dispatch_Matrix_' + dateStr + '.png';
+
+      var link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (btn) {
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Downloaded!</span>';
+        setTimeout(function() {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }, 2200);
+      }
+    } catch (err) {
+      console.error('Error exporting image:', err);
+      alert('Failed to generate image: ' + (err.message || 'Unknown error'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
   }
 </script>
 

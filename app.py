@@ -3620,7 +3620,8 @@ def calculate_daily_dispatch_report(target_date_str):
                     day_scans.append({
                         'action': s.action,
                         'uid': s.cylinder_uid.strip().upper(),
-                        'customer': s.customer.strip() if s.customer else ''
+                        'customer': s.customer.strip() if s.customer else '',
+                        'gas_type': (s.gas_type or '').strip()
                     })
                 db_loaded = True
             except Exception as dbe:
@@ -3643,7 +3644,8 @@ def calculate_daily_dispatch_report(target_date_str):
                         day_scans.append({
                             'action': r[3].strip(),
                             'uid': r[4].strip().upper(),
-                            'customer': r[5].strip()
+                            'customer': r[5].strip(),
+                            'gas_type': r[6].strip() if len(r) > 6 else ''
                         })
                     
         if not day_scans:
@@ -3666,6 +3668,7 @@ def calculate_daily_dispatch_report(target_date_str):
             uid = s['uid']
             action = s['action'].lower()
             customer = s['customer'] or '(No Customer)'
+            scan_gas = (s.get('gas_type') or '').strip().upper()
             
             cyl = cyl_map.get(uid)
             
@@ -3675,9 +3678,12 @@ def calculate_daily_dispatch_report(target_date_str):
             else:
                 is_company_owned = False
                 
-            if cyl:
+            if cyl and cyl.get('gas_type'):
                 gas_type = cyl['gas_type'].upper()
-                cyl_type = cyl['cylinder_type'].capitalize()
+                cyl_type = (cyl.get('cylinder_type') or 'Standard').capitalize()
+            elif scan_gas:
+                gas_type = scan_gas
+                cyl_type = 'Dura' if 'DURA' in scan_gas or 'DURA' in uid else 'Standard'
             else:
                 cyl_type = 'Standard'
                 if 'DURA' in uid:
@@ -3695,13 +3701,14 @@ def calculate_daily_dispatch_report(target_date_str):
             if cyl_type == 'Dura':
                 col_key = 'Dura'
             else:
-                if gas_type == 'ACM': col_key = 'ACM'
-                elif gas_type == 'ARG': col_key = 'ARG'
-                elif gas_type == 'CO2': col_key = 'CO2'
-                elif gas_type in ('N2', 'N2D'): col_key = 'N2'
-                elif gas_type == 'OXY': col_key = 'Oxy'
+                if 'ACM' in gas_type: col_key = 'ACM'
+                elif 'ARG' in gas_type: col_key = 'ARG'
+                elif 'CO2' in gas_type or 'CO₂' in gas_type: col_key = 'CO2'
+                elif 'NITROGEN' in gas_type or gas_type in ('N2', 'N2D'): col_key = 'N2'
+                elif 'OXY' in gas_type or 'OXYGEN' in gas_type: col_key = 'Oxy'
                 elif 'HEL' in gas_type: col_key = 'Helium'
-                elif gas_type == 'DA': col_key = 'DA'
+                elif 'DA' in gas_type or 'ACETYLENE' in gas_type: col_key = 'DA'
+                elif 'DURA' in gas_type: col_key = 'Dura'
                 else: col_key = 'Oxy'
                 
             group = company_customers if is_company_owned else party_customers
