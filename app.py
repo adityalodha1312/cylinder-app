@@ -6457,7 +6457,16 @@ def scan_app():
     user = session.get('user')
     customers = get_customer_names()
     fill_required = get_setting('fill_required_before_delivery', 'true').lower() == 'true'
-    return render_template('scan.html', user=user, customers=customers, fill_required=fill_required)
+    products = get_products_config()
+    # Build sorted unique gas type list from products (exclude virtual products with no gas_type)
+    _seen = set()
+    gas_types = []
+    for p in products:
+        g = (p.get('gas_type') or '').strip()
+        if g and g not in _seen:
+            _seen.add(g)
+            gas_types.append({'value': g, 'label': p.get('name', g)})
+    return render_template('scan.html', user=user, customers=customers, fill_required=fill_required, gas_types=gas_types)
 
 @app.route('/submit', methods=['POST'])
 def submit():

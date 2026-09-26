@@ -1414,12 +1414,9 @@
         <span class="f-label">Default Gas Type <small style="font-weight:400;text-transform:none;">(for unregistered cylinders)</small></span>
         <select id="manual-default-gas" class="styled-select" onchange="manualApplyDefaultGas()">
           <option value="">Select gas type…</option>
-          <option value="Oxygen">Oxygen</option>
-          <option value="Argon">Argon</option>
-          <option value="Nitrogen">Nitrogen</option>
-          <option value="CO2">CO2</option>
-          <option value="DA">DA (Dissolved Acetylene)</option>
-          <option value="Helium">Helium</option>
+          {% for g in gas_types %}
+          <option value="{{ g.value }}">{{ g.label }}</option>
+          {% endfor %}
         </select>
       </div>
 
@@ -2447,14 +2444,16 @@ function manualClear() {
 }
 
 // ─── Gas-type select helper ────────────────────────────────────────────────
+// opts is injected from the server so it always matches the Products table
+const GAS_OPTS = {{ gas_types | map(attribute='value') | list | tojson }};
+const GAS_LABELS = {{ gas_types | tojson }};
 function gasSelectHtml(key, preselect, isUnregistered=false) {
-  const opts = ['Oxygen','Argon','Nitrogen','CO2','DA','Helium'];
   const defGas = document.getElementById('manual-default-gas').value;
   const sel = preselect || defGas || '';
   const missingClass = (isUnregistered && !sel) ? ' missing-gas' : '';
   return `<select id="gas-${key}" class="styled-select${missingClass}" onchange="manualOnGasChange(${key.toString().replace('_m','')})">
     <option value="">Select gas…</option>
-    ${opts.map(o => `<option value="${o}"${sel===o?' selected':''}>${o}</option>`).join('')}
+    ${GAS_LABELS.map(o => `<option value="${o.value}"${sel===o.value?' selected':''}>${o.label}</option>`).join('')}
   </select>`;
 }
 
