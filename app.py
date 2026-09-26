@@ -4897,11 +4897,14 @@ def build_customer_outstanding_detail(customer_name):
     events = build_events()
     cylinder_owner = {}
     cylinder_delivery_date = {}
+    cylinder_scan_gas = {}
 
     for ev in events:
         if ev['action'] == 'Delivery':
             cylinder_owner[ev['uid']] = ev['customer']
             cylinder_delivery_date[ev['uid']] = ev['date_obj']
+            if ev.get('gas_type'):
+                cylinder_scan_gas[ev['uid']] = ev['gas_type']
         elif ev['action'] in ('Collection', 'Filling'):
             cylinder_owner.pop(ev['uid'], None)
             cylinder_delivery_date.pop(ev['uid'], None)
@@ -4921,9 +4924,13 @@ def build_customer_outstanding_detail(customer_name):
             continue
         d_date   = cylinder_delivery_date.get(uid)
         days_out = (today - d_date).days if d_date else None
+        
+        reg_gas = gas_map.get(uid.upper(), '')
+        final_gas = reg_gas if reg_gas else cylinder_scan_gas.get(uid, 'Unknown')
+        
         result.append({
             'uid'         : uid,
-            'gas_type'    : gas_map.get(uid.upper(), 'Unknown'),
+            'gas_type'    : final_gas,
             'delivered_on': fmt_date(d_date),
             'days_out'    : days_out,
             'overdue'     : days_out is not None and days_out > 30,
