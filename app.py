@@ -302,6 +302,14 @@ db_url = os.environ.get('DATABASE_URL')
 if not db_url:
     print("[warning] DATABASE_URL environment variable is not set. Falling back to Google Sheets for operations.")
     db_url = 'sqlite:///:memory:'
+# Fix: Render sometimes sets postgresql+psycopg:// (psycopg v3) but we use psycopg2-binary.
+# Replace both postgresql:// and postgresql+psycopg:// with postgresql+psycopg2://
+if db_url.startswith('postgresql+psycopg://'):
+    db_url = db_url.replace('postgresql+psycopg://', 'postgresql+psycopg2://', 1)
+elif db_url.startswith('postgres://'):
+    db_url = db_url.replace('postgres://', 'postgresql+psycopg2://', 1)
+elif db_url.startswith('postgresql://'):
+    db_url = db_url.replace('postgresql://', 'postgresql+psycopg2://', 1)
 app.config['SQLALCHEMY_DATABASE_URI'] = db_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
