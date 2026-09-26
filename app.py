@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, session, jsonify, flash, url_for
+from flask import Flask, render_template, render_template_string, request, redirect, session, jsonify, flash, url_for
 from openpyxl import load_workbook
 from datetime import datetime, date, timedelta
 import math
@@ -607,6 +607,10 @@ def get_products_config():
                     'is_virtual':    p.is_virtual,
                 } for p in products]
     except Exception as e:
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
         print("[db] get_products_config read error, falling back to Sheets:", e)
 
     if not out:
@@ -10191,17 +10195,78 @@ def admin_backup_export():
 def admin_pending_cylinders():
     status_filter = request.args.get('status', 'pending').strip().lower()
     
-    query = PendingCylinderReview.query
-    if status_filter != 'all':
-        query = query.filter_by(status=status_filter)
+    all_items = PendingCylinderReview.query.order_by(PendingCylinderReview.id.desc()).all()
     
-    items = query.order_by(PendingCylinderReview.id.desc()).all()
+    total_pending = sum(1 for i in all_items if i.status == 'pending')
+    total_mapped = sum(1 for i in all_items if i.status == 'mapped')
+    total_registered = sum(1 for i in all_items if i.status == 'registered')
+    total_rejected = sum(1 for i in all_items if i.status == 'rejected')
     
-    total_pending = PendingCylinderReview.query.filter_by(status='pending').count()
-    total_mapped = PendingCylinderReview.query.filter_by(status='mapped').count()
-    total_registered = PendingCylinderReview.query.filter_by(status='registered').count()
-    total_rejected = PendingCylinderReview.query.filter_by(status='rejected').count()
+    # Group items into distinct scan batches/logs
+    batches_map = {}
+    batch_order = []
     
+    for item in all_items:
+        # Group by scan date, time, staff, customer, action
+        b_key = f"{item.scan_date}_{item.scan_time or ''}_{item.staff_member or ''}_{item.customer or ''}_{item.action or ''}"
+        if b_key not in batches_map:
+            batches_map[b_key] = {
+                'key': b_key,
+                'scan_date': item.scan_date,
+                'scan_time': item.scan_time or '',
+                'staff_member': item.staff_member or 'Staff',
+                'customer': item.customer or ('Depot' if item.action == 'Filling' else 'Customer'),
+                'action': item.action or 'Scan',
+                'cylinders': [],
+                'pending_ids': [],
+                'total_count': 0,
+                'pending_count': 0,
+                'mapped_count': 0,
+                'registered_count': 0,
+                'rejected_count': 0,
+                'is_all_resolved': False
+            }
+            batch_order.append(b_key)
+        
+        batches_map[b_key]['cylinders'].append(item)
+        batches_map[b_key]['total_count'] += 1
+        if item.status == 'pending':
+            batches_map[b_key]['pending_count'] += 1
+            batches_map[b_key]['pending_ids'].append(item.id)
+        elif item.status == 'mapped':
+            batches_map[b_key]['mapped_count'] += 1
+        elif item.status == 'registered':
+            batches_map[b_key]['registered_count'] += 1
+        elif item.status == 'rejected':
+            batches_map[b_key]['rejected_count'] += 1
+
+    all_batches = []
+    for b_key in batch_order:
+        b = batches_map[b_key]
+        b['is_all_resolved'] = (b['pending_count'] == 0)
+        all_batches.append(b)
+        
+    total_batches = len(all_batches)
+    total_pending_batches = sum(1 for b in all_batches if b['pending_count'] > 0)
+    
+    # Filter batches based on status_filter
+    filtered_batches = []
+    for b in all_batches:
+        if status_filter == 'pending':
+            if b['pending_count'] > 0:
+                filtered_batches.append(b)
+        elif status_filter == 'mapped':
+            if b['mapped_count'] > 0:
+                filtered_batches.append(b)
+        elif status_filter == 'registered':
+            if b['registered_count'] > 0:
+                filtered_batches.append(b)
+        elif status_filter == 'rejected':
+            if b['rejected_count'] > 0:
+                filtered_batches.append(b)
+        else:
+            filtered_batches.append(b)
+
     products = get_products_config()
     _seen = set()
     gas_types = []
@@ -10214,12 +10279,14 @@ def admin_pending_cylinders():
     return render_template(
         'admin_pending_cylinders.html',
         user=session.get('user'),
-        items=items,
+        batches=filtered_batches,
         status_filter=status_filter,
         total_pending=total_pending,
         total_mapped=total_mapped,
         total_registered=total_registered,
         total_rejected=total_rejected,
+        total_batches=total_batches,
+        total_pending_batches=total_pending_batches,
         gas_types=gas_types
     )
 
@@ -10393,5 +10460,87 @@ def admin_api_pending_cylinder_reject(review_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': f'Failed to reject review entry: {str(e)}'}), 500
+
+
+@app.route('/admin/api/pending_cylinders/batch_register', methods=['POST'])
+@admin_required
+def admin_api_pending_cylinder_batch_register():
+    data = request.json or {}
+    review_ids = data.get('review_ids', [])
+    if not review_ids:
+        return jsonify({'error': 'No review items provided for batch registration.'}), 400
+        
+    admin_name = session.get('user', {}).get('name') or session.get('user', {}).get('username', 'Admin')
+    registered_count = 0
+    
+    try:
+        reviews = PendingCylinderReview.query.filter(
+            PendingCylinderReview.id.in_(review_ids),
+            PendingCylinderReview.status == 'pending'
+        ).all()
+        
+        sheet_rows = []
+        for r in reviews:
+            entered_id = r.entered_id.strip().upper()
+            gas_type = r.gas_type or 'Unknown'
+            cylinder_type = 'Standard'
+            
+            existing_c = Cylinder.query.filter(Cylinder.uid.ilike(entered_id)).first()
+            if existing_c:
+                r.status = 'registered'
+                r.resolved_by = admin_name
+                r.resolved_at = datetime.utcnow()
+                registered_count += 1
+                continue
+                
+            action_status = 'Delivered' if r.action == 'Delivery' else ('Empty' if r.action == 'Collection' else 'Filled')
+            location = r.customer if r.action == 'Delivery' else 'Depot'
+            
+            new_cyl = Cylinder(
+                uid=entered_id,
+                gas_type=gas_type,
+                cylinder_type=cylinder_type,
+                owner='Depot',
+                status=action_status,
+                location=location or 'Depot',
+                last_activity_date=r.scan_date,
+                id_history=entered_id
+            )
+            db.session.add(new_cyl)
+            
+            r.status = 'registered'
+            r.resolved_by = admin_name
+            r.resolved_at = datetime.utcnow()
+            registered_count += 1
+            sheet_rows.append([
+                entered_id, gas_type, cylinder_type, 'Depot', action_status, location or 'Depot', r.scan_date
+            ])
+            
+        db.session.commit()
+        clear_cache()
+        
+        if sheet_rows:
+            def mirror_batch_cyl_sheet():
+                try:
+                    global cyl_ws, doc
+                    if cyl_ws is None and doc:
+                        try:
+                            cyl_ws = doc.worksheet('Cylinders')
+                        except Exception:
+                            pass
+                    if cyl_ws:
+                        sheets_write_with_retry(cyl_ws.append_rows, sheet_rows)
+                except Exception as se:
+                    print("[sheets] Error mirroring batch registered cylinders:", se)
+            async_sheets_write(mirror_batch_cyl_sheet)
+            
+        return jsonify({
+            'success': True,
+            'message': f'Successfully registered {registered_count} cylinders into master registry.'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to batch register cylinders: {str(e)}'}), 500
+
 
 
