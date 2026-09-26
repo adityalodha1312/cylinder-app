@@ -1419,6 +1419,8 @@
           {% endfor %}
         </select>
       </div>
+      <!-- Gas types data passed to JS safely via data attribute -->
+      <div id="gas-types-data" style="display:none;" data-gas-types="{{ gas_types | tojson | e }}"></div>
 
       <!-- 4. Cylinder IDs Textarea -->
       <div style="margin-bottom:12px;">
@@ -2444,9 +2446,9 @@ function manualClear() {
 }
 
 // ─── Gas-type select helper ────────────────────────────────────────────────
-// opts is injected from the server so it always matches the Products table
-const GAS_OPTS = {{ gas_types | map(attribute='value') | list | tojson }};
-const GAS_LABELS = {{ gas_types | tojson }};
+// GAS_LABELS is read from the hidden data element injected by Jinja
+const GAS_LABELS = JSON.parse(document.getElementById('gas-types-data').dataset.gasTypes || '[]');
+const GAS_OPTS = GAS_LABELS.map(o => o.value);
 function gasSelectHtml(key, preselect, isUnregistered=false) {
   const defGas = document.getElementById('manual-default-gas').value;
   const sel = preselect || defGas || '';
