@@ -1,0 +1,67 @@
+{% extends "admin_base.html" %}
+{% block title %}Unregistered Scans{% endblock %}
+
+{% block content %}
+<div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:24px;">
+  <div>
+    <h1 style="font-size:24px; font-weight:700; color:var(--dark-text); margin:0;">Unregistered Scans Review</h1>
+    <p style="color:var(--gray-text); margin:4px 0 0; font-size:14px;">Batches containing cylinders not found in the master registry.</p>
+  </div>
+</div>
+
+{% if batches %}
+  {% for b in batches %}
+  <div class="card" style="margin-bottom:24px; border:1px solid #ffedd5; background:#fffaf0; border-radius:12px; overflow:hidden;">
+    <div style="background:#ffedd5; padding:12px 20px; display:flex; justify-content:space-between; align-items:center;">
+      <div style="display:flex; align-items:center; gap:16px;">
+        <span style="font-weight:700; color:#b45309; font-size:14px;">{{ b.date }} | {{ b.time }}</span>
+        <span class="badge badge-yellow">{{ b.action }}</span>
+        <span style="font-size:14px; font-weight:600; color:#92400e;">Driver: {{ b.driver }}</span>
+      </div>
+      <div style="font-size:14px; font-weight:600; color:#b45309;">
+        {{ b.customer }}
+      </div>
+    </div>
+    
+    <div style="padding:16px 20px;">
+      <p style="font-size:13px; color:#78350f; font-weight:600; margin:0 0 12px;">{{ b.unregistered_cyls|length }} Unregistered Cylinder(s) in this batch:</p>
+      
+      <table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead>
+          <tr style="border-bottom:1.5px solid #fed7aa; text-align:left; color:#9a3412;">
+            <th style="padding:8px 12px; width:140px;">Scanned UID</th>
+            <th style="padding:8px 12px; width:120px;">Scanned Gas</th>
+            <th style="padding:8px 12px;">Resolution Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for cyl in b.unregistered_cyls %}
+          <tr style="border-bottom:1px solid #ffedd5;">
+            <td style="padding:12px; font-family:monospace; font-weight:700; color:#92400e; vertical-align:middle;">{{ cyl.uid }}</td>
+            <td style="padding:12px; vertical-align:middle;">{{ cyl.gas_type or '—' }}</td>
+            <td style="padding:12px; vertical-align:middle;">
+              <form action="/admin/cylinders/add" method="GET" style="display:inline-block; margin:0;">
+                <input type="hidden" name="uid" value="{{ cyl.uid }}">
+                <input type="hidden" name="gas_type" value="{{ cyl.gas_type }}">
+                <button type="submit" style="background:#0F6E56; color:#fff; border:none; padding:6px 12px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">
+                  Register New
+                </button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% endfor %}
+{% else %}
+  <div style="background:#fff; border:1px solid var(--gray-bd); border-radius:12px; padding:40px 20px; text-align:center; color:var(--gray-text);">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:16px; opacity:0.5;">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>
+    </svg>
+    <p style="font-size:16px; font-weight:600; margin:0;">All caught up!</p>
+    <p style="font-size:14px; margin:4px 0 0;">There are no pending unregistered cylinder scans.</p>
+  </div>
+{% endif %}
+{% endblock %}

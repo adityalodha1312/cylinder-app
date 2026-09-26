@@ -904,6 +904,10 @@
           <span class="nav-item-title">Receipts</span>
           <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
         </a>
+        <a href="/admin/unregistered_scans" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/unregistered_scans' else '' }}" data-nav-id="unreg_scans" draggable="true">
+          <span class="nav-item-title">Unregistered Scans <span style="color:#f59e0b;font-weight:700;">⚠</span></span>
+          <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>
+        </a>
         <a href="/admin/activity" class="nav-secondary nav-draggable {{ 'active' if request.path == '/admin/activity' else '' }}" data-nav-id="activity" draggable="true">
           <span class="nav-item-title">Activity Log</span>
           <span class="drag-handle" title="Drag to reorder"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg></span>

@@ -2452,7 +2452,7 @@ const GAS_OPTS = GAS_LABELS.map(o => o.value);
 function gasSelectHtml(key, preselect, isUnregistered=false) {
   const defGas = document.getElementById('manual-default-gas').value;
   const sel = preselect || defGas || '';
-  const missingClass = (isUnregistered && !sel) ? ' missing-gas' : '';
+  const missingClass = '';
   return `<select id="gas-${key}" class="styled-select${missingClass}" onchange="manualOnGasChange(${key.toString().replace('_m','')})">
     <option value="">Select gas…</option>
     ${GAS_LABELS.map(o => `<option value="${o.value}"${sel===o.value?' selected':''}>${o.label}</option>`).join('')}
@@ -2767,7 +2767,7 @@ function manualValidateSubmission() {
       const mSel = document.getElementById(`gas-${idx}_m`);
       const val = (dSel ? dSel.value : (mSel ? mSel.value : ''));
       if (!val) {
-        hasMissingGas = true;
+      // hasMissingGas = true;
         if (dSel) dSel.classList.add('missing-gas');
         if (mSel) mSel.classList.add('missing-gas');
       } else {
@@ -2777,8 +2777,8 @@ function manualValidateSubmission() {
     }
   });
 
-  const deskWarn = document.getElementById('desk-gas-warning');
-  const mobWarn  = document.getElementById('mob-gas-warning');
+    const deskWarn = null;
+    const mobWarn  = null;
   if (deskWarn) deskWarn.style.display = hasMissingGas ? 'block' : 'none';
   if (mobWarn)  mobWarn.style.display  = hasMissingGas ? 'block' : 'none';
 
@@ -2942,9 +2942,7 @@ async function manualSubmit() {
       gas = deskSel.value || gas;
     }
 
-    if (cat === 'unreg' && !gas) {
-      alert(`Please select a gas type for cylinder ${item.entered_id}.`);
-      return;
+      // gas check disabled
     }
 
     itemsToSubmit.push({
