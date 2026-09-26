@@ -4923,7 +4923,7 @@ def build_customer_outstanding_detail(customer_name):
         days_out = (today - d_date).days if d_date else None
         result.append({
             'uid'         : uid,
-            'gas_type'    : gas_map.get(uid.upper(), 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'),
+            'gas_type'    : gas_map.get(uid.upper(), 'Unknown'),
             'delivered_on': fmt_date(d_date),
             'days_out'    : days_out,
             'overdue'     : days_out is not None and days_out > 30,
@@ -5006,7 +5006,7 @@ def build_gas_type_breakdown(outstanding_detail):
     """
     breakdown = {}
     for c in outstanding_detail:
-        gt = c.get('gas_type') or 'ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â'
+        gt = c.get('gas_type') or 'Unknown'
         breakdown[gt] = breakdown.get(gt, 0) + 1
     return dict(sorted(breakdown.items()))
 
