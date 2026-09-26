@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 import os
 import re
 from db import db
-from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer, SpareItem, SpareTransaction, Vehicle, VehicleRefuelling, CylinderAlias, GasTypeHistory
+from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer, SpareItem, SpareTransaction, Vehicle, VehicleRefuelling, CylinderAlias, GasTypeHistory, PendingCylinderReview
 from apscheduler.schedulers.background import BackgroundScheduler
 from werkzeug.security import generate_password_hash, check_password_hash
 from concurrent.futures import ThreadPoolExecutor
@@ -365,9 +365,28 @@ with app.app_context():
                     changed_at TIMESTAMP DEFAULT NOW()
                 );
             """))
+            db.session.execute(text("ALTER TABLE cylinders ADD COLUMN IF NOT EXISTS id_history TEXT DEFAULT '';"))
+            db.session.execute(text("""
+                CREATE TABLE IF NOT EXISTS pending_cylinder_reviews (
+                    id SERIAL PRIMARY KEY,
+                    entered_id VARCHAR(100) NOT NULL,
+                    scan_date VARCHAR(50) NOT NULL,
+                    scan_time VARCHAR(50),
+                    staff_member VARCHAR(100),
+                    customer VARCHAR(255),
+                    action VARCHAR(50),
+                    gas_type VARCHAR(50),
+                    status VARCHAR(20) DEFAULT 'pending',
+                    resolved_by VARCHAR(100),
+                    resolved_at TIMESTAMP,
+                    mapped_to_uid VARCHAR(100),
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT NOW()
+                );
+            """))
             db.session.commit()
             clear_cache()
-            print("[startup] Checked and added scans.gas_type, admin_scan_logs context, and customers.gst_number columns if missing.")
+            print("[startup] Checked and added pending_cylinder_reviews table and cylinders.id_history.")
         except Exception as e:
             print("[startup] table alter check failed:", e)
 
@@ -1923,13 +1942,52 @@ def build_daily_movement():
     _data_cache['movement_time'] = now
     return final_res
 
+def resolve_all_cylinder_uids(uid):
+    """Returns a set of all related UIDs for a cylinder, including its master UID, all aliases, and id_history."""
+    if not uid:
+        return set()
+    uid_upper = uid.strip().upper()
+    all_uids = {uid_upper}
+    try:
+        if os.environ.get('DATABASE_URL'):
+            # Check if searched UID is an alias
+            alias_rec = CylinderAlias.query.filter_by(alias_name=uid_upper).first()
+            if alias_rec:
+                master_c = Cylinder.query.get(alias_rec.cylinder_id)
+                if master_c:
+                    all_uids.add(master_c.uid.strip().upper())
+                    for sib in CylinderAlias.query.filter_by(cylinder_id=master_c.id).all():
+                        if sib.alias_name:
+                            all_uids.add(sib.alias_name.strip().upper())
+                    if getattr(master_c, 'id_history', ''):
+                        for h in master_c.id_history.split(','):
+                            if h.strip():
+                                all_uids.add(h.strip().upper())
+            else:
+                # Check if searched UID is master cylinder
+                c_rec = Cylinder.query.filter(Cylinder.uid.ilike(uid_upper)).first()
+                if c_rec:
+                    all_uids.add(c_rec.uid.strip().upper())
+                    for sib in CylinderAlias.query.filter_by(cylinder_id=c_rec.id).all():
+                        if sib.alias_name:
+                            all_uids.add(sib.alias_name.strip().upper())
+                    if getattr(c_rec, 'id_history', ''):
+                        for h in c_rec.id_history.split(','):
+                            if h.strip():
+                                all_uids.add(h.strip().upper())
+    except Exception as e:
+        print("[resolve_uids] Error:", e)
+    return all_uids
+
 def get_cylinder_history(uid):
-    """Full event history for a single cylinder UID"""
+    """Full event history for a single cylinder UID (including mapped aliases & historical IDs)"""
+    all_uids = resolve_all_cylinder_uids(uid)
     batch_map = build_batch_map()
     history   = []
 
     for r in get_scan_rows():
-        if r['uid'].upper() == uid.strip().upper():
+        r_uid = (r.get('uid') or '').strip().upper()
+        if r_uid in all_uids:
             key      = f"{r['date']}||{r['time']}||{r['driver']}||{r['action']}"
             customer = batch_map.get(key, '(Not mapped yet)')
             history.append({**r, 'customer': customer})
@@ -1939,17 +1997,18 @@ def get_cylinder_history(uid):
 
 def get_cylinder_status(uid):
     uid_upper = uid.strip().upper()
+    all_uids = resolve_all_cylinder_uids(uid)
     
     # Check if the UID is registered in Cylinders sheet
     registered = False
     try:
         cyls = get_all_cylinders()
-        registered = any(c['uid'].strip().upper() == uid_upper for c in cyls)
+        registered = any(c['uid'].strip().upper() in all_uids for c in cyls)
     except Exception:
         registered = False
         
     scan_rows = get_scan_rows()
-    history = [r for r in scan_rows if r['uid'].strip().upper() == uid_upper]
+    history = [r for r in scan_rows if (r.get('uid') or '').strip().upper() in all_uids]
     
     if not history:
         return {'status': 'Empty', 'owner': None, 'date': None, 'registered': registered}
@@ -2716,13 +2775,15 @@ def admin_movement():
 def admin_search():
     uid     = request.args.get('uid', '').strip()
     history = get_cylinder_history(uid) if uid else []
+    all_uids = resolve_all_cylinder_uids(uid) if uid else set()
     current = None
     if history:
         # Current status = last delivery not yet collected
         events = build_events()
         cyl_owner = {}
         for ev in events:
-            if ev['uid'].upper() == uid.upper():
+            ev_uid = (ev.get('uid') or '').strip().upper()
+            if ev_uid in all_uids:
                 if ev['action'] == 'Delivery':
                     cyl_owner['owner'] = ev['customer']
                     cyl_owner['since'] = ev['date']
@@ -9354,7 +9415,32 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                             c_db.status = 'Filled'
                             c_db.location = 'Depot'
                         c_db.last_activity_date = s_date
-                    # Unregistered cylinders: scan logged but no master Cylinder record created
+                    else:
+                        # Check if mapped via alias
+                        alias_obj = None
+                        try:
+                            alias_obj = CylinderAlias.query.filter_by(alias_name=scan_uid.upper()).first()
+                        except Exception:
+                            pass
+                        if not alias_obj:
+                            try:
+                                existing_p = PendingCylinderReview.query.filter_by(
+                                    entered_id=scan_uid.upper(), status='pending'
+                                ).first()
+                                if not existing_p:
+                                    p_item = PendingCylinderReview(
+                                        entered_id=scan_uid.upper(),
+                                        scan_date=s_date,
+                                        scan_time=s_time,
+                                        staff_member=scan_driver,
+                                        customer=scan_cust,
+                                        action=scan_action,
+                                        gas_type=scan_gas,
+                                        status='pending'
+                                    )
+                                    db.session.add(p_item)
+                            except Exception as pe:
+                                print("[review_queue] Error adding pending review item:", pe)
             db.session.commit()
             clear_cache()
             db_written = True
@@ -10023,5 +10109,218 @@ def admin_backup_export():
         mimetype='application/zip',
         headers={'Content-Disposition': f'attachment; filename="{filename}"'}
     )
+
+
+# ================================================================
+#  PENDING CYLINDER REVIEWS (UNMAPPED SCANS WORKFLOW)
+# ================================================================
+
+@app.route('/admin/pending_cylinders')
+@admin_required
+def admin_pending_cylinders():
+    status_filter = request.args.get('status', 'pending').strip().lower()
+    
+    query = PendingCylinderReview.query
+    if status_filter != 'all':
+        query = query.filter_by(status=status_filter)
+    
+    items = query.order_by(PendingCylinderReview.id.desc()).all()
+    
+    total_pending = PendingCylinderReview.query.filter_by(status='pending').count()
+    total_mapped = PendingCylinderReview.query.filter_by(status='mapped').count()
+    total_registered = PendingCylinderReview.query.filter_by(status='registered').count()
+    total_rejected = PendingCylinderReview.query.filter_by(status='rejected').count()
+    
+    products = get_products_config()
+    _seen = set()
+    gas_types = []
+    for p in products:
+        g = (p.get('gas_type') or '').strip()
+        if g and g not in _seen:
+            _seen.add(g)
+            gas_types.append({'value': g, 'label': p.get('name', g)})
+
+    return render_template(
+        'admin_pending_cylinders.html',
+        user=session.get('user'),
+        items=items,
+        status_filter=status_filter,
+        total_pending=total_pending,
+        total_mapped=total_mapped,
+        total_registered=total_registered,
+        total_rejected=total_rejected,
+        gas_types=gas_types
+    )
+
+
+@app.route('/admin/api/pending_cylinders/search_existing', methods=['POST'])
+@admin_required
+def admin_api_search_existing_cylinders():
+    data = request.json or {}
+    q = data.get('query', '').strip()
+    if len(q) < 1:
+        return jsonify({'results': []})
+    
+    cyls = Cylinder.query.filter(Cylinder.uid.ilike(f'%{q}%')).limit(15).all()
+    return jsonify({'results': [{
+        'uid': c.uid,
+        'gas_type': c.gas_type or '',
+        'status': c.status or '',
+        'location': c.location or '',
+        'id_history': getattr(c, 'id_history', '') or ''
+    } for c in cyls]})
+
+
+@app.route('/admin/api/pending_cylinders/<int:review_id>/map', methods=['POST'])
+@admin_required
+def admin_api_pending_cylinder_map(review_id):
+    review = PendingCylinderReview.query.get(review_id)
+    if not review:
+        return jsonify({'error': 'Review entry not found'}), 404
+        
+    data = request.json or {}
+    target_uid = data.get('target_uid', '').strip().upper()
+    notes = data.get('notes', '').strip()
+    
+    if not target_uid:
+        return jsonify({'error': 'Please provide an existing cylinder ID to map to.'}), 400
+        
+    target_c = Cylinder.query.filter(Cylinder.uid.ilike(target_uid)).first()
+    if not target_c:
+        return jsonify({'error': f'Target cylinder "{target_uid}" not found in registry.'}), 404
+        
+    admin_name = session.get('user', {}).get('name') or session.get('user', {}).get('username', 'Admin')
+    entered_id = review.entered_id.strip().upper()
+    
+    try:
+        # 1. Add alias record if not already present
+        conflict = CylinderAlias.query.filter_by(alias_name=entered_id).first()
+        if not conflict:
+            db.session.add(CylinderAlias(
+                cylinder_id=target_c.id,
+                alias_name=entered_id,
+                created_by=admin_name
+            ))
+            
+        # 2. Update target cylinder's id_history
+        hist = (getattr(target_c, 'id_history', '') or '').strip()
+        hist_parts = [p.strip() for p in hist.split(',') if p.strip()]
+        if entered_id not in hist_parts:
+            hist_parts.append(entered_id)
+            target_c.id_history = ', '.join(hist_parts)
+            
+        # 3. Mark review queue entry as mapped
+        review.status = 'mapped'
+        review.mapped_to_uid = target_c.uid
+        review.resolved_by = admin_name
+        review.resolved_at = datetime.utcnow()
+        if notes:
+            review.notes = (review.notes + ' | ' if review.notes else '') + notes
+            
+        db.session.commit()
+        clear_cache()
+        return jsonify({
+            'success': True,
+            'message': f'Successfully mapped "{entered_id}" to "{target_c.uid}". Historical records will now resolve correctly.'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to map cylinder: {str(e)}'}), 500
+
+
+@app.route('/admin/api/pending_cylinders/<int:review_id>/register', methods=['POST'])
+@admin_required
+def admin_api_pending_cylinder_register(review_id):
+    review = PendingCylinderReview.query.get(review_id)
+    if not review:
+        return jsonify({'error': 'Review entry not found'}), 404
+        
+    data = request.json or {}
+    gas_type = data.get('gas_type', '').strip() or (review.gas_type or 'Unknown')
+    cylinder_type = data.get('cylinder_type', 'Standard').strip()
+    admin_name = session.get('user', {}).get('name') or session.get('user', {}).get('username', 'Admin')
+    entered_id = review.entered_id.strip().upper()
+    
+    try:
+        existing_c = Cylinder.query.filter(Cylinder.uid.ilike(entered_id)).first()
+        if existing_c:
+            return jsonify({'error': f'Cylinder "{entered_id}" is already registered in the master list.'}), 400
+            
+        action_status = 'Delivered' if review.action == 'Delivery' else ('Empty' if review.action == 'Collection' else 'Filled')
+        location = review.customer if review.action == 'Delivery' else 'Depot'
+        
+        new_cyl = Cylinder(
+            uid=entered_id,
+            gas_type=gas_type,
+            cylinder_type=cylinder_type,
+            owner='Depot',
+            status=action_status,
+            location=location or 'Depot',
+            last_activity_date=review.scan_date,
+            id_history=entered_id
+        )
+        db.session.add(new_cyl)
+        
+        review.status = 'registered'
+        review.resolved_by = admin_name
+        review.resolved_at = datetime.utcnow()
+        if gas_type:
+            review.gas_type = gas_type
+            
+        db.session.commit()
+        clear_cache()
+        
+        # Mirror to Cylinders Google Sheet in background
+        def mirror_new_cyl_sheet():
+            try:
+                global cyl_ws, doc
+                if cyl_ws is None and doc:
+                    try:
+                        cyl_ws = doc.worksheet('Cylinders')
+                    except Exception:
+                        pass
+                if cyl_ws:
+                    sheets_write_with_retry(cyl_ws.append_rows, [[
+                        entered_id, gas_type, cylinder_type, 'Depot', action_status, location or 'Depot', review.scan_date
+                    ]])
+            except Exception as se:
+                print("[sheets] Error mirroring registered cylinder:", se)
+        async_sheets_write(mirror_new_cyl_sheet)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully registered cylinder "{entered_id}" as a new master record.'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to register cylinder: {str(e)}'}), 500
+
+
+@app.route('/admin/api/pending_cylinders/<int:review_id>/reject', methods=['POST'])
+@admin_required
+def admin_api_pending_cylinder_reject(review_id):
+    review = PendingCylinderReview.query.get(review_id)
+    if not review:
+        return jsonify({'error': 'Review entry not found'}), 404
+        
+    data = request.json or {}
+    reason = data.get('reason', 'Mis-scan / duplicate').strip()
+    admin_name = session.get('user', {}).get('name') or session.get('user', {}).get('username', 'Admin')
+    
+    try:
+        review.status = 'rejected'
+        review.resolved_by = admin_name
+        review.resolved_at = datetime.utcnow()
+        review.notes = reason
+        
+        db.session.commit()
+        clear_cache()
+        return jsonify({
+            'success': True,
+            'message': f'Ignored/rejected review entry for "{review.entered_id}".'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to reject review entry: {str(e)}'}), 500
 
 

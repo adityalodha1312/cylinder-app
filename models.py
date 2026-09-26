@@ -51,6 +51,7 @@ class Cylinder(db.Model):
     status = db.Column(db.String(20), default='Active', index=True)
     location = db.Column(db.String(255), default='Depot', index=True)
     last_activity_date = db.Column(db.String(50), index=True) # Keep as string to match sheet format 'dd-mm-yyyy'
+    id_history = db.Column(db.Text, default='') # Comma-separated list or notes of former engraved IDs
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -507,4 +508,39 @@ class GasTypeHistory(db.Model):
     entry_source = db.Column(db.String(50), default='qr')
     changed_by = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class PendingCylinderReview(db.Model):
+    __tablename__ = 'pending_cylinder_reviews'
+    id = db.Column(db.Integer, primary_key=True)
+    entered_id = db.Column(db.String(100), nullable=False, index=True)
+    scan_date = db.Column(db.String(50), nullable=False)
+    scan_time = db.Column(db.String(50))
+    staff_member = db.Column(db.String(100))
+    customer = db.Column(db.String(255))
+    action = db.Column(db.String(50))
+    gas_type = db.Column(db.String(50))
+    status = db.Column(db.String(20), default='pending', index=True) # pending, mapped, registered, rejected
+    resolved_by = db.Column(db.String(100))
+    resolved_at = db.Column(db.DateTime)
+    mapped_to_uid = db.Column(db.String(100))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'entered_id': self.entered_id,
+            'scan_date': self.scan_date,
+            'scan_time': self.scan_time or '',
+            'staff_member': self.staff_member or '',
+            'customer': self.customer or '',
+            'action': self.action or '',
+            'gas_type': self.gas_type or '',
+            'status': self.status or 'pending',
+            'resolved_by': self.resolved_by or '',
+            'resolved_at': self.resolved_at.strftime('%d-%m-%Y %H:%M') if self.resolved_at else '',
+            'mapped_to_uid': self.mapped_to_uid or '',
+            'notes': self.notes or '',
+            'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
+        }
 

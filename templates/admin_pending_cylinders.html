@@ -1,0 +1,450 @@
+{% extends "admin_base.html" %}
+{% block title %}Review Later Queue{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:24px; flex-wrap:wrap; gap:16px;">
+  <div>
+    <h1 style="font-size:24px; font-weight:700; color:var(--dark-text); margin:0;">Review Later Queue</h1>
+    <p style="color:var(--gray-text); margin:4px 0 0; font-size:14px;">Manage unmapped cylinder scans submitted during driver deliveries and depot operations.</p>
+  </div>
+</div>
+
+<!-- 4 Metric Cards -->
+<div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:16px; margin-bottom:24px;">
+  <div style="background:#fff; border:1.5px solid #fed7aa; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; color:#b45309; letter-spacing:0.5px;">Pending Review</div>
+    <div style="font-size:32px; font-weight:700; color:#d97706; margin-top:4px;">{{ total_pending }}</div>
+    <div style="font-size:12px; color:#92400e; margin-top:4px;">Unmapped scans awaiting action</div>
+  </div>
+  
+  <div style="background:#fff; border:1.5px solid #bfdbfe; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; color:#1d4ed8; letter-spacing:0.5px;">Mapped to Existing</div>
+    <div style="font-size:32px; font-weight:700; color:#2563eb; margin-top:4px;">{{ total_mapped }}</div>
+    <div style="font-size:12px; color:#1e40af; margin-top:4px;">Linked to master cylinder records</div>
+  </div>
+
+  <div style="background:#fff; border:1.5px solid #bbf7d0; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; color:#15803d; letter-spacing:0.5px;">Registered as New</div>
+    <div style="font-size:32px; font-weight:700; color:#0F6E56; margin-top:4px;">{{ total_registered }}</div>
+    <div style="font-size:12px; color:#166534; margin-top:4px;">Added to master registry</div>
+  </div>
+
+  <div style="background:#fff; border:1.5px solid #e5e7eb; border-radius:12px; padding:18px; box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+    <div style="font-size:12px; font-weight:600; text-transform:uppercase; color:#6b7280; letter-spacing:0.5px;">Ignored / Discarded</div>
+    <div style="font-size:32px; font-weight:700; color:#4b5563; margin-top:4px;">{{ total_rejected }}</div>
+    <div style="font-size:12px; color:#6b7280; margin-top:4px;">Mis-scans or duplicates</div>
+  </div>
+</div>
+
+<!-- Controls: Filter Tabs + Search -->
+<div style="background:#fff; border:1.5px solid var(--gray-bd); border-radius:12px; padding:16px; margin-bottom:20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+  <div style="display:flex; gap:8px; flex-wrap:wrap;">
+    <a href="/admin/pending_cylinders?status=pending" style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; {{ 'background:#0F6E56; color:#fff;' if status_filter == 'pending' else 'background:#f3f4f6; color:#4b5563;' }}">
+      Pending ({{ total_pending }})
+    </a>
+    <a href="/admin/pending_cylinders?status=mapped" style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; {{ 'background:#0F6E56; color:#fff;' if status_filter == 'mapped' else 'background:#f3f4f6; color:#4b5563;' }}">
+      Mapped ({{ total_mapped }})
+    </a>
+    <a href="/admin/pending_cylinders?status=registered" style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; {{ 'background:#0F6E56; color:#fff;' if status_filter == 'registered' else 'background:#f3f4f6; color:#4b5563;' }}">
+      Registered ({{ total_registered }})
+    </a>
+    <a href="/admin/pending_cylinders?status=rejected" style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; {{ 'background:#0F6E56; color:#fff;' if status_filter == 'rejected' else 'background:#f3f4f6; color:#4b5563;' }}">
+      Ignored ({{ total_rejected }})
+    </a>
+    <a href="/admin/pending_cylinders?status=all" style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600; text-decoration:none; {{ 'background:#0F6E56; color:#fff;' if status_filter == 'all' else 'background:#f3f4f6; color:#4b5563;' }}">
+      All Records
+    </a>
+  </div>
+
+  <div style="position:relative; min-width:240px; flex:1; max-width:320px;">
+    <input type="text" id="filterInput" placeholder="Filter by ID, customer, staff…" oninput="filterTable()"
+      style="width:100%; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; box-sizing:border-box;">
+  </div>
+</div>
+
+<!-- Table Container -->
+<div style="background:#fff; border:1.5px solid var(--gray-bd); border-radius:12px; overflow:hidden; box-shadow:0 1px 3px rgba(0,0,0,0.03);">
+  <div style="overflow-x:auto;">
+    <table id="queueTable" style="width:100%; border-collapse:collapse; text-align:left; font-size:13.5px;">
+      <thead>
+        <tr style="background:#f9fafb; border-bottom:1.5px solid var(--gray-bd); color:#374151;">
+          <th style="padding:12px 16px; font-weight:600;">Scanned ID</th>
+          <th style="padding:12px 16px; font-weight:600;">Action</th>
+          <th style="padding:12px 16px; font-weight:600;">Timestamp</th>
+          <th style="padding:12px 16px; font-weight:600;">Staff Member</th>
+          <th style="padding:12px 16px; font-weight:600;">Customer / Location</th>
+          <th style="padding:12px 16px; font-weight:600;">Gas Type</th>
+          <th style="padding:12px 16px; font-weight:600;">Status</th>
+          <th style="padding:12px 16px; font-weight:600; text-align:right;">Resolution Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if items %}
+          {% for r in items %}
+          <tr class="queue-row" style="border-bottom:1px solid #f3f4f6;"
+              data-id="{{ r.entered_id|lower }}"
+              data-cust="{{ (r.customer or '')|lower }}"
+              data-staff="{{ (r.staff_member or '')|lower }}">
+            
+            <!-- Scanned ID -->
+            <td style="padding:12px 16px; font-family:monospace; font-size:14px; font-weight:700; color:#0F6E56;">
+              {{ r.entered_id }}
+            </td>
+
+            <!-- Action -->
+            <td style="padding:12px 16px;">
+              {% if r.action == 'Delivery' %}
+                <span style="background:#dcfce7; color:#15803d; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:600;">Delivery</span>
+              {% elif r.action == 'Collection' %}
+                <span style="background:#ffedd5; color:#c2410c; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:600;">Collection</span>
+              {% elif r.action == 'Filling' %}
+                <span style="background:#e0e7ff; color:#4338ca; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:600;">Plant Filling</span>
+              {% else %}
+                <span style="background:#f3f4f6; color:#4b5563; padding:3px 8px; border-radius:6px; font-size:11.5px; font-weight:600;">{{ r.action or 'Scan' }}</span>
+              {% endif %}
+            </td>
+
+            <!-- Timestamp -->
+            <td style="padding:12px 16px; color:#4b5563;">
+              <div>{{ r.scan_date }}</div>
+              <div style="font-size:11px; color:#9ca3af;">{{ r.scan_time or '—' }}</div>
+            </td>
+
+            <!-- Staff -->
+            <td style="padding:12px 16px; font-weight:500; color:#374151;">
+              {{ r.staff_member or '—' }}
+            </td>
+
+            <!-- Location / Customer -->
+            <td style="padding:12px 16px; color:#1f2937;">
+              <strong>{{ r.customer or ('Depot' if r.action == 'Filling' else '—') }}</strong>
+            </td>
+
+            <!-- Gas Type -->
+            <td style="padding:12px 16px; color:#4b5563;">
+              {{ r.gas_type or '—' }}
+            </td>
+
+            <!-- Status -->
+            <td style="padding:12px 16px;">
+              {% if r.status == 'pending' %}
+                <span style="background:#fef3c7; color:#b45309; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600; display:inline-flex; align-items:center; gap:4px;">
+                  ● Pending
+                </span>
+              {% elif r.status == 'mapped' %}
+                <div>
+                  <span style="background:#dbeafe; color:#1d4ed8; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600;">
+                    ✓ Mapped
+                  </span>
+                  {% if r.mapped_to_uid %}
+                    <div style="font-size:11px; color:#2563eb; margin-top:3px; font-weight:600;">→ {{ r.mapped_to_uid }}</div>
+                  {% endif %}
+                </div>
+              {% elif r.status == 'registered' %}
+                <span style="background:#dcfce7; color:#15803d; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600;">
+                  ✓ Registered New
+                </span>
+              {% elif r.status == 'rejected' %}
+                <span style="background:#f3f4f6; color:#6b7280; padding:4px 10px; border-radius:20px; font-size:12px; font-weight:600;">
+                  ✕ Ignored
+                </span>
+              {% endif %}
+            </td>
+
+            <!-- Resolution Actions -->
+            <td style="padding:12px 16px; text-align:right;">
+              {% if r.status == 'pending' %}
+                <div style="display:inline-flex; gap:6px; justify-content:flex-end;">
+                  <button type="button" onclick="openMapModal({{ r.id }}, '{{ r.entered_id }}')"
+                    style="padding:6px 12px; background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;"
+                    title="Map new engraved ID to an existing registered cylinder">
+                    🔗 Map
+                  </button>
+                  <button type="button" onclick="openRegisterModal({{ r.id }}, '{{ r.entered_id }}', '{{ r.gas_type or '' }}', '{{ r.customer or '' }}')"
+                    style="padding:6px 12px; background:#0F6E56; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;"
+                    title="Create a fresh master cylinder record">
+                    ➕ Register
+                  </button>
+                  <button type="button" onclick="rejectReview({{ r.id }}, '{{ r.entered_id }}')"
+                    style="padding:6px 10px; background:#fff; color:#9ca3af; border:1px solid #e5e7eb; border-radius:6px; font-size:12px; cursor:pointer;"
+                    title="Discard mis-scan or duplicate">
+                    ✕
+                  </button>
+                </div>
+              {% else %}
+                <div style="font-size:11.5px; color:#9ca3af;">
+                  Resolved by {{ r.resolved_by or 'Admin' }}
+                  {% if r.resolved_at %}<br><span style="font-size:10.5px;">{{ r.resolved_at.strftime('%d-%m-%Y') }}</span>{% endif %}
+                </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td colspan="8" style="padding:40px; text-align:center; color:#9ca3af;">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px; opacity:0.5;">
+                <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 14 14"></polyline>
+              </svg>
+              <div style="font-size:15px; font-weight:600; color:#4b5563;">No entries found</div>
+              <div style="font-size:13px; margin-top:2px;">There are no scans matching the current filter.</div>
+            </td>
+          </tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ================= MODAL: MAP TO EXISTING ================= -->
+<div id="mapModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#fff; border-radius:14px; max-width:480px; width:100%; box-shadow:0 10px 25px rgba(0,0,0,0.15); overflow:hidden;">
+    <div style="padding:18px 24px; border-bottom:1px solid #f3f4f6; display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:17px; font-weight:700; color:#111827;">Map to Existing Cylinder</h3>
+      <button onclick="closeModal('mapModal')" style="background:none; border:none; font-size:20px; color:#9ca3af; cursor:pointer;">×</button>
+    </div>
+    <div style="padding:20px 24px;">
+      <p style="font-size:13.5px; color:#4b5563; margin:0 0 16px;">
+        Link scanned ID <strong id="mapEnteredId" style="color:#0F6E56; font-family:monospace;"></strong> to an existing registered cylinder. The scanned ID will be added to the cylinder's alias & ID history so historical records resolve properly.
+      </p>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Search Existing Cylinder</label>
+        <input type="text" id="mapTargetSearch" placeholder="Type cylinder UID (e.g. CYL-001)..." oninput="searchCylinders(this.value)"
+          style="width:100%; padding:10px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:14px; box-sizing:border-box;">
+      </div>
+
+      <!-- Search Results Dropdown/Box -->
+      <div id="mapSearchResults" style="max-height:160px; overflow-y:auto; border:1px solid #e5e7eb; border-radius:8px; display:none; margin-bottom:16px;"></div>
+
+      <div id="mapSelectedPreview" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; padding:12px; margin-bottom:16px;">
+        <div style="font-size:12px; color:#166534; font-weight:600;">Selected Target Cylinder:</div>
+        <div style="font-size:15px; font-weight:700; color:#0F6E56; font-family:monospace; margin-top:2px;" id="mapSelectedUid"></div>
+        <div style="font-size:12px; color:#4b5563; margin-top:2px;" id="mapSelectedDetails"></div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Resolution Notes (optional)</label>
+        <input type="text" id="mapNotes" placeholder="e.g. Re-engraved body stamp, verified with depot"
+          style="width:100%; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13px; box-sizing:border-box;">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px;">
+        <button type="button" onclick="closeModal('mapModal')" style="padding:9px 16px; border:1.5px solid #d1d5db; background:#fff; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:#4b5563;">Cancel</button>
+        <button type="button" id="btnConfirmMap" onclick="submitMap()" disabled style="padding:9px 20px; background:#0F6E56; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; opacity:0.5;">Confirm Mapping</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= MODAL: REGISTER AS NEW ================= -->
+<div id="registerModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9999; align-items:center; justify-content:center; padding:16px;">
+  <div style="background:#fff; border-radius:14px; max-width:460px; width:100%; box-shadow:0 10px 25px rgba(0,0,0,0.15); overflow:hidden;">
+    <div style="padding:18px 24px; border-bottom:1px solid #f3f4f6; display:flex; justify-content:space-between; align-items:center;">
+      <h3 style="margin:0; font-size:17px; font-weight:700; color:#111827;">Register as New Cylinder</h3>
+      <button onclick="closeModal('registerModal')" style="background:none; border:none; font-size:20px; color:#9ca3af; cursor:pointer;">×</button>
+    </div>
+    <div style="padding:20px 24px;">
+      <p style="font-size:13.5px; color:#4b5563; margin:0 0 16px;">
+        Create a permanent master record for <strong id="regEnteredId" style="color:#0F6E56; font-family:monospace;"></strong> in the cylinder registry.
+      </p>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Gas Type</label>
+        <select id="regGasType" style="width:100%; min-height:40px; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13.5px; background:#fff;">
+          <option value="">Select gas type...</option>
+          {% for g in gas_types %}
+            <option value="{{ g.value }}">{{ g.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div style="margin-bottom:14px;">
+        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Cylinder Type</label>
+        <input type="text" id="regCylType" value="Standard"
+          style="width:100%; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13.5px; box-sizing:border-box;">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:20px;">
+        <button type="button" onclick="closeModal('registerModal')" style="padding:9px 16px; border:1.5px solid #d1d5db; background:#fff; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; color:#4b5563;">Cancel</button>
+        <button type="button" onclick="submitRegister()" style="padding:9px 20px; background:#0F6E56; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer;">Create Master Record</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let currentReviewId = null;
+let selectedTargetUid = null;
+let searchTimeout = null;
+
+function filterTable() {
+  const query = (document.getElementById('filterInput').value || '').toLowerCase().trim();
+  const rows = document.querySelectorAll('.queue-row');
+  rows.forEach(r => {
+    const id = r.dataset.id || '';
+    const cust = r.dataset.cust || '';
+    const staff = r.dataset.staff || '';
+    const match = !query || id.includes(query) || cust.includes(query) || staff.includes(query);
+    r.style.display = match ? '' : 'none';
+  });
+}
+
+function closeModal(id) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = 'none';
+}
+
+// ─── Modal Openers ─────────────────────────────────────────────────────────
+function openMapModal(id, enteredId) {
+  currentReviewId = id;
+  selectedTargetUid = null;
+  document.getElementById('mapEnteredId').innerText = enteredId;
+  document.getElementById('mapTargetSearch').value = '';
+  document.getElementById('mapNotes').value = '';
+  document.getElementById('mapSearchResults').style.display = 'none';
+  document.getElementById('mapSelectedPreview').style.display = 'none';
+  const btn = document.getElementById('btnConfirmMap');
+  btn.disabled = true;
+  btn.style.opacity = '0.5';
+  
+  const m = document.getElementById('mapModal');
+  m.style.display = 'flex';
+  document.getElementById('mapTargetSearch').focus();
+}
+
+function openRegisterModal(id, enteredId, gasType, customer) {
+  currentReviewId = id;
+  document.getElementById('regEnteredId').innerText = enteredId;
+  const gasSel = document.getElementById('regGasType');
+  if (gasType) {
+    gasSel.value = gasType;
+  } else {
+    gasSel.selectedIndex = 0;
+  }
+  const m = document.getElementById('registerModal');
+  m.style.display = 'flex';
+}
+
+// ─── Autocomplete Cylinder Search ──────────────────────────────────────────
+function searchCylinders(q) {
+  clearTimeout(searchTimeout);
+  const resBox = document.getElementById('mapSearchResults');
+  if (!q || q.trim().length < 1) {
+    resBox.style.display = 'none';
+    return;
+  }
+  searchTimeout = setTimeout(async () => {
+    try {
+      const res = await fetch('/admin/api/pending_cylinders/search_existing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q.trim() })
+      });
+      const data = await res.json();
+      const cyls = data.results || [];
+      if (cyls.length === 0) {
+        resBox.innerHTML = '<div style="padding:10px; color:#9ca3af; font-size:12.5px;">No matching cylinders found in registry.</div>';
+      } else {
+        resBox.innerHTML = cyls.map(c => `
+          <div onclick="selectTargetCyl('${c.uid}', '${c.gas_type}', '${c.status}', '${c.location}')"
+               style="padding:9px 12px; border-bottom:1px solid #f3f4f6; cursor:pointer; font-size:13px;"
+               onmouseover="this.style.background='#f9fafb'" onmouseout="this.style.background='#fff'">
+            <div style="font-weight:700; color:#0F6E56; font-family:monospace;">${c.uid}</div>
+            <div style="font-size:11.5px; color:#6b7280; margin-top:2px;">Gas: ${c.gas_type || '—'} · Status: ${c.status || '—'} · Loc: ${c.location || '—'}</div>
+          </div>
+        `).join('');
+      }
+      resBox.style.display = 'block';
+    } catch (e) {
+      console.error(e);
+    }
+  }, 250);
+}
+
+function selectTargetCyl(uid, gas, status, loc) {
+  selectedTargetUid = uid;
+  document.getElementById('mapSearchResults').style.display = 'none';
+  document.getElementById('mapTargetSearch').value = uid;
+  document.getElementById('mapSelectedUid').innerText = uid;
+  document.getElementById('mapSelectedDetails').innerText = `Gas: ${gas || '—'} | Status: ${status || '—'} | Location: ${loc || '—'}`;
+  document.getElementById('mapSelectedPreview').style.display = 'block';
+  
+  const btn = document.getElementById('btnConfirmMap');
+  btn.disabled = false;
+  btn.style.opacity = '1';
+}
+
+// ─── Submissions ───────────────────────────────────────────────────────────
+async function submitMap() {
+  if (!currentReviewId || !selectedTargetUid) return;
+  const notes = document.getElementById('mapNotes').value;
+  const btn = document.getElementById('btnConfirmMap');
+  btn.disabled = true;
+  btn.innerText = 'Mapping…';
+
+  try {
+    const res = await fetch(`/admin/api/pending_cylinders/${currentReviewId}/map`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_uid: selectedTargetUid, notes: notes })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      btn.disabled = false;
+      btn.innerText = 'Confirm Mapping';
+      return;
+    }
+    alert(data.message || 'Cylinder mapped successfully!');
+    window.location.reload();
+  } catch (e) {
+    alert('Failed to map cylinder. Please check connection.');
+    btn.disabled = false;
+    btn.innerText = 'Confirm Mapping';
+  }
+}
+
+async function submitRegister() {
+  if (!currentReviewId) return;
+  const gasType = document.getElementById('regGasType').value;
+  const cylType = document.getElementById('regCylType').value;
+
+  try {
+    const res = await fetch(`/admin/api/pending_cylinders/${currentReviewId}/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gas_type: gasType, cylinder_type: cylType })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    alert(data.message || 'Cylinder registered successfully!');
+    window.location.reload();
+  } catch (e) {
+    alert('Failed to register cylinder. Please check connection.');
+  }
+}
+
+async function rejectReview(id, enteredId) {
+  if (!confirm(`Are you sure you want to discard / ignore scan "${enteredId}"?`)) return;
+  try {
+    const res = await fetch(`/admin/api/pending_cylinders/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reason: 'Ignored from Review Queue' })
+    });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+      return;
+    }
+    window.location.reload();
+  } catch (e) {
+    alert('Failed to discard entry.');
+  }
+}
+</script>
+{% endblock %}
