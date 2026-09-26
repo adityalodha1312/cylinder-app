@@ -10025,27 +10025,3 @@ def admin_backup_export():
     )
 
 
-# ================================================================
-#  UNREGISTERED CYLINDERS REVIEW PANEL
-# ================================================================
-
-@app.route('/admin/unregistered_scans')
-@admin_required
-def admin_unregistered_scans():
-    events = get_activity_events()
-    try:
-        cyls = get_all_cylinders()
-        registered_uids = {c['uid'].strip().upper() for c in cyls}
-    except Exception:
-        registered_uids = set()
-
-    unreg_batches = []
-    for ev in events:
-        unreg_cyls = [c for c in ev.get('uids', []) if c['uid'].strip().upper() not in registered_uids]
-        if unreg_cyls:
-            ev_copy = dict(ev)
-            ev_copy['unregistered_cyls'] = unreg_cyls
-            unreg_batches.append(ev_copy)
-            
-    return render_template('admin_unregistered_review.html', user=session.get('user'), batches=unreg_batches)
-
