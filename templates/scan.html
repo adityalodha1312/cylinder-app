@@ -2516,29 +2516,50 @@ async function manualVerify() {
     <span>Verifying…</span>
   `;
   try {
-    const res  = await fetch('/api/admin/scan/verify', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const res = await fetch('/api/admin/scan/verify', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({uids, action})
     });
+
+    if (!res.ok) {
+      let errTxt = await res.text();
+      let msg = 'Verification failed (Status ' + res.status + ')';
+      try {
+        let errJson = JSON.parse(errTxt);
+        msg = errJson.error || errJson.message || msg;
+      } catch(_) {
+        if (errTxt.includes('<!DOCTYPE') || errTxt.includes('<html')) {
+          msg = 'Session expired or not logged in. Please refresh the page.';
+        }
+      }
+      alert(msg);
+      return;
+    }
+
     const data = await res.json();
-    btn.disabled = false;
-    btn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <span>Verify Cylinders</span>
-    `;
     if (data.error) { alert(data.error); return; }
-    manualItems = data.results;
+    manualItems = data.results || [];
     activeFilter = 'all';
-    manualRender();
+
+    try {
+      manualRender();
+    } catch(renderErr) {
+      console.error('Render error:', renderErr);
+      alert('Display error: ' + renderErr.message);
+    }
   } catch(e) {
+    console.error('Verification exception:', e);
+    alert('Network error: ' + (e.message || 'Please check your connection.'));
+  } finally {
     btn.disabled = false;
     btn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
       <span>Verify Cylinders</span>
     `;
-    alert('Network error during verification.');
   }
 }
+
 
 // ─── Filter ────────────────────────────────────────────────────────────────
 function manualFilter(f) {
@@ -2961,10 +2982,29 @@ async function manualSubmit() {
   });
 
   try {
-    const res  = await fetch('/api/admin/scan/submit_manual', {
-      method:'POST', headers:{'Content-Type':'application/json'},
+    const res = await fetch('/api/admin/scan/submit_manual', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
       body: JSON.stringify({action, customer, items: itemsToSubmit})
     });
+
+    if (!res.ok) {
+      let errTxt = await res.text();
+      let msg = 'Submission failed (Status ' + res.status + ')';
+      try {
+        let errJson = JSON.parse(errTxt);
+        msg = errJson.error || errJson.message || msg;
+      } catch(_) {
+        if (errTxt.includes('<!DOCTYPE') || errTxt.includes('<html')) {
+          msg = 'Session expired or not logged in. Please refresh the page.';
+        }
+      }
+      alert(msg);
+      isSubmitting = false;
+      manualRender();
+      return;
+    }
+
     const data = await res.json();
     if (data.error) {
       alert(data.error);
@@ -2992,7 +3032,8 @@ async function manualSubmit() {
     }
     isSubmitting = false;
   } catch(e) {
-    alert('Network error during submission.');
+    console.error('Submission error:', e);
+    alert('Network error during submission: ' + (e.message || 'Please check your connection.'));
     isSubmitting = false;
     manualRender();
   }

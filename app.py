@@ -1212,6 +1212,8 @@ def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user' not in session:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Session expired or not logged in. Please refresh or re-login.'}), 401
             return redirect('/login')
         return f(*args, **kwargs)
     return decorated
@@ -1220,8 +1222,12 @@ def admin_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
         if 'user' not in session:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Session expired or not logged in. Please refresh or re-login.'}), 401
             return redirect('/login')
-        if session['user']['role'] not in ['manager', 'owner']:
+        if session.get('user', {}).get('role') not in ['manager', 'owner']:
+            if request.is_json or request.path.startswith('/api/'):
+                return jsonify({'error': 'Unauthorized: Admin access required'}), 403
             return redirect('/login')
         return f(*args, **kwargs)
     return decorated
@@ -9510,129 +9516,172 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
 @login_required
 def api_admin_scan_verify():
     """Verify a batch of cylinder IDs before manual admin submission."""
-    data = request.json or {}
-    raw_uids = data.get('uids', '')
-    action = data.get('action', '').strip()
+    try:
+        data = request.json or {}
+        raw_uids = data.get('uids', '')
+        action = data.get('action', '').strip()
 
-    if not raw_uids or not action:
-        return jsonify({'error': 'Missing required fields'}), 400
+        if not raw_uids or not action:
+            return jsonify({'error': 'Missing required fields: enter cylinder IDs and select an action.'}), 400
 
-    # Parse and normalise UIDs
-    uid_list = [u.strip().upper() for u in re.split(r'[\r\n,]+', raw_uids) if u.strip()]
+        # Parse and normalise UIDs
+        uid_list = [u.strip().upper() for u in re.split(r'[\r\n,]+', raw_uids) if u.strip()]
 
-    # Detect duplicates within this submission
-    seen = set()
-    duplicate_ids = set()
-    unique_uids = []
-    for u in uid_list:
-        if u in seen:
-            duplicate_ids.add(u)
-        else:
-            seen.add(u)
-            unique_uids.append(u)
-
-    # Batch-fetch cylinder registry and aliases
-    cylinders_db = {c.uid.upper(): c for c in
-                    Cylinder.query.filter(Cylinder.uid.in_(unique_uids)).all()}
-    aliases_raw = CylinderAlias.query.filter(
-        CylinderAlias.alias_name.in_(unique_uids)).all()
-    aliases_db = {a.alias_name.upper(): a.cylinder_id for a in aliases_raw}
-    master_cyls = ({c.id: c for c in
-                    Cylinder.query.filter(Cylinder.id.in_(aliases_db.values())).all()}
-                   if aliases_db else {})
-
-    today_str = datetime.now().strftime('%d-%m-%Y')
-    results = []
-
-    for entered_id in unique_uids:
-        # Duplicate within same submission
-        if entered_id in duplicate_ids:
-            results.append({
-                'entered_id': entered_id,
-                'master_id': entered_id,
-                'status': 'Duplicate',
-                'registry_gas': '',
-                'cyl_status': '',
-                'cyl_location': '',
-                'result_msg': 'Duplicate — will not be submitted twice.',
-                'error': True,
-                'is_duplicate': True,
-            })
-            continue
-
-        c = cylinders_db.get(entered_id)
-        master_id = entered_id
-        via_alias = False
-
-        if not c and entered_id in aliases_db:
-            c = master_cyls.get(aliases_db[entered_id])
-            if c:
-                master_id = c.uid.upper()
-                via_alias = True
-
-        if c:
-            registry_gas = c.gas_type or ''
-            cyl_status   = c.status or ''
-            cyl_location = c.location or ''
-
-            # Action validity checks
-            recent = Scan.query.filter_by(
-                cylinder_uid=master_id, action=action, scan_date=today_str).first()
-            if recent:
-                results.append({
-                    'entered_id': entered_id, 'master_id': master_id,
-                    'status': 'Error', 'registry_gas': registry_gas,
-                    'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                    'result_msg': f'Already {action.lower()}d today.',
-                    'error': True, 'is_duplicate': False,
-                })
-            elif action == 'Collection' and (
-                    cyl_status in ('Empty', 'Filled') or c.location == 'Depot'):
-                results.append({
-                    'entered_id': entered_id, 'master_id': master_id,
-                    'status': 'Error', 'registry_gas': registry_gas,
-                    'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                    'result_msg': f'Already at Depot (status: {cyl_status}).',
-                    'error': True, 'is_duplicate': False,
-                })
-            elif action == 'Delivery' and cyl_status == 'Delivered':
-                results.append({
-                    'entered_id': entered_id, 'master_id': master_id,
-                    'status': 'Error', 'registry_gas': registry_gas,
-                    'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                    'result_msg': 'Already delivered.',
-                    'error': True, 'is_duplicate': False,
-                })
+        # Detect duplicates within this submission
+        seen = set()
+        duplicate_ids = set()
+        unique_uids = []
+        for u in uid_list:
+            if u in seen:
+                duplicate_ids.add(u)
             else:
-                label = 'Registered (via alias)' if via_alias else 'Registered'
+                seen.add(u)
+                unique_uids.append(u)
+
+        # Batch-fetch cylinder registry safely
+        cylinders_db = {}
+        if unique_uids:
+            try:
+                cyls = Cylinder.query.filter(Cylinder.uid.in_(unique_uids)).all()
+                for c in cyls:
+                    if c and c.uid:
+                        cylinders_db[c.uid.strip().upper()] = c
+            except Exception as e_cyl:
+                print("[verify] Warning querying Cylinder table:", e_cyl)
+                try:
+                    for c in get_all_cylinders():
+                        uid_val = (c.get('uid') or '').strip().upper()
+                        if uid_val in unique_uids:
+                            cylinders_db[uid_val] = type('CylShim', (), {
+                                'uid': uid_val,
+                                'gas_type': c.get('gas_type', ''),
+                                'status': c.get('status', ''),
+                                'location': c.get('location', '')
+                            })()
+                except Exception as e_c2:
+                    print("[verify] get_all_cylinders fallback error:", e_c2)
+
+        # Batch-fetch cylinder aliases safely
+        aliases_db = {}
+        master_cyls = {}
+        if unique_uids:
+            try:
+                aliases_raw = CylinderAlias.query.filter(
+                    CylinderAlias.alias_name.in_(unique_uids)).all()
+                for a in aliases_raw:
+                    if a and a.alias_name and a.cylinder_id:
+                        aliases_db[a.alias_name.strip().upper()] = a.cylinder_id
+                if aliases_db:
+                    m_list = list(set(aliases_db.values()))
+                    m_cyls = Cylinder.query.filter(Cylinder.id.in_(m_list)).all()
+                    for mc in m_cyls:
+                        if mc:
+                            master_cyls[mc.id] = mc
+            except Exception as e_alias:
+                print("[verify] Warning checking CylinderAlias:", e_alias)
+
+        today_str = datetime.now().strftime('%d-%m-%Y')
+        results = []
+
+        for entered_id in unique_uids:
+            # Duplicate within same submission
+            if entered_id in duplicate_ids:
                 results.append({
-                    'entered_id': entered_id, 'master_id': master_id,
-                    'status': label, 'registry_gas': registry_gas,
-                    'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                    'result_msg': 'Ready to submit.',
+                    'entered_id': entered_id,
+                    'master_id': entered_id,
+                    'status': 'Duplicate',
+                    'registry_gas': '',
+                    'cyl_status': '',
+                    'cyl_location': '',
+                    'result_msg': 'Duplicate — will not be submitted twice.',
+                    'error': True,
+                    'is_duplicate': True,
+                })
+                continue
+
+            c = cylinders_db.get(entered_id)
+            master_id = entered_id
+            via_alias = False
+
+            if not c and entered_id in aliases_db:
+                c = master_cyls.get(aliases_db[entered_id])
+                if c:
+                    master_id = (getattr(c, 'uid', '') or '').strip().upper() or entered_id
+                    via_alias = True
+
+            if c:
+                registry_gas = getattr(c, 'gas_type', '') or ''
+                cyl_status   = getattr(c, 'status', '') or ''
+                cyl_location = getattr(c, 'location', '') or ''
+
+                # Action validity checks
+                recent = None
+                try:
+                    recent = Scan.query.filter_by(
+                        cylinder_uid=master_id, action=action, scan_date=today_str).first()
+                except Exception as e_scan:
+                    print("[verify] Warning checking recent Scan:", e_scan)
+
+                if recent:
+                    results.append({
+                        'entered_id': entered_id, 'master_id': master_id,
+                        'status': 'Error', 'registry_gas': registry_gas,
+                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
+                        'result_msg': f'Already {action.lower()}d today.',
+                        'error': True, 'is_duplicate': False,
+                    })
+                elif action == 'Collection' and (
+                        cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot'):
+                    results.append({
+                        'entered_id': entered_id, 'master_id': master_id,
+                        'status': 'Error', 'registry_gas': registry_gas,
+                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
+                        'result_msg': f'Already at Depot (status: {cyl_status}).',
+                        'error': True, 'is_duplicate': False,
+                    })
+                elif action == 'Delivery' and cyl_status == 'Delivered':
+                    results.append({
+                        'entered_id': entered_id, 'master_id': master_id,
+                        'status': 'Error', 'registry_gas': registry_gas,
+                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
+                        'result_msg': 'Already delivered.',
+                        'error': True, 'is_duplicate': False,
+                    })
+                else:
+                    label = 'Registered (via alias)' if via_alias else 'Registered'
+                    results.append({
+                        'entered_id': entered_id, 'master_id': master_id,
+                        'status': label, 'registry_gas': registry_gas,
+                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
+                        'result_msg': 'Ready to submit.',
+                        'error': False, 'is_duplicate': False,
+                    })
+            else:
+                # Not in registry — allow submission without blocking
+                results.append({
+                    'entered_id': entered_id, 'master_id': entered_id,
+                    'status': 'Unregistered', 'registry_gas': '',
+                    'cyl_status': '', 'cyl_location': '',
+                    'result_msg': 'Not found in registry. Transaction will be logged.',
                     'error': False, 'is_duplicate': False,
                 })
-        else:
-            # Not in registry — allow submission without blocking
+
+        # Also add duplicate entries at the end of the list
+        for dup_id in duplicate_ids:
             results.append({
-                'entered_id': entered_id, 'master_id': entered_id,
-                'status': 'Unregistered', 'registry_gas': '',
+                'entered_id': dup_id, 'master_id': dup_id,
+                'status': 'Duplicate', 'registry_gas': '',
                 'cyl_status': '', 'cyl_location': '',
-                'result_msg': 'Not found in registry. Transaction will be logged.',
-                'error': False, 'is_duplicate': False,
+                'result_msg': 'Duplicate — will not be submitted twice.',
+                'error': True, 'is_duplicate': True,
             })
 
-    # Also add duplicate entries at the end of the list
-    for dup_id in duplicate_ids:
-        results.append({
-            'entered_id': dup_id, 'master_id': dup_id,
-            'status': 'Duplicate', 'registry_gas': '',
-            'cyl_status': '', 'cyl_location': '',
-            'result_msg': 'Duplicate — will not be submitted twice.',
-            'error': True, 'is_duplicate': True,
-        })
+        return jsonify({'results': results})
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Verification failed: {str(e)}'}), 500
 
-    return jsonify({'results': results})
 
 
 @app.route('/api/admin/scan/search_cylinder', methods=['POST'])
