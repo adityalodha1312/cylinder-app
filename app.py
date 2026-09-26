@@ -9500,7 +9500,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
 # ================================================================
 
 @app.route('/api/admin/scan/verify', methods=['POST'])
-@admin_required
+@login_required
 def api_admin_scan_verify():
     """Verify a batch of cylinder IDs before manual admin submission."""
     data = request.json or {}
