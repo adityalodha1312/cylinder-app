@@ -109,6 +109,7 @@ class Scan(db.Model):
     cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
     customer = db.Column(db.String(255), index=True)
     gas_type = db.Column(db.String(50))
+    cylinder_type = db.Column(db.String(50), default='Standard')
     entry_source = db.Column(db.String(50), default='qr')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
@@ -120,7 +121,8 @@ class Scan(db.Model):
             'action': self.action,
             'uid': self.cylinder_uid,
             'customer': self.customer or '',
-            'gas_type': self.gas_type or ''
+            'gas_type': self.gas_type or '',
+            'cylinder_type': self.cylinder_type or 'Standard'
         }
 
 class CustomerMap(db.Model):
@@ -232,6 +234,7 @@ class AdminScanLog(db.Model):
     scan_time = db.Column(db.String(50))
     cylinder_uid = db.Column(db.String(100), nullable=False, index=True)
     gas_type = db.Column(db.String(50))
+    cylinder_type = db.Column(db.String(50), default='Standard')
     entry_source = db.Column(db.String(50), default='qr')
     customer = db.Column(db.String(255), index=True)
     action = db.Column(db.String(50), nullable=False)
@@ -248,6 +251,7 @@ class AdminScanLog(db.Model):
             'time': self.scan_time or '',
             'uid': self.cylinder_uid,
             'gas_type': self.gas_type or '',
+            'cylinder_type': self.cylinder_type or 'Standard',
             'customer': self.customer or '',
             'action': self.action,
             'admin_name': self.admin_name or '',
@@ -301,6 +305,7 @@ class AccountsBatchItem(db.Model):
     batch_id     = db.Column(db.Integer, db.ForeignKey('accounts_batches.id'), nullable=False, index=True)
     cylinder_uid = db.Column(db.String(100), index=True)
     gas_type     = db.Column(db.String(50))
+    cylinder_type = db.Column(db.String(50), default='Standard')
     status       = db.Column(db.String(50), default='Registered')
 
     def to_dict(self):
@@ -309,6 +314,7 @@ class AccountsBatchItem(db.Model):
             'batch_id': self.batch_id,
             'cylinder_uid': self.cylinder_uid or '',
             'gas_type': self.gas_type or '',
+            'cylinder_type': self.cylinder_type or 'Standard',
             'status': self.status or 'Registered'
         }
 

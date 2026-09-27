@@ -321,6 +321,30 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 }
 db.init_app(app)
 
+# In-memory TTL data cache configurations
+_data_cache = {
+    'scans'              : None, 'scans_time'          : 0,
+    'map'                : None, 'map_time'            : 0,
+    'cylinders'          : None, 'cylinders_time'      : 0,
+    'maintenance'        : None, 'maintenance_time'    : 0,
+    'customer_names'     : None, 'customer_names_time' : 0,
+    'customer_emails'    : None, 'customer_emails_time': 0,
+    'customer_info'      : None, 'customer_info_time'  : 0,
+    'products'           : None, 'products_time'       : 0,
+    'events'             : None, 'events_time'         : 0,
+    'outstanding'        : None, 'outstanding_time'    : 0,
+    'aging'              : None, 'aging_time'          : 0,
+    'movement'           : None, 'movement_time'       : 0,
+}
+_settings_cache = {}
+CACHE_TTL = 60  # seconds
+
+def clear_cache():
+    """Wipes every cached value so the next read fetches fresh data."""
+    for key in list(_data_cache.keys()):
+        _data_cache[key] = 0 if key.endswith('_time') else None
+    _settings_cache.clear()
+
 # Auto-create any missing tables on startup (safe — checkfirst=True skips existing tables)
 with app.app_context():
     try:
@@ -332,6 +356,9 @@ with app.app_context():
             from sqlalchemy import text
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS gas_type VARCHAR(50);"))
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
+            db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
+            db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
+            db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
             # Auto-add new internal log context fields
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
@@ -1563,7 +1590,8 @@ def get_activity_events():
                         grouped[group_key] = []
                     grouped[group_key].append({
                         'uid': s.cylinder_uid,
-                        'gas_type': s.gas_type or ''
+                        'gas_type': s.gas_type or '',
+                        'cylinder_type': getattr(s, 'cylinder_type', 'Standard') or 'Standard'
                     })
                 
                 events = []
@@ -2229,21 +2257,28 @@ def admin_activity():
     drivers = sorted(list(set(e['driver'] for e in events if e.get('driver'))))
     customer_names = get_customer_names()
     today_str = date.today().strftime('%d-%m-%Y')
-    # Build gas type list for the Edit Batch modal dropdown
+    # Build product options list for the Edit Batch modal dropdown
     products = get_products_config()
-    _seen_g = set()
-    gas_types = []
+    product_options = []
+    seen_keys = set()
     for p in products:
-        g = (p.get('gas_type') or '').strip()
-        if g and g not in _seen_g:
-            _seen_g.add(g)
-            gas_types.append({'value': g, 'label': p.get('name', g)})
+        g = (p.get('gas_type') or '').strip().upper()
+        c_type = (p.get('cylinder_type') or 'Standard').strip().capitalize()
+        name = p.get('name') or g
+        key = (g, c_type)
+        if g and key not in seen_keys:
+            seen_keys.add(key)
+            product_options.append({
+                'gas_type': g,
+                'cylinder_type': c_type,
+                'label': f"{name} ({c_type})" if c_type == 'Dura' or 'dura' in name.lower() else name
+            })
     return render_template('activity.html',
         user      = session['user'],
         events    = events,
         drivers   = drivers,
         today_str = today_str,
-        gas_types = gas_types,
+        gas_types = product_options,
         customer_names = customer_names,
     )
 
@@ -2362,15 +2397,16 @@ def edit_activity():
                         cyl.location = 'Depot'
                 db.session.delete(s)
 
-        # ── 3. Per-cylinder edits (UID rename + gas type) ─────────────────────
+        # ── 3. Per-cylinder edits (UID rename + gas type + cylinder type) ─────
         if cylinder_edits:
             edit_map = {}
             for ce in cylinder_edits:
                 old_u = (ce.get('old_uid') or '').strip().upper()
                 new_u = (ce.get('new_uid') or '').strip().upper() or old_u
                 gas   = (ce.get('gas_type') or '').strip()
+                c_type= (ce.get('cylinder_type') or 'Standard').strip()
                 if old_u:
-                    edit_map[old_u] = {'new_uid': new_u, 'gas_type': gas}
+                    edit_map[old_u] = {'new_uid': new_u, 'gas_type': gas, 'cylinder_type': c_type}
 
             for s in matched_scans:
                 uid_upper = s.cylinder_uid.strip().upper()
@@ -2386,10 +2422,13 @@ def edit_activity():
                 if ce:
                     new_uid = ce['new_uid']
                     new_gas = ce['gas_type']
+                    new_cyl_type = ce.get('cylinder_type')
                     old_uid = s.cylinder_uid
 
                     if new_gas:
                         s.gas_type = new_gas
+                    if new_cyl_type:
+                        s.cylinder_type = new_cyl_type
 
                     if new_uid and new_uid != uid_upper:
                         s.cylinder_uid = new_uid
@@ -2414,6 +2453,8 @@ def edit_activity():
                         if new_cyl:
                             if new_gas:
                                 new_cyl.gas_type = new_gas
+                            if new_cyl_type:
+                                new_cyl.cylinder_type = new_cyl_type
                             if final_action == 'Delivery':
                                 new_cyl.status = 'Delivered'; new_cyl.location = final_customer
                             elif final_action == 'Collection':
@@ -2421,16 +2462,18 @@ def edit_activity():
                             elif final_action == 'Filling':
                                 new_cyl.status = 'Filled';    new_cyl.location = 'Depot'
                     else:
-                        if new_gas:
-                            cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid_upper)).first()
-                            if cyl:
-                                latest = Scan.query.filter(
-                                    Scan.cylinder_uid.ilike(uid_upper)
-                                ).order_by(Scan.scan_date.desc(), Scan.scan_time.desc()).first()
-                                if latest and latest.scan_date == date_str and (latest.scan_time or '') == time_str:
+                        cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid_upper)).first()
+                        if cyl:
+                            latest = Scan.query.filter(
+                                Scan.cylinder_uid.ilike(uid_upper)
+                            ).order_by(Scan.scan_date.desc(), Scan.scan_time.desc()).first()
+                            if latest and latest.scan_date == date_str and (latest.scan_time or '') == time_str:
+                                if new_gas:
                                     cyl.gas_type = new_gas
-                                    if new_customer is not None and final_action == 'Delivery':
-                                        cyl.location = new_customer
+                                if new_cyl_type:
+                                    cyl.cylinder_type = new_cyl_type
+                                if new_customer is not None and final_action == 'Delivery':
+                                    cyl.location = new_customer
                 updated_count += 1
 
         else:
@@ -2472,6 +2515,7 @@ def edit_activity():
             for ca in cylinders_add:
                 new_uid = (ca.get('uid') or '').strip().upper()
                 new_gas = (ca.get('gas_type') or '').strip()
+                new_cyl_type = (ca.get('cylinder_type') or 'Standard').strip()
                 if not new_uid:
                     continue
                 new_scan = Scan(
@@ -2482,6 +2526,7 @@ def edit_activity():
                     cylinder_uid = new_uid,
                     customer     = final_customer if final_customer not in ('\u2014', '—') else None,
                     gas_type     = new_gas or None,
+                    cylinder_type= new_cyl_type or 'Standard',
                     entry_source = 'manual_edit',
                 )
                 db.session.add(new_scan)
@@ -2490,6 +2535,8 @@ def edit_activity():
                 if cyl:
                     if new_gas:
                         cyl.gas_type = new_gas
+                    if new_cyl_type:
+                        cyl.cylinder_type = new_cyl_type
                     if final_action == 'Delivery':
                         cyl.status   = 'Delivered'
                         cyl.location = final_customer if final_customer not in ('\u2014', '—') else 'Customer'
@@ -2500,6 +2547,26 @@ def edit_activity():
                         cyl.status   = 'Filled'
                         cyl.location = 'Depot'
                 updated_count += 1
+
+        # ── 4b. Cascade to AccountsBatch & AccountsBatchItem if present ────────
+        try:
+            acct_b = AccountsBatch.query.filter_by(batch_date=date_str, batch_time=time_str).first()
+            if acct_b:
+                if final_customer and final_customer not in ('\u2014', '—'):
+                    acct_b.customer = final_customer
+                if cylinder_edits:
+                    for ce in cylinder_edits:
+                        old_u = (ce.get('old_uid') or '').strip().upper()
+                        new_u = (ce.get('new_uid') or '').strip().upper() or old_u
+                        gas = (ce.get('gas_type') or '').strip()
+                        c_type = (ce.get('cylinder_type') or 'Standard').strip()
+                        for item in acct_b.items:
+                            if item.cylinder_uid.strip().upper() == old_u:
+                                item.cylinder_uid = new_u
+                                if gas: item.gas_type = gas
+                                if c_type: item.cylinder_type = c_type
+        except Exception as e_acct:
+            print("[edit_activity] AccountsBatch cascade note:", e_acct)
 
         # ── 5. Cascade CustomerMap (customer / action / driver changes) ────────
         cmap_q = CustomerMap.query.filter(

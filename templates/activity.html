@@ -138,6 +138,9 @@
                   <span class="gas-type-badge gas-badge gas-badge-{{ item.gas_type|lower|trim|replace(' ', '-')|replace('.', '') }}"
                         style="font-size: 9px; padding: 1px 5px; border-radius: 4px;">{{ item.gas_type }}</span>
                 {% endif %}
+                {% if item.cylinder_type == 'Dura' %}
+                  <span style="background: #fef3c7; color: #92400e; border: 1px solid #fde68a; font-size: 9px; padding: 1px 5px; border-radius: 4px; font-weight: 700;">Dura</span>
+                {% endif %}
               </span>
             {% endfor %}
           </div>
@@ -478,16 +481,18 @@ const GAS_TYPES = {{ gas_types | tojson }};
 // ── Current edit state ──────────────────────────────────────────────────────
 let _editBatch = null;
 
-function buildGasOptions(selectedGas) {
+function buildGasOptions(selectedGas, selectedCylType = 'Standard') {
   let options = `<option value="">—</option>`;
   GAS_TYPES.forEach(g => {
-    const sel = g.value === selectedGas ? 'selected' : '';
-    options += `<option value="${g.value}" ${sel}>${g.label}</option>`;
+    const isGasMatch = (g.gas_type || '').toUpperCase() === (selectedGas || '').toUpperCase();
+    const isCylMatch = (g.cylinder_type || 'Standard').toLowerCase() === (selectedCylType || 'Standard').toLowerCase();
+    const sel = (isGasMatch && isCylMatch) ? 'selected' : '';
+    options += `<option value="${g.gas_type}" data-cyl-type="${g.cylinder_type || 'Standard'}" ${sel}>${g.label}</option>`;
   });
   return options;
 }
 
-function addEditCylinderRow(uid = '', gas = '', oldUid = '') {
+function addEditCylinderRow(uid = '', gas = '', oldUid = '', cylType = 'Standard') {
   const tbody = document.getElementById('editCylindersBody');
   const idx = tbody.children.length + 1;
   const tr = document.createElement('tr');
@@ -502,7 +507,7 @@ function addEditCylinderRow(uid = '', gas = '', oldUid = '') {
     </td>
     <td style="padding: 8px 12px;">
       <select class="cyl-gas-input" style="width: 100%; box-sizing: border-box; padding: 6px 9px; border: 1.5px solid #e5e7eb; border-radius: 7px; font-family: inherit; font-size: 13px; background: #fff; outline: none;" onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#e5e7eb'">
-        ${buildGasOptions(gas)}
+        ${buildGasOptions(gas, cylType)}
       </select>
     </td>
     <td style="padding: 8px 12px; text-align: center;">
@@ -551,7 +556,8 @@ function openEditModal(btn) {
   uids.forEach(item => {
     const uid = item.uid || item;
     const gas = item.gas_type || '';
-    addEditCylinderRow(uid, gas, uid);
+    const cylType = item.cylinder_type || 'Standard';
+    addEditCylinderRow(uid, gas, uid, cylType);
   });
 
   // Clear error
@@ -596,15 +602,18 @@ async function saveEditBatch() {
   uidInputs.forEach((inp, idx) => {
     const oldUid = inp.dataset.oldUid;
     const newUid = inp.value.trim().toUpperCase();
-    const gas    = gasInputs[idx].value;
+    const gasSelect = gasInputs[idx];
+    const gas    = gasSelect ? gasSelect.value : '';
+    const opt    = gasSelect && gasSelect.selectedOptions ? gasSelect.selectedOptions[0] : null;
+    const cylType = (opt && opt.dataset.cylType) ? opt.dataset.cylType : 'Standard';
 
     if (!newUid) return; // Skip empty
     currentUids.push(oldUid || newUid);
 
     if (oldUid) {
-      cylinderEdits.push({ old_uid: oldUid, new_uid: newUid, gas_type: gas });
+      cylinderEdits.push({ old_uid: oldUid, new_uid: newUid, gas_type: gas, cylinder_type: cylType });
     } else {
-      cylindersAdd.push({ uid: newUid, gas_type: gas });
+      cylindersAdd.push({ uid: newUid, gas_type: gas, cylinder_type: cylType });
     }
   });
 
