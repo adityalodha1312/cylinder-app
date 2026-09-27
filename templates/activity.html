@@ -113,7 +113,7 @@
         <th style="width: 130px;">Driver</th>
         <th>Customer / Location</th>
         {% if user.role in ['manager', 'owner'] %}
-        <th style="width: 80px; text-align: center;">Actions</th>
+        <th style="width: 100px; text-align: center;">Actions</th>
         {% endif %}
       </tr>
     </thead>
@@ -132,14 +132,27 @@
           </div>
           <div style="display: flex; flex-wrap: wrap; gap: 4px; max-width: 420px;">
             {% for item in e.uids %}
-              <a href="/admin/search?uid={{ item.uid }}" class="clickable-uid" title="See full scan history for this cylinder" style="display: inline-flex; align-items: center; gap: 4px;">
-                {{ item.uid }}
+              <span style="display: inline-flex; align-items: center; gap: 4px;">
+                <a href="/admin/search?uid={{ item.uid }}" class="clickable-uid" title="See full scan history for this cylinder">
+                  {{ item.uid }}
+                </a>
                 {% if item.gas_type %}
-                  <span class="gas-badge gas-badge-{{ item.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if item.gas_type else 'gen' }}" style="font-size: 9px; padding: 1px 4px; border-radius: 4px;">
-                    {{ item.gas_type }}
+                  <span class="gas-type-badge gas-badge gas-badge-{{ item.gas_type|lower|trim|replace(' ', '-')|replace('.', '') if item.gas_type else 'gen' }}"
+                        style="font-size: 9px; padding: 1px 4px; border-radius: 4px; cursor: pointer;"
+                        title="Click to edit gas type for this batch"
+                        data-gas="{{ item.gas_type }}"
+                        onclick="startEditGasType(this, '{{ e.date }}', '{{ e.time }}', '{{ e.driver }}', '{{ e.action }}', '{{ e.customer }}')">
+                    {{ item.gas_type }} ✏️
                   </span>
+                {% else %}
+                  {% if user.role in ['manager', 'owner'] %}
+                  <span style="font-size: 10px; color: var(--gray-text); cursor: pointer;" title="Click to set gas type for this batch"
+                        onclick="startEditGasType(this, '{{ e.date }}', '{{ e.time }}', '{{ e.driver }}', '{{ e.action }}', '{{ e.customer }}')">
+                    + gas ✏️
+                  </span>
+                  {% endif %}
                 {% endif %}
-              </a>
+              </span>
             {% endfor %}
           </div>
         </td>
@@ -155,19 +168,62 @@
           {% endif %}
         </td>
         <td style="font-weight: 500;">{{ e.driver }}</td>
-        <td>
-          {% if e.customer == 'Depot' %}
-            <span style="color: var(--gray-text); font-style: italic; display: inline-flex; align-items: center; gap: 4px;">
-              🏭 Depot
-            </span>
-          {% elif e.customer == '—' %}
-            <span style="color: var(--gray-bd);">—</span>
-          {% else %}
-            <strong style="color: var(--dark-text);">{{ e.customer }}</strong>
-          {% endif %}
+
+        {# ── Customer cell with inline edit ── #}
+        <td class="customer-cell"
+            data-date="{{ e.date }}"
+            data-time="{{ e.time }}"
+            data-driver="{{ e.driver }}"
+            data-action="{{ e.action }}"
+            data-customer="{{ e.customer }}">
+          <div class="customer-display" style="display: flex; align-items: center; gap: 6px;">
+            {% if e.customer == 'Depot' %}
+              <span style="color: var(--gray-text); font-style: italic;">🏭 Depot</span>
+            {% elif e.customer == '—' %}
+              <span style="color: var(--gray-bd);">—</span>
+            {% else %}
+              <strong style="color: var(--dark-text);">{{ e.customer }}</strong>
+            {% endif %}
+            {% if user.role in ['manager', 'owner'] %}
+            <button type="button"
+                    onclick="startEditCustomer(this.closest('.customer-cell'))"
+                    style="background: none; border: none; cursor: pointer; color: var(--gray-text); padding: 2px 4px; border-radius: 4px; line-height: 1; font-size: 12px; opacity: 0.6; transition: opacity 0.15s;"
+                    onmouseover="this.style.opacity='1'" onmouseout="this.style.opacity='0.6'"
+                    title="Edit customer name">✏️</button>
+            {% endif %}
+          </div>
+          <div class="customer-edit" style="display: none; align-items: center; gap: 6px; flex-wrap: wrap;">
+            <input type="text" class="customer-input"
+                   style="padding: 5px 9px; border: 1.5px solid var(--green-500); border-radius: 8px; font-family: inherit; font-size: 13.5px; outline: none; width: 160px;"
+                   placeholder="New customer name"
+                   onkeydown="handleCustomerKey(event, this.closest('.customer-cell'))">
+            <button type="button" onclick="saveCustomer(this.closest('.customer-cell'))"
+                    style="background: var(--green-700); color: white; border: none; border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12px; font-weight: 600;">✓</button>
+            <button type="button" onclick="cancelCustomer(this.closest('.customer-cell'))"
+                    style="background: #f3f4f6; color: #666; border: 1.5px solid #d1d5db; border-radius: 7px; padding: 5px 10px; cursor: pointer; font-size: 12px;">✗</button>
+          </div>
         </td>
+
         {% if user.role in ['manager', 'owner'] %}
-        <td style="text-align: center; vertical-align: middle;">
+        <td style="text-align: center; vertical-align: middle; white-space: nowrap;">
+          <!-- Edit Batch button -->
+          <button type="button"
+                  onclick="openEditModal(this)"
+                  data-date="{{ e.date }}"
+                  data-time="{{ e.time }}"
+                  data-driver="{{ e.driver }}"
+                  data-action="{{ e.action }}"
+                  data-customer="{{ e.customer }}"
+                  data-uids="{{ e.uids | tojson | e }}"
+                  style="background: none; border: none; padding: 6px; cursor: pointer; color: #0f6e56; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s;"
+                  title="Edit Batch"
+                  onmouseover="this.style.color='#04342c'" onmouseout="this.style.color='#0f6e56'">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </button>
+          <!-- Delete button -->
           <form action="/admin/activity/delete" method="POST" onsubmit="deleteActivity(event, this)" style="display: inline;">
             <input type="hidden" name="date" value="{{ e.date }}">
             <input type="hidden" name="time" value="{{ e.time }}">
@@ -187,6 +243,7 @@
         {% endif %}
       </tr>
       {% endfor %}
+
     </tbody>
   </table>
 
@@ -334,4 +391,381 @@
     });
   }
 </script>
+
+<script>
+  // ── Inline Customer Edit ──────────────────────────────────────────────────
+  function startEditCustomer(cell) {
+    const display = cell.querySelector('.customer-display');
+    const editor  = cell.querySelector('.customer-edit');
+    const input   = cell.querySelector('.customer-input');
+    display.style.display = 'none';
+    editor.style.display  = 'flex';
+    input.value = cell.dataset.customer === '—' ? '' : cell.dataset.customer;
+    input.focus();
+    input.select();
+  }
+
+  function cancelCustomer(cell) {
+    cell.querySelector('.customer-display').style.display = 'flex';
+    cell.querySelector('.customer-edit').style.display    = 'none';
+  }
+
+  function handleCustomerKey(event, cell) {
+    if (event.key === 'Enter')  { event.preventDefault(); saveCustomer(cell); }
+    if (event.key === 'Escape') { event.preventDefault(); cancelCustomer(cell); }
+  }
+
+  function saveCustomer(cell) {
+    const newVal = cell.querySelector('.customer-input').value.trim();
+    if (!newVal) { cancelCustomer(cell); return; }
+
+    const payload = {
+      date:         cell.dataset.date,
+      time:         cell.dataset.time,
+      driver:       cell.dataset.driver,
+      action:       cell.dataset.action,
+      old_customer: cell.dataset.customer,
+      new_customer: newVal
+    };
+
+    const saveBtns = cell.querySelectorAll('button');
+    saveBtns.forEach(b => b.disabled = true);
+
+    fetch('/admin/activity/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Update data attribute
+        const oldCustomer = cell.dataset.customer;
+        cell.dataset.customer = newVal;
+
+        // Update displayed customer text
+        const display = cell.querySelector('.customer-display');
+        const strong  = display.querySelector('strong');
+        const depotSpan = display.querySelector('span');
+        if (strong) {
+          strong.textContent = newVal;
+        } else if (depotSpan) {
+          depotSpan.outerHTML = `<strong style="color: var(--dark-text);">${newVal}</strong>`;
+        } else {
+          display.insertAdjacentHTML('afterbegin', `<strong style="color: var(--dark-text);">${newVal}</strong>`);
+        }
+
+        // Update data-search on the row
+        const row = cell.closest('tr');
+        if (row) {
+          row.dataset.search = (row.dataset.search || '').replace(oldCustomer.toLowerCase(), newVal.toLowerCase());
+        }
+
+        cancelCustomer(cell);
+        if (window.showToast) window.showToast(`Customer updated to "${newVal}" (${data.updated_count} records).`, 'success');
+      } else {
+        saveBtns.forEach(b => b.disabled = false);
+        alert(data.error || 'Failed to update customer.');
+      }
+    })
+    .catch(() => {
+      saveBtns.forEach(b => b.disabled = false);
+      alert('Network error while updating customer.');
+    });
+  }
+
+  // ── Inline Gas Type Edit (prompt-based for all cylinders in batch) ────────
+  function startEditGasType(triggerEl, date, time, driver, action, customer) {
+    const currentGas = triggerEl.dataset ? (triggerEl.dataset.gas || '') : '';
+    const newGas = prompt('Enter new gas type for ALL cylinders in this batch:', currentGas);
+    if (newGas === null) return;   // user cancelled
+    const trimmed = newGas.trim();
+    if (!trimmed) return;
+
+    fetch('/admin/activity/edit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        date, time, driver, action,
+        old_customer: customer,
+        new_gas_type: trimmed
+      })
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        // Update all gas type badges in this table row
+        const row = triggerEl.closest('tr');
+        if (row) {
+          row.querySelectorAll('.gas-type-badge').forEach(badge => {
+            badge.textContent   = trimmed + ' ✏️';
+            badge.dataset.gas   = trimmed;
+          });
+        }
+        if (window.showToast) window.showToast(`Gas type updated to "${trimmed}" (${data.updated_count} records).`, 'success');
+      } else {
+        alert(data.error || 'Failed to update gas type.');
+      }
+    })
+    .catch(() => alert('Network error while updating gas type.'));
+  }
+</script>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     EDIT BATCH MODAL
+═══════════════════════════════════════════════════════════════════════════ -->
+<div id="editBatchModal" style="
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  z-index: 9000;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+">
+  <div style="
+    background: #fff;
+    border-radius: 16px;
+    width: 100%;
+    max-width: 700px;
+    max-height: 90vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    font-family: 'DM Sans', sans-serif;
+  ">
+    <!-- Modal Header -->
+    <div style="
+      padding: 20px 24px 16px;
+      border-bottom: 1.5px solid #e5e7eb;
+      display: flex; align-items: center; justify-content: space-between;
+    ">
+      <div>
+        <div style="font-size: 17px; font-weight: 700; color: #2c2c2a;">✏️ Edit Batch</div>
+        <div id="editBatchSubtitle" style="font-size: 12.5px; color: #888; margin-top: 2px;"></div>
+      </div>
+      <button onclick="closeEditModal()" style="
+        background: none; border: none; cursor: pointer;
+        color: #9ca3af; font-size: 22px; line-height: 1; padding: 4px;
+      " title="Close">✕</button>
+    </div>
+
+    <!-- Modal Body -->
+    <div style="padding: 20px 24px;">
+      <!-- Customer Name -->
+      <div style="margin-bottom: 20px;">
+        <label style="display: block; font-size: 12px; font-weight: 600; color: #5f5e5a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em;">
+          Customer / Party Name
+        </label>
+        <input id="editCustomerInput" type="text"
+               style="width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1.5px solid #d8d9d4; border-radius: 9px; font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.15s;"
+               placeholder="Customer name"
+               onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#d8d9d4'">
+      </div>
+
+      <!-- Cylinders Table -->
+      <div style="margin-bottom: 8px; font-size: 12px; font-weight: 600; color: #5f5e5a; text-transform: uppercase; letter-spacing: .04em;">
+        Cylinders
+      </div>
+      <div style="border: 1.5px solid #e5e7eb; border-radius: 10px; overflow: hidden; margin-bottom: 20px;">
+        <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+          <thead>
+            <tr style="background: #f7f8f6;">
+              <th style="padding: 9px 12px; text-align: left; font-weight: 600; color: #5f5e5a; border-bottom: 1px solid #e5e7eb;">#</th>
+              <th style="padding: 9px 12px; text-align: left; font-weight: 600; color: #5f5e5a; border-bottom: 1px solid #e5e7eb;">Cylinder UID</th>
+              <th style="padding: 9px 12px; text-align: left; font-weight: 600; color: #5f5e5a; border-bottom: 1px solid #e5e7eb;">Gas Type</th>
+            </tr>
+          </thead>
+          <tbody id="editCylindersBody">
+            <!-- rows injected by JS -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Error message -->
+      <div id="editBatchError" style="display:none; color: #dc2626; font-size: 13px; margin-bottom: 14px; padding: 10px 12px; background: #fef2f2; border-radius: 8px; border: 1px solid #fecaca;"></div>
+    </div>
+
+    <!-- Modal Footer -->
+    <div style="
+      padding: 16px 24px;
+      border-top: 1.5px solid #e5e7eb;
+      display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    ">
+      <button onclick="closeEditModal()" style="
+        padding: 9px 20px; border-radius: 9px; border: 1.5px solid #d8d9d4;
+        background: #f7f8f6; color: #5f5e5a; font-family: inherit; font-size: 14px; font-weight: 500;
+        cursor: pointer;
+      ">Cancel</button>
+      <button onclick="saveEditBatch()" id="editBatchSaveBtn" style="
+        padding: 9px 22px; border-radius: 9px; border: none;
+        background: #0f6e56; color: #fff; font-family: inherit; font-size: 14px; font-weight: 600;
+        cursor: pointer; transition: background 0.15s;
+      " onmouseover="this.style.background='#04342c'" onmouseout="this.style.background='#0f6e56'">
+        Save Changes
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Gas types list from server ──────────────────────────────────────────────
+const GAS_TYPES = {{ gas_types | tojson }};
+
+// ── Current edit state ──────────────────────────────────────────────────────
+let _editBatch = null;
+
+function openEditModal(btn) {
+  const date     = btn.dataset.date;
+  const time     = btn.dataset.time;
+  const driver   = btn.dataset.driver;
+  const action   = btn.dataset.action;
+  const customer = btn.dataset.customer;
+  let uids = [];
+  try { uids = JSON.parse(btn.dataset.uids); } catch(e) {}
+
+  _editBatch = { date, time, driver, action, customer, uids };
+
+  // Set subtitle
+  document.getElementById('editBatchSubtitle').textContent =
+    `${date}  •  ${time}  •  ${driver}  •  ${action}`;
+
+  // Set customer
+  const custInp = document.getElementById('editCustomerInput');
+  custInp.value = (customer === '—' || customer === 'Depot') ? '' : customer;
+
+  // Build cylinders table rows
+  const tbody = document.getElementById('editCylindersBody');
+  tbody.innerHTML = '';
+  uids.forEach((item, idx) => {
+    const uid = item.uid || item;
+    const gas = item.gas_type || '';
+    const row = document.createElement('tr');
+    row.style.borderBottom = '1px solid #f3f4f6';
+    row.innerHTML = `
+      <td style="padding: 8px 12px; color: #9ca3af; font-size: 12px;">${idx + 1}</td>
+      <td style="padding: 8px 12px;">
+        <input type="text"
+               class="cyl-uid-input"
+               data-old-uid="${uid}"
+               value="${uid}"
+               style="width: 100%; box-sizing: border-box; padding: 6px 9px; border: 1.5px solid #e5e7eb; border-radius: 7px; font-family: inherit; font-size: 13px; outline: none;"
+               onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#e5e7eb'">
+      </td>
+      <td style="padding: 8px 12px;">
+        <select class="cyl-gas-input"
+                style="width: 100%; box-sizing: border-box; padding: 6px 9px; border: 1.5px solid #e5e7eb; border-radius: 7px; font-family: inherit; font-size: 13px; background: #fff; outline: none;"
+                onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#e5e7eb'">
+          <option value="">— no change —</option>
+          ${GAS_TYPES.map(g =>
+            `<option value="${g.value}" ${g.value === gas ? 'selected' : ''}>${g.label}</option>`
+          ).join('')}
+        </select>
+      </td>
+    `;
+    tbody.appendChild(row);
+  });
+
+  // Clear error
+  const errEl = document.getElementById('editBatchError');
+  errEl.style.display = 'none';
+  errEl.textContent = '';
+
+  // Show modal
+  const modal = document.getElementById('editBatchModal');
+  modal.style.display = 'flex';
+  setTimeout(() => custInp.focus(), 80);
+}
+
+function closeEditModal() {
+  document.getElementById('editBatchModal').style.display = 'none';
+  _editBatch = null;
+}
+
+// Close on backdrop click
+document.getElementById('editBatchModal').addEventListener('click', function(e) {
+  if (e.target === this) closeEditModal();
+});
+
+async function saveEditBatch() {
+  if (!_editBatch) return;
+
+  const errEl  = document.getElementById('editBatchError');
+  const saveBtn = document.getElementById('editBatchSaveBtn');
+  errEl.style.display = 'none';
+
+  const newCustomer = document.getElementById('editCustomerInput').value.trim();
+  const uidInputs   = document.querySelectorAll('#editCylindersBody .cyl-uid-input');
+  const gasInputs   = document.querySelectorAll('#editCylindersBody .cyl-gas-input');
+
+  // Build cylinder_edits array
+  const cylinderEdits = [];
+  let hasChanges = false;
+
+  uidInputs.forEach((inp, idx) => {
+    const oldUid = inp.dataset.oldUid;
+    const newUid = inp.value.trim().toUpperCase();
+    const newGas = gasInputs[idx] ? gasInputs[idx].value : '';
+
+    cylinderEdits.push({ old_uid: oldUid, new_uid: newUid || oldUid, gas_type: newGas });
+
+    if (newUid && newUid !== oldUid.toUpperCase()) hasChanges = true;
+    if (newGas) hasChanges = true;
+  });
+
+  // Detect customer change
+  const origCustomer = (_editBatch.customer === '—' || _editBatch.customer === 'Depot')
+    ? '' : _editBatch.customer;
+  if (newCustomer !== origCustomer) hasChanges = true;
+
+  if (!hasChanges && newCustomer === origCustomer) {
+    errEl.textContent = 'No changes detected.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  const payload = {
+    date:         _editBatch.date,
+    time:         _editBatch.time,
+    driver:       _editBatch.driver,
+    action:       _editBatch.action,
+    old_customer: _editBatch.customer,
+    cylinder_edits: cylinderEdits,
+  };
+  if (newCustomer !== origCustomer) {
+    payload.new_customer = newCustomer;
+  }
+
+  saveBtn.textContent = 'Saving…';
+  saveBtn.disabled = true;
+
+  try {
+    const res = await fetch('/admin/activity/edit', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify(payload),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      closeEditModal();
+      if (window.showToast) {
+        window.showToast(data.message || 'Batch updated successfully.', 'success');
+      }
+      // Reload after short delay so toast is visible
+      setTimeout(() => window.location.reload(), 900);
+    } else {
+      errEl.textContent = data.error || 'Failed to save changes.';
+      errEl.style.display = 'block';
+      saveBtn.textContent = 'Save Changes';
+      saveBtn.disabled = false;
+    }
+  } catch(e) {
+    errEl.textContent = 'Network error. Please try again.';
+    errEl.style.display = 'block';
+    saveBtn.textContent = 'Save Changes';
+    saveBtn.disabled = false;
+  }
+}
+</script>
+
 {% endblock %}

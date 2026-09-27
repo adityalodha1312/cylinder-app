@@ -2228,12 +2228,219 @@ def admin_activity():
     events = get_activity_events()
     drivers = sorted(list(set(e['driver'] for e in events if e.get('driver'))))
     today_str = date.today().strftime('%d-%m-%Y')
+    # Build gas type list for the Edit Batch modal dropdown
+    products = get_products_config()
+    _seen_g = set()
+    gas_types = []
+    for p in products:
+        g = (p.get('gas_type') or '').strip()
+        if g and g not in _seen_g:
+            _seen_g.add(g)
+            gas_types.append({'value': g, 'label': p.get('name', g)})
     return render_template('activity.html',
         user      = session['user'],
         events    = events,
         drivers   = drivers,
-        today_str = today_str
+        today_str = today_str,
+        gas_types = gas_types,
     )
+
+
+@app.route('/admin/activity/edit', methods=['POST'])
+@admin_required
+def edit_activity():
+    """Full batch edit: customer name, per-cylinder UID and gas type.
+    Cascades to Scan, CustomerMap, and Cylinder master records across the app.
+    """
+    if session.get('user', {}).get('role') not in ['manager', 'owner']:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.json or {}
+    date_str     = (data.get('date')         or '').strip()
+    time_str     = (data.get('time')         or '').strip()
+    driver       = (data.get('driver')       or '').strip()
+    action       = (data.get('action')       or '').strip()
+    old_customer = (data.get('old_customer') or '').strip()
+
+    new_customer    = data.get('new_customer')
+    new_gas_type    = data.get('new_gas_type')
+    cylinder_edits  = data.get('cylinder_edits')
+
+    if not date_str or not action:
+        return jsonify({'error': 'Missing required fields: date and action.'}), 400
+
+    has_changes = (
+        new_customer is not None or
+        new_gas_type is not None or
+        (cylinder_edits is not None and len(cylinder_edits) > 0)
+    )
+    if not has_changes:
+        return jsonify({'error': 'Nothing to update.'}), 400
+
+    if new_customer is not None:
+        new_customer = new_customer.strip()
+    if new_gas_type is not None:
+        new_gas_type = new_gas_type.strip()
+
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({'error': 'Edit is only supported with database backend.'}), 400
+
+    try:
+        query = Scan.query.filter(
+            Scan.scan_date == date_str,
+            Scan.action    == action
+        )
+        if time_str:
+            query = query.filter(Scan.scan_time == time_str)
+        if driver:
+            query = query.filter(Scan.driver == driver)
+
+        all_scans = query.all()
+
+        def cust_display(s):
+            c = s.customer or ''
+            return c if c else ('Depot' if s.action == 'Filling' else '\u2014')
+
+        matched_scans = [
+            s for s in all_scans
+            if cust_display(s).lower() == old_customer.lower()
+            or (s.customer or '').lower() == old_customer.lower()
+        ]
+
+        if not matched_scans:
+            return jsonify({'error': 'No matching scan records found.'}), 404
+
+        updated_count = 0
+        final_customer = new_customer if new_customer is not None else old_customer
+
+        if cylinder_edits:
+            edit_map = {}
+            for ce in cylinder_edits:
+                old_u = (ce.get('old_uid') or '').strip().upper()
+                new_u = (ce.get('new_uid') or '').strip().upper() or old_u
+                gas   = (ce.get('gas_type') or '').strip()
+                if old_u:
+                    edit_map[old_u] = {'new_uid': new_u, 'gas_type': gas}
+
+            for s in matched_scans:
+                uid_upper = s.cylinder_uid.strip().upper()
+                ce = edit_map.get(uid_upper)
+
+                if new_customer is not None:
+                    s.customer = new_customer
+
+                if ce:
+                    new_uid = ce['new_uid']
+                    new_gas = ce['gas_type']
+                    old_uid = s.cylinder_uid
+
+                    if new_gas:
+                        s.gas_type = new_gas
+
+                    if new_uid and new_uid != uid_upper:
+                        s.cylinder_uid = new_uid
+
+                        old_cyl = Cylinder.query.filter(Cylinder.uid.ilike(old_uid)).first()
+                        if old_cyl:
+                            prev_scans = Scan.query.filter(
+                                Scan.cylinder_uid.ilike(old_uid)
+                            ).order_by(
+                                Scan.scan_date.desc(), Scan.scan_time.desc()
+                            ).all()
+                            prev = next((p for p in prev_scans if p.id != s.id), None)
+                            if prev:
+                                if prev.action == 'Delivery':
+                                    old_cyl.status   = 'Delivered'
+                                    old_cyl.location = prev.customer or 'Customer'
+                                elif prev.action == 'Collection':
+                                    old_cyl.status   = 'Empty'
+                                    old_cyl.location = 'Depot'
+                                elif prev.action == 'Filling':
+                                    old_cyl.status   = 'Filled'
+                                    old_cyl.location = 'Depot'
+                            else:
+                                old_cyl.status   = 'Active'
+                                old_cyl.location = 'Depot'
+
+                        new_cyl = Cylinder.query.filter(Cylinder.uid.ilike(new_uid)).first()
+                        if new_cyl:
+                            if new_gas:
+                                new_cyl.gas_type = new_gas
+                            if action == 'Delivery':
+                                new_cyl.status   = 'Delivered'
+                                new_cyl.location = final_customer
+                            elif action == 'Collection':
+                                new_cyl.status   = 'Empty'
+                                new_cyl.location = 'Depot'
+                            elif action == 'Filling':
+                                new_cyl.status   = 'Filled'
+                                new_cyl.location = 'Depot'
+                    else:
+                        if new_gas:
+                            cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid_upper)).first()
+                            if cyl:
+                                latest = Scan.query.filter(
+                                    Scan.cylinder_uid.ilike(uid_upper)
+                                ).order_by(
+                                    Scan.scan_date.desc(), Scan.scan_time.desc()
+                                ).first()
+                                if latest and latest.scan_date == date_str and (latest.scan_time or '') == time_str:
+                                    cyl.gas_type = new_gas
+                updated_count += 1
+
+        else:
+            for s in matched_scans:
+                if new_customer is not None:
+                    s.customer = new_customer
+                if new_gas_type is not None:
+                    s.gas_type = new_gas_type
+                updated_count += 1
+
+            for s in matched_scans:
+                uid = s.cylinder_uid
+                cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                if not cyl:
+                    continue
+                latest_scan = Scan.query.filter(
+                    Scan.cylinder_uid.ilike(uid)
+                ).order_by(
+                    Scan.scan_date.desc(), Scan.scan_time.desc()
+                ).first()
+                if latest_scan and latest_scan.scan_date == date_str and (latest_scan.scan_time or '') == time_str:
+                    if new_customer is not None and action == 'Delivery':
+                        cyl.location = new_customer
+                    if new_gas_type is not None:
+                        cyl.gas_type = new_gas_type
+
+        if new_customer is not None:
+            cmap_query = CustomerMap.query.filter(
+                CustomerMap.scan_date == date_str,
+                CustomerMap.action    == action
+            )
+            if time_str:
+                cmap_query = cmap_query.filter(CustomerMap.scan_time == time_str)
+            if driver:
+                cmap_query = cmap_query.filter(CustomerMap.driver == driver)
+
+            for cm in cmap_query.all():
+                cm_cust    = cm.customer or ''
+                cm_display = cm_cust if cm_cust else ('Depot' if cm.action == 'Filling' else '\u2014')
+                if cm_display.lower() == old_customer.lower() or cm_cust.lower() == old_customer.lower():
+                    cm.customer = new_customer
+
+        db.session.commit()
+        clear_cache()
+
+        return jsonify({
+            'success':       True,
+            'updated_count': updated_count,
+            'message':       f'Batch updated: {updated_count} scan record(s) modified.'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to update batch: {str(e)}'}), 500
+
 
 @app.route('/admin/activity/delete', methods=['POST'])
 @admin_required
@@ -3654,31 +3861,63 @@ def update_tank_opening_stock(date_str, gas_name, opening, capacity, dead_volume
         return False
 
 def calculate_daily_dispatch_report(target_date_str):
-    """Calculates customer-wise dispatches (deliveries) and collections on target_date_str"""
+    """Calculates customer-wise dispatches (deliveries) and collections on target_date_str.
+    Gas columns are built dynamically from get_products_config() so any product
+    add/rename/delete is automatically reflected in the matrix.
+    """
     global scan_ws
-    empty_report = {
-        'company_rows': [],
-        'party_rows': [],
-        'company_totals': {
-            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'dispatch_total': 0,
-            'collection_total': 0
-        },
-        'party_totals': {
-            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'dispatch_total': 0,
-            'collection_total': 0
-        },
-        'grand_totals': {
-            'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-            'dispatch_total': 0,
+
+    # ── Build dynamic gas columns from products config ──────────────────────
+    # Each entry: {'key': str, 'label': str, 'is_dura': bool}
+    # 'Dura' is always the last column (cylinder type, not gas type)
+    products = get_products_config()
+    seen_gas = {}   # upper_key → display label (preserves insertion order)
+    for p in products:
+        g = (p.get('gas_type') or '').strip()
+        if not g:
+            continue
+        key = g.upper()
+        if key not in seen_gas:
+            # Use the product name as label if it's informative, else the gas_type
+            label = (p.get('name') or g).strip()
+            seen_gas[key] = label
+
+    # gas_cols is a list of {'key': 'OXY', 'label': 'Oxygen'} — used by backend and template
+    gas_cols = [{'key': k, 'label': l} for k, l in seen_gas.items()]
+    # Always append Dura as the last column (cylinder type col)
+    gas_cols.append({'key': 'DURA', 'label': 'Dura'})
+
+    all_col_keys = [c['key'] for c in gas_cols]  # e.g. ['OXY', 'ACM', ..., 'DURA']
+
+    def make_empty_row():
+        """Return a zeroed dict for all gas columns."""
+        row = {}
+        for c in gas_cols:
+            if c['key'] == 'DURA':
+                row['DURA'] = {'count': 0, 'gases': {}}
+            else:
+                row[c['key']] = 0
+        return row
+
+    def make_empty_totals():
+        return {
+            'dispatch':   make_empty_row(),
+            'collection': make_empty_row(),
+            'dispatch_total':   0,
             'collection_total': 0
         }
+
+    empty_report = {
+        'company_rows':   [],
+        'party_rows':     [],
+        'company_totals': make_empty_totals(),
+        'party_totals':   make_empty_totals(),
+        'grand_totals':   make_empty_totals(),
+        'gas_cols':       gas_cols,
     }
+
     try:
+        # ── 1. Load scans for the day ────────────────────────────────────────
         day_scans = []
         db_loaded = False
         if os.environ.get('DATABASE_URL'):
@@ -3689,10 +3928,10 @@ def calculate_daily_dispatch_report(target_date_str):
                 ).all()
                 for s in scans:
                     day_scans.append({
-                        'action': s.action,
-                        'uid': s.cylinder_uid.strip().upper(),
-                        'customer': s.customer.strip() if s.customer else '',
-                        'gas_type': (s.gas_type or '').strip()
+                        'action':    s.action,
+                        'uid':       s.cylinder_uid.strip().upper(),
+                        'customer':  s.customer.strip() if s.customer else '',
+                        'gas_type':  (s.gas_type or '').strip()
                     })
                 db_loaded = True
             except Exception as dbe:
@@ -3704,164 +3943,173 @@ def calculate_daily_dispatch_report(target_date_str):
                 except Exception: pass
             if scan_ws is None:
                 return empty_report
-                
+
             rows = scan_ws.get_all_values()
             if len(rows) < 2:
                 return empty_report
-                
+
             for r in rows[1:]:
                 if len(r) >= 6:
                     if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection'):
                         day_scans.append({
-                            'action': r[3].strip(),
-                            'uid': r[4].strip().upper(),
+                            'action':   r[3].strip(),
+                            'uid':      r[4].strip().upper(),
                             'customer': r[5].strip(),
                             'gas_type': r[6].strip() if len(r) > 6 else ''
                         })
-                    
+
         if not day_scans:
             return empty_report
-            
-        cylinders = get_all_cylinders()
-        maint_data = get_all_maintenance()
-        cyl_map = {c['uid'].upper(): c for c in cylinders}
-        
-        def make_empty_row():
-            return {
-                'ACM': 0, 'ARG': 0, 'CO2': 0, 'N2': 0, 'Oxy': 0, 'Helium': 0, 'DA': 0,
-                'Dura': {'count': 0, 'gases': {}}
-            }
-            
+
+        # ── 2. Build cylinder lookup ─────────────────────────────────────────
+        cylinders  = get_all_cylinders()
+        cyl_map    = {c['uid'].upper(): c for c in cylinders}
+
+        # ── 3. Build a gas-type → column-key lookup (case-insensitive prefix) ─
+        def resolve_col_key(gas_type_raw, uid):
+            """Map a gas_type string to the matching column key, or create a new one."""
+            gas = gas_type_raw.strip().upper()
+
+            # Exact match first
+            if gas in seen_gas:
+                return gas
+
+            # Prefix / substring match against known keys
+            for k in seen_gas:
+                if k in gas or gas in k:
+                    return k
+
+            # Special fallbacks by UID prefix
+            if 'DURA' in uid:
+                return 'DURA'
+
+            # If not found in products at all, register it as a new column on the fly
+            if gas and gas != 'DURA':
+                if gas not in seen_gas:
+                    seen_gas[gas] = gas
+                    gas_cols.insert(len(gas_cols) - 1, {'key': gas, 'label': gas})
+                    # Backfill 0 for existing rows (handled below via .get(..., 0))
+                return gas
+
+            return None   # truly unknown — skip
+
+        # ── 4. Accumulate counts ─────────────────────────────────────────────
         company_customers = {}
-        party_customers = {}
-        
+        party_customers   = {}
+
         for s in day_scans:
-            uid = s['uid']
-            action = s['action'].lower()
+            uid      = s['uid']
+            action   = s['action'].lower()
             customer = s['customer'] or '(No Customer)'
-            scan_gas = (s.get('gas_type') or '').strip().upper()
-            
-            cyl = cyl_map.get(uid)
-            
-            owner = cyl.get('owner', '').strip() if cyl else ''
-            if not owner or owner.upper() in ('COMPANY', 'DEPOT'):
-                is_company_owned = True
-            else:
-                is_company_owned = False
-                
-            if cyl and cyl.get('gas_type'):
-                gas_type = cyl['gas_type'].upper()
+            scan_gas = s.get('gas_type', '').strip().upper()
+
+            cyl     = cyl_map.get(uid)
+            owner   = (cyl.get('owner', '') if cyl else '').strip()
+            is_company_owned = not owner or owner.upper() in ('COMPANY', 'DEPOT')
+
+            # Determine gas type and cylinder type
+            cyl_type = 'Standard'
+            if cyl:
+                gas_type = (cyl.get('gas_type') or '').strip().upper()
                 cyl_type = (cyl.get('cylinder_type') or 'Standard').capitalize()
             elif scan_gas:
                 gas_type = scan_gas
                 cyl_type = 'Dura' if 'DURA' in scan_gas or 'DURA' in uid else 'Standard'
             else:
-                cyl_type = 'Standard'
+                # Fallback: guess from UID prefix
+                gas_type = ''
                 if 'DURA' in uid:
                     cyl_type = 'Dura'
-                if uid.startswith('ARG'): gas_type = 'ARG'
-                elif uid.startswith('CO2'): gas_type = 'CO2'
-                elif uid.startswith('N2'): gas_type = 'N2'
-                elif uid.startswith('OXY'): gas_type = 'OXY'
-                elif uid.startswith('ACM'): gas_type = 'ACM'
-                elif uid.startswith('HEL'): gas_type = 'HEL'
-                elif uid.startswith('DA'): gas_type = 'DA'
-                else: gas_type = 'OXY'
-                
-            col_key = None
-            if cyl_type == 'Dura':
-                col_key = 'Dura'
+                for k in seen_gas:
+                    if uid.startswith(k):
+                        gas_type = k
+                        break
+
+            # Determine column key
+            if cyl_type == 'Dura' or 'DURA' in gas_type:
+                col_key = 'DURA'
             else:
-                if 'ACM' in gas_type: col_key = 'ACM'
-                elif 'ARG' in gas_type: col_key = 'ARG'
-                elif 'CO2' in gas_type or 'CO₂' in gas_type: col_key = 'CO2'
-                elif 'NITROGEN' in gas_type or gas_type in ('N2', 'N2D'): col_key = 'N2'
-                elif 'OXY' in gas_type or 'OXYGEN' in gas_type: col_key = 'Oxy'
-                elif 'HEL' in gas_type: col_key = 'Helium'
-                elif 'DA' in gas_type or 'ACETYLENE' in gas_type: col_key = 'DA'
-                elif 'DURA' in gas_type: col_key = 'Dura'
-                else: col_key = 'Oxy'
-                
+                col_key = resolve_col_key(gas_type, uid) if gas_type else None
+
+            if col_key is None:
+                continue  # skip unidentifiable
+
             group = company_customers if is_company_owned else party_customers
-            
+
             if customer not in group:
                 group[customer] = {
-                    'dispatch': make_empty_row(),
+                    'dispatch':   make_empty_row(),
                     'collection': make_empty_row()
                 }
-                
-            act_key = 'dispatch' if action == 'delivery' else 'collection'
+
+            act_key  = 'dispatch' if action == 'delivery' else 'collection'
             row_dict = group[customer][act_key]
-            
-            if col_key == 'Dura':
-                row_dict['Dura']['count'] += 1
-                gas_symbol = 'Ar'
-                if gas_type == 'N2': gas_symbol = 'NÃƒâ€š'
-                elif gas_type == 'OXY': gas_symbol = 'OÃƒâ€š'
-                elif gas_type == 'CO2': gas_symbol = 'COÃƒâ€š'
-                
-                row_dict['Dura']['gases'][gas_symbol] = row_dict['Dura']['gases'].get(gas_symbol, 0) + 1
+
+            if col_key == 'DURA':
+                row_dict['DURA']['count'] += 1
+                gas_symbol = gas_type or 'Gen'
+                row_dict['DURA']['gases'][gas_symbol] = row_dict['DURA']['gases'].get(gas_symbol, 0) + 1
             else:
-                row_dict[col_key] += 1
-                
+                row_dict[col_key] = row_dict.get(col_key, 0) + 1
+
+        # ── 5. Format helpers ────────────────────────────────────────────────
         def format_dura(dura_dict):
             if dura_dict['count'] == 0:
                 return ''
-            parts = []
-            for gas, cnt in sorted(dura_dict['gases'].items()):
-                parts.append(f"{cnt} {gas}")
-            if not parts:
-                return str(dura_dict['count'])
-            return " / ".join(parts)
-            
+            parts = [f"{cnt} {gas}" for gas, cnt in sorted(dura_dict['gases'].items())]
+            return ' / '.join(parts) if parts else str(dura_dict['count'])
+
         def convert_to_list(group_dict):
             out = []
             for cust, data in sorted(group_dict.items()):
-                formatted_row = {
-                    'customer': cust,
-                    'dispatch': {k: (v if k != 'Dura' else format_dura(v)) for k, v in data['dispatch'].items()},
-                    'collection': {k: (v if k != 'Dura' else format_dura(v)) for k, v in data['collection'].items()},
-                    'raw_dispatch': {k: (v if k != 'Dura' else v['count']) for k, v in data['dispatch'].items()},
-                    'raw_collection': {k: (v if k != 'Dura' else v['count']) for k, v in data['collection'].items()}
-                }
-                out.append(formatted_row)
+                def fmt_row(r):
+                    return {k: (format_dura(v) if k == 'DURA' else v) for k, v in r.items()}
+                def raw_row(r):
+                    return {k: (v['count'] if k == 'DURA' else v) for k, v in r.items()}
+                out.append({
+                    'customer':        cust,
+                    'dispatch':        fmt_row(data['dispatch']),
+                    'collection':      fmt_row(data['collection']),
+                    'raw_dispatch':    raw_row(data['dispatch']),
+                    'raw_collection':  raw_row(data['collection']),
+                })
             return out
-            
+
         company_rows = convert_to_list(company_customers)
-        party_rows = convert_to_list(party_customers)
-        
+        party_rows   = convert_to_list(party_customers)
+
+        # ── 6. Calculate totals ──────────────────────────────────────────────
         def calc_totals(rows_list):
-            tot = {
-                'dispatch': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-                'collection': {k: 0 for k in ['ACM', 'ARG', 'CO2', 'N2', 'Oxy', 'Helium', 'DA', 'Dura']},
-                'dispatch_total': 0,
-                'collection_total': 0
-            }
+            tot = make_empty_totals()
             for r in rows_list:
-                for k in tot['dispatch']:
-                    tot['dispatch'][k] += r['raw_dispatch'][k]
-                    tot['collection'][k] += r['raw_collection'][k]
-            tot['dispatch_total'] = sum(tot['dispatch'].values())
-            tot['collection_total'] = sum(tot['collection'].values())
+                for k in r['raw_dispatch']:
+                    tot['dispatch'][k]   = tot['dispatch'].get(k, 0)   + r['raw_dispatch'].get(k, 0)
+                    tot['collection'][k] = tot['collection'].get(k, 0) + r['raw_collection'].get(k, 0)
+            tot['dispatch_total']   = sum(v if not isinstance(v, dict) else v['count'] for v in tot['dispatch'].values())
+            tot['collection_total'] = sum(v if not isinstance(v, dict) else v['count'] for v in tot['collection'].values())
             return tot
-            
+
         company_totals = calc_totals(company_rows)
-        party_totals = calc_totals(party_rows)
-        
+        party_totals   = calc_totals(party_rows)
+
         grand_totals = {
-            'dispatch': {k: company_totals['dispatch'][k] + party_totals['dispatch'][k] for k in company_totals['dispatch']},
-            'collection': {k: company_totals['collection'][k] + party_totals['collection'][k] for k in company_totals['collection']},
-            'dispatch_total': company_totals['dispatch_total'] + party_totals['dispatch_total'],
-            'collection_total': company_totals['collection_total'] + party_totals['collection_total']
+            'dispatch':         {k: company_totals['dispatch'].get(k, 0) + party_totals['dispatch'].get(k, 0) for k in seen_gas},
+            'collection':       {k: company_totals['collection'].get(k, 0) + party_totals['collection'].get(k, 0) for k in seen_gas},
+            'dispatch_total':   company_totals['dispatch_total']   + party_totals['dispatch_total'],
+            'collection_total': company_totals['collection_total'] + party_totals['collection_total'],
         }
-        
+        grand_totals['dispatch']['DURA']   = company_totals['dispatch'].get('DURA', {'count':0})['count']   + party_totals['dispatch'].get('DURA', {'count':0})['count']
+        grand_totals['collection']['DURA'] = company_totals['collection'].get('DURA', {'count':0})['count'] + party_totals['collection'].get('DURA', {'count':0})['count']
+
         return {
-            'company_rows': company_rows,
-            'party_rows': party_rows,
+            'company_rows':   company_rows,
+            'party_rows':     party_rows,
             'company_totals': company_totals,
-            'party_totals': party_totals,
-            'grand_totals': grand_totals
+            'party_totals':   party_totals,
+            'grand_totals':   grand_totals,
+            'gas_cols':       gas_cols,   # ← passed to template for dynamic columns
         }
+
     except Exception as e:
         print("Error calculating daily dispatch report:", e)
         return empty_report
