@@ -359,6 +359,7 @@ with app.app_context():
             db.session.execute(text("ALTER TABLE scans ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
             db.session.execute(text("ALTER TABLE accounts_batch_items ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS cylinder_type VARCHAR(50) DEFAULT 'Standard';"))
+            db.session.execute(text("ALTER TABLE products ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             # Auto-add new internal log context fields
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS entry_source VARCHAR(50) DEFAULT 'qr';"))
             db.session.execute(text("ALTER TABLE admin_scan_logs ADD COLUMN IF NOT EXISTS last_known_customer VARCHAR(255);"))
@@ -4302,7 +4303,10 @@ def admin_cylinders():
     overdue = sum(1 for c in cylinders if c.get('hydro_badge') == 'Overdue')
     due_soon = sum(1 for c in cylinders if c.get('hydro_badge') == 'Due Soon')
 
-    gas_types = sorted(list(set(c['gas_type'] for c in cylinders if c.get('gas_type'))))
+    products = get_products_config()
+    prod_gases = [p['gas_type'] for p in products if p.get('gas_type')]
+    cyl_gases  = [c['gas_type'] for c in cylinders if c.get('gas_type')]
+    gas_types  = sorted(list(set(prod_gases + cyl_gases)))
     statuses  = ['Empty', 'Filled', 'Delivered']
 
     # Read server-side filters
@@ -6969,15 +6973,22 @@ def scan_app():
     customers = get_customer_names()
     fill_required = get_setting('fill_required_before_delivery', 'true').lower() == 'true'
     products = get_products_config()
-    # Build sorted unique gas type list from products (exclude virtual products with no gas_type)
-    _seen = set()
-    gas_types = []
+    product_options = []
+    seen_keys = set()
     for p in products:
-        g = (p.get('gas_type') or '').strip()
-        if g and g not in _seen:
-            _seen.add(g)
-            gas_types.append({'value': g, 'label': p.get('name', g)})
-    return render_template('scan.html', user=user, customers=customers, fill_required=fill_required, gas_types=gas_types)
+        g = (p.get('gas_type') or '').strip().upper()
+        c_type = (p.get('cylinder_type') or 'Standard').strip().capitalize()
+        name = p.get('name') or g
+        key = (g, c_type)
+        if g and key not in seen_keys:
+            seen_keys.add(key)
+            product_options.append({
+                'value': g,
+                'gas_type': g,
+                'cylinder_type': c_type,
+                'label': f"{name} ({c_type})" if c_type == 'Dura' or 'dura' in name.lower() else (f"{name} ({c_type})" if 'standard' not in name.lower() and c_type else name)
+            })
+    return render_template('scan.html', user=user, customers=customers, fill_required=fill_required, gas_types=product_options)
 
 @app.route('/submit', methods=['POST'])
 def submit():
@@ -9836,7 +9847,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
     if os.environ.get('DATABASE_URL'):
         try:
             with db.session.no_autoflush:
-                for row_data in rows_to_append:
+                for idx_row, row_data in enumerate(rows_to_append):
                     s_date = row_data[0]
                     s_time = row_data[1]
                     scan_driver = row_data[2]
@@ -9844,7 +9855,9 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                     scan_uid = row_data[4]
                     scan_cust = row_data[5] if len(row_data) > 5 else ''
                     scan_gas = row_data[6] if len(row_data) > 6 else ''
-                    
+                    s_orig = parsed_scans[idx_row] if idx_row < len(parsed_scans) else {}
+                    scan_cyl_type = s_orig.get('cylinder_type') or 'Standard'
+
                     scan_db = Scan(
                         scan_date=s_date,
                         scan_time=s_time,
@@ -9853,6 +9866,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                         cylinder_uid=scan_uid,
                         customer=scan_cust,
                         gas_type=scan_gas,
+                        cylinder_type=scan_cyl_type,
                         entry_source=source
                     )
                     db.session.add(scan_db)
@@ -9911,7 +9925,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                     clear_cache()
                     print("[db] Added missing entry_source column to scans table. Retrying insert...")
                     with db.session.no_autoflush:
-                        for row_data in rows_to_append:
+                        for idx_row, row_data in enumerate(rows_to_append):
                             s_date = row_data[0]
                             s_time = row_data[1]
                             scan_driver = row_data[2]
@@ -9919,6 +9933,8 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                             scan_uid = row_data[4]
                             scan_cust = row_data[5] if len(row_data) > 5 else ''
                             scan_gas = row_data[6] if len(row_data) > 6 else ''
+                            s_orig = parsed_scans[idx_row] if idx_row < len(parsed_scans) else {}
+                            scan_cyl_type = s_orig.get('cylinder_type') or 'Standard'
                             scan_db = Scan(
                                 scan_date=s_date,
                                 scan_time=s_time,
@@ -9927,6 +9943,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                                 cylinder_uid=scan_uid,
                                 customer=scan_cust,
                                 gas_type=scan_gas,
+                                cylinder_type=scan_cyl_type,
                                 entry_source=source
                             )
                             db.session.add(scan_db)
@@ -10153,6 +10170,7 @@ def api_admin_scan_verify():
                 registry_gas = getattr(c, 'gas_type', '') or ''
                 cyl_status   = getattr(c, 'status', '') or ''
                 cyl_location = getattr(c, 'location', '') or ''
+                cyl_type     = getattr(c, 'cylinder_type', '') or 'Standard'
 
                 # Action validity checks
                 recent = None
@@ -10167,6 +10185,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas,
+                        'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'result_msg': f'Already {act_past} today.',
                         'error': True, 'is_duplicate': False,
@@ -10176,6 +10195,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas,
+                        'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'result_msg': f'Already at Depot (status: {cyl_status}).',
                         'error': True, 'is_duplicate': False,
@@ -10184,6 +10204,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas,
+                        'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'result_msg': 'Already delivered.',
                         'error': True, 'is_duplicate': False,
@@ -10193,6 +10214,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': label, 'registry_gas': registry_gas,
+                        'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'result_msg': 'Ready to submit.',
                         'error': False, 'is_duplicate': False,
@@ -10218,6 +10240,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Error', 'registry_gas': '',
+                        'cylinder_type': 'Standard',
                         'cyl_status': current_status, 'cyl_location': owner or '',
                         'result_msg': f'Already {act_past} today in scan logs.',
                         'error': True, 'is_duplicate': False,
@@ -10228,6 +10251,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Error', 'registry_gas': '',
+                        'cylinder_type': 'Standard',
                         'cyl_status': 'Delivered', 'cyl_location': owner or '',
                         'result_msg': f'Already delivered{cust_msg}{date_msg} according to scan logs. Must collect first.',
                         'error': True, 'is_duplicate': False,
@@ -10236,6 +10260,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Error', 'registry_gas': '',
+                        'cylinder_type': 'Standard',
                         'cyl_status': current_status, 'cyl_location': 'Depot',
                         'result_msg': f'Already at Depot (status: {current_status}) in scan logs.',
                         'error': True, 'is_duplicate': False,
@@ -10244,6 +10269,7 @@ def api_admin_scan_verify():
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Unregistered', 'registry_gas': '',
+                        'cylinder_type': 'Standard',
                         'cyl_status': current_status, 'cyl_location': owner or '',
                         'result_msg': 'Not in registry. Will be logged & queued for review.',
                         'error': False, 'is_duplicate': False,
@@ -10308,6 +10334,7 @@ def api_admin_scan_submit_manual():
             entered_id      = item.get('entered_id', '').strip().upper()
             master_id       = item.get('master_id', '').strip().upper() or entered_id
             transaction_gas = item.get('transaction_gas', '').strip()
+            item_cyl_type   = (item.get('cylinder_type') or 'Standard').strip()
             registry_status = item.get('registry_status', 'unregistered')
             save_alias      = item.get('save_alias', False)
 
@@ -10334,10 +10361,11 @@ def api_admin_scan_submit_manual():
 
             uid_for_scan = master_id if c else entered_id
             parsed_scans.append({
-                'uid':          uid_for_scan,
-                'action':       action,
-                'cust_val':     customer if action in ('Delivery', 'Collection') else '',
-                'override_gas': transaction_gas,
+                'uid':           uid_for_scan,
+                'action':        action,
+                'cust_val':      customer if action in ('Delivery', 'Collection') else '',
+                'override_gas':  transaction_gas,
+                'cylinder_type': item_cyl_type or 'Standard',
             })
 
         db.session.commit()
@@ -10438,6 +10466,7 @@ def api_admin_scan_submit_manual():
                 for item in items:
                     master_id = item.get('master_id', '').strip().upper() or item.get('entered_id', '').strip().upper()
                     t_gas = item.get('transaction_gas', '').strip()
+                    t_cyl_type = (item.get('cylinder_type') or 'Standard').strip()
                     r_status = item.get('registry_status', 'unregistered')
 
                     if r_status == 'mapped':
@@ -10451,6 +10480,7 @@ def api_admin_scan_submit_manual():
                         batch_id=acct_batch.id,
                         cylinder_uid=master_id,
                         gas_type=t_gas,
+                        cylinder_type=t_cyl_type or 'Standard',
                         status=item_status
                     ))
                     accounts_count += 1
@@ -10690,13 +10720,21 @@ def admin_pending_cylinders():
             filtered_batches.append(b)
 
     products = get_products_config()
-    _seen = set()
-    gas_types = []
+    product_options = []
+    seen_keys = set()
     for p in products:
-        g = (p.get('gas_type') or '').strip()
-        if g and g not in _seen:
-            _seen.add(g)
-            gas_types.append({'value': g, 'label': p.get('name', g)})
+        g = (p.get('gas_type') or '').strip().upper()
+        c_type = (p.get('cylinder_type') or 'Standard').strip().capitalize()
+        name = p.get('name') or g
+        key = (g, c_type)
+        if g and key not in seen_keys:
+            seen_keys.add(key)
+            product_options.append({
+                'value': g,
+                'gas_type': g,
+                'cylinder_type': c_type,
+                'label': f"{name} ({c_type})" if c_type == 'Dura' or 'dura' in name.lower() else (f"{name} ({c_type})" if 'standard' not in name.lower() and c_type else name)
+            })
 
     return render_template(
         'admin_pending_cylinders.html',
@@ -10709,7 +10747,7 @@ def admin_pending_cylinders():
         total_rejected=total_rejected,
         total_batches=total_batches,
         total_pending_batches=total_pending_batches,
-        gas_types=gas_types
+        gas_types=product_options
     )
 
 

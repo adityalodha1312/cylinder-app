@@ -404,11 +404,11 @@
       </p>
 
       <div style="margin-bottom:14px;">
-        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Gas Type</label>
-        <select id="regGasType" style="width:100%; min-height:40px; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13.5px; background:#fff;">
-          <option value="">Select gas type...</option>
+        <label style="font-size:12.5px; font-weight:600; color:#374151; display:block; margin-bottom:6px;">Product / Gas Type</label>
+        <select id="regGasType" onchange="onRegGasTypeChange(this)" style="width:100%; min-height:40px; padding:8px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:13.5px; background:#fff;">
+          <option value="">Select product / gas...</option>
           {% for g in gas_types %}
-            <option value="{{ g.value }}">{{ g.label }}</option>
+            <option value="{{ g.value }}" data-cyl-type="{{ g.cylinder_type }}">{{ g.label }}</option>
           {% endfor %}
         </select>
       </div>
@@ -509,14 +509,24 @@ function openMapModal(id, enteredId) {
   document.getElementById('mapTargetSearch').focus();
 }
 
+function onRegGasTypeChange(sel) {
+  const opt = sel.selectedOptions ? sel.selectedOptions[0] : null;
+  const cylInput = document.getElementById('regCylType');
+  if (cylInput && opt && opt.dataset.cylType) {
+    cylInput.value = opt.dataset.cylType;
+  }
+}
+
 function openRegisterModal(id, enteredId, gasType, customer) {
   currentReviewId = id;
   document.getElementById('regEnteredId').innerText = enteredId;
   const gasSel = document.getElementById('regGasType');
   if (gasType) {
     gasSel.value = gasType;
+    onRegGasTypeChange(gasSel);
   } else {
     gasSel.selectedIndex = 0;
+    onRegGasTypeChange(gasSel);
   }
   const m = document.getElementById('registerModal');
   m.style.display = 'flex';
