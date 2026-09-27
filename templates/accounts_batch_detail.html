@@ -148,10 +148,7 @@
           </td>
           <td>
             {% if item.status == 'Unregistered' %}
-              <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-start;">
-                <span style="background:#fff3cd; color:#92400e; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700; display:inline-block;">Unregistered ⚠</span>
-                <a href="/admin/review?uid={{ item.cylinder_uid }}" style="font-size:10px; color:#0F6E56; text-decoration:underline; line-height:1.2;">Resolve in Review Queue</a>
-              </div>
+              <span style="background:#fff3cd; color:#92400e; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700; display:inline-block;">Unregistered ⚠</span>
             {% elif item.status == 'Mapped' %}
               <span style="background:#dbeafe; color:#1d4ed8; padding:3px 9px; border-radius:12px; font-size:11px; font-weight:700; display:inline-block;">Mapped</span>
             {% else %}
@@ -201,14 +198,35 @@
       }
       
       const textToCopy = uids.join(', ');
-      navigator.clipboard.writeText(textToCopy).then(() => {
-        const originalText = this.innerHTML;
+      
+      function fallbackCopy(text) {
+        var textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.top = "0";
+        textArea.style.left = "0";
+        textArea.style.position = "fixed";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try { document.execCommand('copy'); } catch (err) {}
+        document.body.removeChild(textArea);
+      }
+
+      const originalText = this.innerHTML;
+      const onSuccess = () => {
         this.innerHTML = "✅ Copied!";
         setTimeout(() => { this.innerHTML = originalText; }, 2000);
-      }).catch(err => {
-        console.error('Failed to copy text: ', err);
-        prompt("Copy UIDs:", textToCopy);
-      });
+      };
+
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(textToCopy).then(onSuccess).catch(() => {
+          fallbackCopy(textToCopy);
+          onSuccess();
+        });
+      } else {
+        fallbackCopy(textToCopy);
+        onSuccess();
+      }
     });
   });
 
