@@ -4004,12 +4004,13 @@ def calculate_daily_dispatch_report(target_date_str):
         return row
 
     def make_empty_totals():
-        return {
-            'dispatch':   make_empty_row(),
-            'collection': make_empty_row(),
-            'dispatch_total':   0,
-            'collection_total': 0
-        }
+    row = {c['key']: 0 for c in gas_cols}
+    return {
+        'dispatch':   dict(row),
+        'collection': dict(row),
+        'dispatch_total':   0,
+        'collection_total': 0
+    }
 
     empty_report = {
         'company_rows':   [],
@@ -4197,13 +4198,11 @@ def calculate_daily_dispatch_report(target_date_str):
         party_totals   = calc_totals(party_rows)
 
         grand_totals = {
-            'dispatch':         {k: company_totals['dispatch'].get(k, 0) + party_totals['dispatch'].get(k, 0) for k in seen_gas},
-            'collection':       {k: company_totals['collection'].get(k, 0) + party_totals['collection'].get(k, 0) for k in seen_gas},
+            'dispatch':         {k: company_totals['dispatch'].get(k, 0) + party_totals['dispatch'].get(k, 0) for k in all_col_keys},
+            'collection':       {k: company_totals['collection'].get(k, 0) + party_totals['collection'].get(k, 0) for k in all_col_keys},
             'dispatch_total':   company_totals['dispatch_total']   + party_totals['dispatch_total'],
             'collection_total': company_totals['collection_total'] + party_totals['collection_total'],
         }
-        grand_totals['dispatch']['DURA']   = company_totals['dispatch'].get('DURA', {'count':0})['count']   + party_totals['dispatch'].get('DURA', {'count':0})['count']
-        grand_totals['collection']['DURA'] = company_totals['collection'].get('DURA', {'count':0})['count'] + party_totals['collection'].get('DURA', {'count':0})['count']
 
         return {
             'company_rows':   company_rows,
