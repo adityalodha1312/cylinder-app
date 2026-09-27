@@ -8208,6 +8208,93 @@ def accounts_batches_bulk_delete():
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Failed, please try again.'}), 500
 
+@app.route('/accounts/api/latest_batches')
+def accounts_api_latest_batches():
+    user = session.get('user')
+    if not user or user.get('role') not in ['accounts', 'manager', 'owner']:
+        return jsonify({'error': 'Unauthorized', 'new_batches': []}), 401
+
+    if not os.environ.get('DATABASE_URL'):
+        return jsonify({
+            'new_batches': [],
+            'stats': {'total': 0, 'pending': 0, 'billed': 0},
+            'highest_id': 0
+        })
+
+    is_initial = request.args.get('initial') == '1'
+    since_id = request.args.get('since_id', 0, type=int)
+
+    max_id = db.session.query(db.func.max(AccountsBatch.id)).scalar() or 0
+
+    total_count = AccountsBatch.query.count()
+    pending_count = AccountsBatch.query.filter(AccountsBatch.status == 'Pending').count()
+    billed_count = AccountsBatch.query.filter(AccountsBatch.status == 'Billed').count()
+
+    stats = {
+        'total': total_count,
+        'pending': pending_count,
+        'billed': billed_count
+    }
+
+    if is_initial:
+        return jsonify({
+            'new_batches': [],
+            'stats': stats,
+            'highest_id': max_id
+        })
+
+    # Find batches strictly greater than since_id
+    new_batches_q = AccountsBatch.query.filter(AccountsBatch.id > since_id).order_by(AccountsBatch.id.asc()).all()
+
+    new_batches = []
+    for b in new_batches_q:
+        gas_groups = {}
+        for item in b.items:
+            g = item.gas_type or 'Unknown'
+            if g not in gas_groups:
+                gas_groups[g] = []
+            if item.cylinder_uid:
+                gas_groups[g].append(item.cylinder_uid.strip().upper())
+
+        gas_chips = []
+        for gas, uids in gas_groups.items():
+            g_lower = gas.lower()
+            badge_class = 'gen'
+            if 'arg' in g_lower or 'ar' == g_lower: badge_class = 'arg'
+            elif 'oxy' in g_lower or 'o2' in g_lower: badge_class = 'oxy'
+            elif 'nitr' in g_lower or 'n2' in g_lower: badge_class = 'n2'
+            elif 'co2' in g_lower or 'carbon' in g_lower: badge_class = 'co2'
+            elif 'helium' in g_lower or 'he' == g_lower: badge_class = 'helium'
+            elif 'hydrogen' in g_lower or 'h2' in g_lower: badge_class = 'hydrogen'
+            elif 'acetyl' in g_lower or 'acm' in g_lower: badge_class = 'acm'
+            elif 'ahm' in g_lower: badge_class = 'ahm'
+
+            gas_chips.append({
+                'gas': gas,
+                'count': len(uids),
+                'badge_class': badge_class,
+                'uids': uids
+            })
+
+        new_batches.append({
+            'id': b.id,
+            'batch_ref': b.batch_ref or '—',
+            'batch_date': b.batch_date,
+            'batch_time': b.batch_time or '',
+            'customer': b.customer or '—',
+            'status': b.status or 'Pending',
+            'total_cylinders': len(b.items),
+            'billed_by': b.billed_by or '',
+            'billed_at': b.billed_at.strftime('%d-%m-%Y %H:%M') if b.billed_at else '',
+            'gas_chips': gas_chips
+        })
+
+    return jsonify({
+        'new_batches': new_batches,
+        'stats': stats,
+        'highest_id': max(max_id, since_id)
+    })
+
 # Admin read-only view of accounts batches
 @app.route('/admin/accounts_batches')
 @admin_required

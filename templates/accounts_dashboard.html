@@ -2,6 +2,27 @@
 {% block title %}Accounts Batches{% endblock %}
 
 {% block content %}
+<style>
+  @keyframes newBatchGlow {
+    0% {
+      background-color: #d1fae5;
+      box-shadow: inset 0 0 16px rgba(16, 185, 129, 0.45);
+      transform: translateY(-6px);
+    }
+    40% {
+      background-color: #ecfdf5;
+      box-shadow: inset 0 0 8px rgba(16, 185, 129, 0.25);
+    }
+    100% {
+      background-color: transparent;
+      box-shadow: none;
+      transform: translateY(0);
+    }
+  }
+  .new-batch-highlight {
+    animation: newBatchGlow 4s ease-out forwards;
+  }
+</style>
 <div class="page-header">
   <h1 class="page-title">Accounts Batches</h1>
   <p class="page-sub">All cylinder scan batches for billing reference. Click a batch to view details.</p>
@@ -57,7 +78,7 @@
       <tbody id="batches-tbody">
         {% for b in batches %}
         {% set gas_sum = b.gas_summary() %}
-        <tr data-customer="{{ b.customer | lower }}" data-ref="{{ b.batch_ref | lower }}" data-status="{{ b.status }}">
+        <tr data-batch-id="{{ b.id }}" data-customer="{{ b.customer | lower }}" data-ref="{{ b.batch_ref | lower }}" data-status="{{ b.status }}">
           <td style="text-align:center;"><input type="checkbox" class="batch-checkbox" value="{{ b.id }}"></td>
           <td style="font-weight:700; color:var(--green-700); font-size:12px;">
             {% if deleted_counts.get(b.id, 0) == b.items|length and b.items|length > 0 %}
@@ -115,7 +136,7 @@
           </td>
         </tr>
         {% else %}
-        <tr><td colspan="8" style="text-align:center; padding:40px; color:#aaa;">No batches yet. Batches are created automatically when the admin scans cylinders.</td></tr>
+        <tr id="empty-row"><td colspan="9" style="text-align:center; padding:40px; color:#aaa;">No batches yet. Batches are created automatically when the admin scans cylinders.</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -359,32 +380,168 @@
       });
   }
 
-  // Auto-refresh logic (Polling)
-  let refreshInterval = setInterval(() => {
-    fetch(window.location.href)
-      .then(r => r.text())
-      .then(html => {
-        let doc = new DOMParser().parseFromString(html, 'text/html');
-        
+  // ── High-performance Live Polling & Pop-up Notification ─────────
+  let highestBatchId = 0;
+  document.querySelectorAll('#batches-tbody tr[data-batch-id]').forEach(r => {
+    const id = parseInt(r.getAttribute('data-batch-id')) || 0;
+    if (id > highestBatchId) highestBatchId = id;
+  });
+  {% if batches and batches|length > 0 %}
+  if (highestBatchId === 0) highestBatchId = {{ batches[0].id }};
+  {% endif %}
+
+  function playNotificationChime() {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') ctx.resume();
+
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+      osc.frequency.setValueAtTime(880.00, ctx.currentTime + 0.12); // A5
+
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.45);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + 0.45);
+    } catch (e) {
+      // Audio context may require user interaction
+    }
+  }
+
+  let originalDocumentTitle = document.title;
+  let titleFlashTimer = null;
+  function notifyTabTitle(newCount) {
+    if (document.hidden) {
+      let toggled = false;
+      clearInterval(titleFlashTimer);
+      titleFlashTimer = setInterval(() => {
+        document.title = toggled ? `🔔 (${newCount}) New Entry! - Accounts` : originalDocumentTitle;
+        toggled = !toggled;
+      }, 1000);
+      window.addEventListener('focus', function onFocus() {
+        clearInterval(titleFlashTimer);
+        document.title = originalDocumentTitle;
+        window.removeEventListener('focus', onFocus);
+      });
+    }
+  }
+
+  function createBatchRow(b) {
+    const tr = document.createElement('tr');
+    tr.setAttribute('data-batch-id', b.id);
+    tr.setAttribute('data-customer', (b.customer || '').toLowerCase());
+    tr.setAttribute('data-ref', (b.batch_ref || '').toLowerCase());
+    tr.setAttribute('data-status', b.status || 'Pending');
+    tr.className = 'new-batch-highlight';
+
+    let gasChipsHtml = '';
+    if (b.gas_chips && b.gas_chips.length > 0) {
+      b.gas_chips.forEach(gc => {
+        const uidsJson = JSON.stringify(gc.uids).replace(/"/g, '&quot;');
+        gasChipsHtml += `
+          <button type="button" class="gas-badge gas-badge-${gc.badge_class}" 
+                  style="border:none; cursor:pointer; font-family:inherit; padding:3px 8px; transition:transform 0.1s; display:inline-flex; align-items:center;"
+                  data-uids="${uidsJson}" onclick="copyGasUids(event, this)"
+                  title="Copy ${gc.gas} UIDs">
+            ${gc.count} ${gc.gas} <span style="opacity:0.6; font-size:10px; margin-left:4px;">📋</span>
+          </button>
+        `;
+      });
+    }
+
+    const isBilled = (b.status === 'Billed');
+    const actionBtnHtml = isBilled
+      ? `<button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus(${b.id}, 'Billed', this)" style="color:#666;">⟲ Revert</button>`
+      : `<button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus(${b.id}, 'Pending', this)">✓ Mark Billed</button>`;
+
+    tr.innerHTML = `
+      <td style="text-align:center;"><input type="checkbox" class="batch-checkbox" value="${b.id}"></td>
+      <td style="font-weight:700; color:var(--green-700); font-size:12px;">${b.batch_ref || '—'}</td>
+      <td style="white-space:nowrap;">${b.batch_date}<br><span style="font-size:11px; color:#888;">${b.batch_time || ''}</span></td>
+      <td style="font-weight:600;">${b.customer || '—'}</td>
+      <td><div class="gas-chips">${gasChipsHtml}</div></td>
+      <td style="font-weight:700; text-align:center;">${b.total_cylinders || 0}</td>
+      <td><span class="badge-${(b.status || 'pending').toLowerCase()}">${b.status || 'Pending'}</span></td>
+      <td style="font-size:12px; color:#777;">${b.billed_by ? `${b.billed_by}<br><span style="font-size:11px;">${b.billed_at || ''}</span>` : '—'}</td>
+      <td>
+        <div style="display:flex; gap:6px;">
+          ${actionBtnHtml}
+          <a href="/accounts/batch/${b.id}" class="btn btn-outline btn-sm">View</a>
+        </div>
+      </td>
+    `;
+    return tr;
+  }
+
+  let isPolling = false;
+  setInterval(() => {
+    if (isPolling) return;
+    isPolling = true;
+
+    fetch(`/accounts/api/latest_batches?since_id=${highestBatchId}`)
+      .then(r => {
+        if (!r.ok) throw new Error('Polling status ' + r.status);
+        return r.json();
+      })
+      .then(data => {
+        isPolling = false;
+        if (!data) return;
+
         // Update stats
-        const newTotal = doc.getElementById('stat-total');
-        const newPending = doc.getElementById('stat-pending');
-        const newBilled = doc.getElementById('stat-billed');
-        
-        if(newTotal) document.getElementById('stat-total').innerHTML = newTotal.innerHTML;
-        if(newPending) document.getElementById('stat-pending').innerHTML = newPending.innerHTML;
-        if(newBilled) document.getElementById('stat-billed').innerHTML = newBilled.innerHTML;
-        
-        // Update table body
-        const newTbody = doc.getElementById('batches-tbody');
-        if(newTbody) {
-          document.getElementById('batches-tbody').innerHTML = newTbody.innerHTML;
-          // Re-bind rows for filtering
+        if (data.stats) {
+          const totalEl = document.getElementById('stat-total');
+          const pendingEl = document.getElementById('stat-pending');
+          const billedEl = document.getElementById('stat-billed');
+          if (totalEl && data.stats.total !== undefined) totalEl.innerText = data.stats.total;
+          if (pendingEl && data.stats.pending !== undefined) pendingEl.innerText = data.stats.pending;
+          if (billedEl && data.stats.billed !== undefined) billedEl.innerText = data.stats.billed;
+        }
+
+        if (data.new_batches && data.new_batches.length > 0) {
+          const tbody = document.getElementById('batches-tbody');
+          const emptyRow = document.getElementById('empty-row') || tbody.querySelector('td[colspan]');
+          if (emptyRow && emptyRow.closest('tr')) {
+            emptyRow.closest('tr').remove();
+          }
+
+          // data.new_batches are in ascending ID order (earliest to newest)
+          data.new_batches.forEach(batch => {
+            if (batch.id > highestBatchId) {
+              highestBatchId = batch.id;
+            }
+            if (tbody.querySelector(`tr[data-batch-id="${batch.id}"]`)) return;
+
+            const newRow = createBatchRow(batch);
+            tbody.insertBefore(newRow, tbody.firstChild);
+
+            // Pop-up Notification
+            const toastMsg = `<strong>New Entry Received:</strong> ${batch.batch_ref || 'Batch'} • ${batch.customer || 'Customer'} (${batch.total_cylinders || 0} cyls) <a href="/accounts/batch/${batch.id}" style="color:var(--green-700); font-weight:700; text-decoration:underline; margin-left:8px;">View &rarr;</a>`;
+            if (window.showToast) {
+              window.showToast(toastMsg, 'success');
+            }
+          });
+
+          playNotificationChime();
+          notifyTabTitle(data.new_batches.length);
+
           rows = document.querySelectorAll('#batches-tbody tr[data-customer]');
-          filterRows(); // Re-apply current filter
+          filterRows();
+        } else if (data.highest_id && data.highest_id > highestBatchId) {
+          highestBatchId = data.highest_id;
         }
       })
-      .catch(err => console.error('Failed to fetch new batches:', err));
-  }, 10000); // 10 seconds
+      .catch(err => {
+        isPolling = false;
+      });
+  }, 3500);
 </script>
 {% endblock %}
