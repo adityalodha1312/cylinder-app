@@ -4004,13 +4004,13 @@ def calculate_daily_dispatch_report(target_date_str):
         return row
 
     def make_empty_totals():
-    row = {c['key']: 0 for c in gas_cols}
-    return {
-        'dispatch':   dict(row),
-        'collection': dict(row),
-        'dispatch_total':   0,
-        'collection_total': 0
-    }
+        row = {c['key']: 0 for c in gas_cols}
+        return {
+            'dispatch':   dict(row),
+            'collection': dict(row),
+            'dispatch_total':   0,
+            'collection_total': 0
+        }
 
     empty_report = {
         'company_rows':   [],
