@@ -106,9 +106,9 @@
           <td>
             <div style="display:flex; gap:6px;">
               {% if b.status == 'Pending' %}
-                <button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus({{ b.id }}, 'Pending')">✓ Mark Billed</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus({{ b.id }}, 'Pending', this)">✓ Mark Billed</button>
               {% else %}
-                <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus({{ b.id }}, 'Billed')" style="color:#666;">⟲ Revert</button>
+                <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus({{ b.id }}, 'Billed', this)" style="color:#666;">⟲ Revert</button>
               {% endif %}
               <a href="/accounts/batch/{{ b.id }}" class="btn btn-outline btn-sm">View</a>
             </div>
@@ -193,8 +193,7 @@
     let uids = [];
     try { uids = JSON.parse(btn.dataset.uids); } catch(e) {}
     if(!uids || uids.length === 0) return;
-    const text = uids.join('
-');
+    const text = uids.join('\n');
     
     function onSuccess() {
       const origHTML = btn.innerHTML;
@@ -221,21 +220,61 @@
     }
   }
 
-  function toggleStatus(batchId, currentStatus) {
+  function toggleStatus(batchId, currentStatus, btn) {
     const isBilled = currentStatus === 'Billed';
     const url = isBilled ? `/accounts/batch/${batchId}/unmark_billed` : `/accounts/batch/${batchId}/mark_billed`;
     
-    // Optimistic UI update could go here if needed, but reload is safer and consistent
+    btn.disabled = true;
+    
     fetch(url, { method: 'POST' })
       .then(r => r.json())
       .then(data => {
         if(data.success) {
-          window.location.reload();
+          const row = btn.closest('tr');
+          if (row) {
+            const statusCell = row.cells[6];
+            const actionCell = row.cells[8];
+            
+            if (!isBilled) {
+               statusCell.innerHTML = '<span class="badge-billed">Billed</span>';
+               actionCell.innerHTML = `
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus(${batchId}, 'Billed', this)" style="color:#666;">⟲ Revert</button>
+                    <a href="/accounts/batch/${batchId}" class="btn btn-outline btn-sm">View</a>
+                  </div>
+               `;
+               row.dataset.status = 'Billed';
+            } else {
+               statusCell.innerHTML = '<span class="badge-pending">Pending</span>';
+               actionCell.innerHTML = `
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus(${batchId}, 'Pending', this)">✓ Mark Billed</button>
+                    <a href="/accounts/batch/${batchId}" class="btn btn-outline btn-sm">View</a>
+                  </div>
+               `;
+               row.dataset.status = 'Pending';
+            }
+          }
+          
+          const pendingEl = document.getElementById('stat-pending');
+          const billedEl = document.getElementById('stat-billed');
+          if (pendingEl && billedEl) {
+             let pending = parseInt(pendingEl.innerText) || 0;
+             let billed = parseInt(billedEl.innerText) || 0;
+             if (!isBilled) { pending--; billed++; }
+             else { pending++; billed--; }
+             pendingEl.innerText = pending;
+             billedEl.innerText = billed;
+          }
         } else {
           alert(data.error || 'Failed to update status.');
+          btn.disabled = false;
         }
       })
-      .catch(err => alert('Network error.'));
+      .catch(err => {
+        alert('Network error.');
+        btn.disabled = false;
+      });
   }
 \n  // Auto-refresh logic (Polling)
   let refreshInterval = setInterval(() => {
