@@ -8027,9 +8027,13 @@ def accounts_batch_edit(batch_id):
         db.session.commit()
         clear_cache()
         flash('Batch updated successfully.', 'success')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': True, 'customer': batch.customer, 'notes': batch.notes})
     except Exception as e:
         db.session.rollback()
         flash('Error: Failed, please try again.', 'error')
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
+            return jsonify({'success': False, 'error': str(e)}), 500
     return redirect(url_for('accounts_batch_detail', batch_id=batch_id))
 
 @app.route('/accounts/batch/<int:batch_id>/mark_billed', methods=['POST'])

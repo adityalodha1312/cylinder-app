@@ -10,7 +10,7 @@
 <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
   <div>
     <div style="font-size:12px; font-weight:700; color:#0F6E56; letter-spacing:.5px; text-transform:uppercase; margin-bottom:4px;">{{ batch.batch_ref }}</div>
-    <h1 class="page-title">{{ batch.customer or 'No Customer' }}</h1>
+    <h1 class="page-title" id="page-customer-title">{{ batch.customer or 'No Customer' }}</h1>
     <p class="page-sub">{{ batch.batch_date }} at {{ batch.batch_time }} &nbsp;·&nbsp; Scanned by {{ batch.admin_name }}</p>
   </div>
   <div id="billing-actions-container" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
@@ -28,13 +28,13 @@
 
 <!-- Info Cards -->
 <div style="display:flex; gap:14px; flex-wrap:wrap; margin-bottom:20px;">
-  <div class="card" style="flex:1; min-width:130px; padding:16px 20px; {% if batch.status == 'Billed' %}background-color:#f0fdf4; border-color:#bbf7d0;{% else %}background-color:#fffbeb; border-color:#fef08a;{% endif %}">
-    <div style="font-size:11px; font-weight:600; color:{% if batch.status == 'Billed' %}#166534{% else %}#92400e{% endif %}; text-transform:uppercase; margin-bottom:4px;">Status</div>
-    <span class="badge-{{ batch.status | lower }}" style="font-size:14px; padding:4px 12px; border-radius:8px;">{{ batch.status }}</span>
+  <div id="batch-status-card" class="card" style="flex:1; min-width:130px; padding:16px 20px; {% if batch.status == 'Billed' %}background-color:#f0fdf4; border-color:#bbf7d0;{% else %}background-color:#fffbeb; border-color:#fef08a;{% endif %}">
+    <div id="batch-status-label" style="font-size:11px; font-weight:600; color:{% if batch.status == 'Billed' %}#166534{% else %}#92400e{% endif %}; text-transform:uppercase; margin-bottom:4px;">Status</div>
+    <span id="batch-status-badge" class="badge-{{ batch.status | lower }}" style="font-size:14px; padding:4px 12px; border-radius:8px;">{{ batch.status }}</span>
   </div>
   <div class="card" style="flex:1; min-width:130px; padding:16px 20px;">
     <div style="font-size:11px; font-weight:600; color:#777; text-transform:uppercase; margin-bottom:4px;">Total Cylinders</div>
-    <div style="font-size:40px; font-weight:800; color:#0F6E56; line-height:1;">{{ batch.items | length }}</div>
+    <div id="total-cylinders-val" style="font-size:40px; font-weight:800; color:#0F6E56; line-height:1;">{{ batch.items | length }}</div>
   </div>
   {% if batch.billed_at %}
   <div class="card" style="flex:2; min-width:180px; padding:16px 20px;">
@@ -241,7 +241,20 @@
     .then(data => {
       if (data.success) {
         const container = document.getElementById('billing-actions-container');
+        const statusCard = document.getElementById('batch-status-card');
+        const statusLabel = document.getElementById('batch-status-label');
+        const statusBadge = document.getElementById('batch-status-badge');
+
         if (action === 'mark_billed') {
+          if (statusCard) {
+            statusCard.style.backgroundColor = '#f0fdf4';
+            statusCard.style.borderColor = '#bbf7d0';
+          }
+          if (statusLabel) statusLabel.style.color = '#166534';
+          if (statusBadge) {
+            statusBadge.className = 'badge-billed';
+            statusBadge.innerText = 'Billed';
+          }
           container.innerHTML = `
             <span class="badge-billed" style="padding:8px 16px; border-radius:8px; font-size:13px;">✓ Billed</span>
             <button type="button" class="btn btn-outline btn-sm" onclick="toggleBatchBilled(${batchId}, 'unmark_billed', this)">Revert to Pending</button>
@@ -251,6 +264,15 @@
           `;
           if (window.showToast) window.showToast('Batch marked as Billed.', 'success');
         } else {
+          if (statusCard) {
+            statusCard.style.backgroundColor = '#fffbeb';
+            statusCard.style.borderColor = '#fef08a';
+          }
+          if (statusLabel) statusLabel.style.color = '#92400e';
+          if (statusBadge) {
+            statusBadge.className = 'badge-pending';
+            statusBadge.innerText = 'Pending';
+          }
           container.innerHTML = `
             <button type="button" class="btn btn-primary" onclick="toggleBatchBilled(${batchId}, 'mark_billed', this)">✓ Mark as Billed</button>
             <form action="/accounts/batch/${batchId}/delete" method="POST" style="display:inline;" onsubmit="return confirm('Delete this entire batch? This cannot be undone.');">
@@ -285,7 +307,14 @@
         if (row) {
           row.style.transition = 'opacity 0.3s';
           row.style.opacity = '0';
-          setTimeout(() => row.remove(), 320);
+          setTimeout(() => {
+            row.remove();
+            const totalEl = document.getElementById('total-cylinders-val');
+            if (totalEl) {
+              const cur = parseInt(totalEl.innerText) || 0;
+              totalEl.innerText = Math.max(0, cur - 1);
+            }
+          }, 320);
         }
         if (window.showToast) window.showToast('Cylinder removed from batch.', 'success');
       } else {
@@ -298,6 +327,41 @@
       if (row) row.style.opacity = '1';
       btn.disabled = false;
       alert('Network error.');
+    });
+  }
+
+  // Dynamic AJAX handler for editing batch details without reload
+  const editBatchForm = document.getElementById('edit-batch-form');
+  if (editBatchForm) {
+    editBatchForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      const submitBtn = editBatchForm.querySelector('button[type="submit"]');
+      if (submitBtn) submitBtn.disabled = true;
+      const formData = new FormData(editBatchForm);
+
+      fetch(editBatchForm.action, {
+        method: 'POST',
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        body: formData
+      })
+      .then(r => r.json())
+      .then(data => {
+        if (submitBtn) submitBtn.disabled = false;
+        if (data.success) {
+          const titleEl = document.getElementById('page-customer-title');
+          if (titleEl) titleEl.innerText = data.customer || 'No Customer';
+          editBatchForm.style.display = 'none';
+          const toggleBtn = document.getElementById('toggleEditBtn');
+          if (toggleBtn) toggleBtn.style.display = 'inline-block';
+          if (window.showToast) window.showToast('Batch updated successfully.', 'success');
+        } else {
+          alert('Failed to update: ' + (data.error || 'Unknown error'));
+        }
+      })
+      .catch(err => {
+        if (submitBtn) submitBtn.disabled = false;
+        alert('Network error: ' + err.message);
+      });
     });
   }
 </script>

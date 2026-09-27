@@ -151,7 +151,8 @@
   }
 
   function deleteSelectedBatches() {
-    const selected = Array.from(document.querySelectorAll('.batch-checkbox:checked')).map(cb => parseInt(cb.value));
+    const checkboxes = Array.from(document.querySelectorAll('.batch-checkbox:checked'));
+    const selected = checkboxes.map(cb => parseInt(cb.value));
     if (selected.length === 0) {
       alert("No batches selected.");
       return;
@@ -160,13 +161,38 @@
 
     fetch('/accounts/batches/bulk_delete', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
       body: JSON.stringify({ batch_ids: selected })
     })
     .then(r => r.json())
     .then(data => {
       if (data.success) {
-        window.location.reload();
+        let deletedPending = 0;
+        let deletedBilled = 0;
+
+        checkboxes.forEach(cb => {
+          const row = cb.closest('tr');
+          if (row) {
+            const st = row.dataset.status;
+            if (st === 'Billed') deletedBilled++;
+            else deletedPending++;
+            row.style.transition = 'opacity 0.25s, transform 0.25s';
+            row.style.opacity = '0';
+            row.style.transform = 'translateX(10px)';
+            setTimeout(() => row.remove(), 260);
+          }
+        });
+
+        // Update stats
+        const totalEl = document.getElementById('stat-total');
+        const pendingEl = document.getElementById('stat-pending');
+        const billedEl = document.getElementById('stat-billed');
+        if (totalEl) totalEl.innerText = Math.max(0, (parseInt(totalEl.innerText) || 0) - selected.length);
+        if (pendingEl) pendingEl.innerText = Math.max(0, (parseInt(pendingEl.innerText) || 0) - deletedPending);
+        if (billedEl) billedEl.innerText = Math.max(0, (parseInt(billedEl.innerText) || 0) - deletedBilled);
+
+        const selectAll = document.getElementById('selectAllBatches');
+        if (selectAll) selectAll.checked = false;
       } else {
         alert("Failed to delete batches: " + data.error);
       }
@@ -229,7 +255,7 @@
       return;
     }
 
-    const text = uids.join('\n');
+    const text = uids.join(', ');
 
     function onSuccess() {
       const origHTML = btn.innerHTML;
