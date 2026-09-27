@@ -2249,8 +2249,14 @@ def admin_activity():
 @app.route('/admin/activity/edit', methods=['POST'])
 @admin_required
 def edit_activity():
-    """Full batch edit: customer name, per-cylinder UID and gas type.
-    Cascades to Scan, CustomerMap, and Cylinder master records across the app.
+    """Full batch edit. Supports:
+    - Customer rename (new_customer)
+    - Action type change (new_action)
+    - Driver change (new_driver)
+    - Per-cylinder UID + gas type edits (cylinder_edits)
+    - Add new cylinders to batch (cylinders_add)
+    - Remove cylinders from batch (cylinders_remove)
+    All cascaded to Scan, CustomerMap, Cylinder master records.
     """
     if session.get('user', {}).get('role') not in ['manager', 'owner']:
         return jsonify({'error': 'Unauthorized'}), 403
@@ -2262,30 +2268,39 @@ def edit_activity():
     action       = (data.get('action')       or '').strip()
     old_customer = (data.get('old_customer') or '').strip()
 
-    new_customer    = data.get('new_customer')
-    new_gas_type    = data.get('new_gas_type')
-    cylinder_edits  = data.get('cylinder_edits')
+    new_customer   = data.get('new_customer')
+    new_action     = data.get('new_action')
+    new_driver     = data.get('new_driver')
+    cylinder_edits = data.get('cylinder_edits')   # [{old_uid, new_uid, gas_type}]
+    cylinders_add  = data.get('cylinders_add')    # [{uid, gas_type}]
+    cylinders_remove = data.get('cylinders_remove')  # [uid, ...]
 
     if not date_str or not action:
         return jsonify({'error': 'Missing required fields: date and action.'}), 400
 
-    has_changes = (
-        new_customer is not None or
-        new_gas_type is not None or
-        (cylinder_edits is not None and len(cylinder_edits) > 0)
-    )
+    has_changes = any([
+        new_customer  is not None,
+        new_action    is not None,
+        new_driver    is not None,
+        cylinder_edits and len(cylinder_edits) > 0,
+        cylinders_add and len(cylinders_add) > 0,
+        cylinders_remove and len(cylinders_remove) > 0,
+    ])
     if not has_changes:
         return jsonify({'error': 'Nothing to update.'}), 400
 
     if new_customer is not None:
         new_customer = new_customer.strip()
-    if new_gas_type is not None:
-        new_gas_type = new_gas_type.strip()
+    if new_action is not None:
+        new_action = new_action.strip()
+    if new_driver is not None:
+        new_driver = new_driver.strip()
 
     if not os.environ.get('DATABASE_URL'):
         return jsonify({'error': 'Edit is only supported with database backend.'}), 400
 
     try:
+        # ── 1. Find the matching Scan rows ─────────────────────────────────────
         query = Scan.query.filter(
             Scan.scan_date == date_str,
             Scan.action    == action
@@ -2307,12 +2322,45 @@ def edit_activity():
             or (s.customer or '').lower() == old_customer.lower()
         ]
 
-        if not matched_scans:
+        if not matched_scans and not cylinders_add:
             return jsonify({'error': 'No matching scan records found.'}), 404
 
         updated_count = 0
         final_customer = new_customer if new_customer is not None else old_customer
+        final_action   = new_action   if new_action   is not None else action
+        final_driver   = new_driver   if new_driver   is not None else driver
 
+        # ── 2. Remove cylinders from batch ────────────────────────────────────
+        if cylinders_remove:
+            remove_upper = {u.strip().upper() for u in cylinders_remove if u}
+            to_delete = [s for s in matched_scans if s.cylinder_uid.strip().upper() in remove_upper]
+            for s in to_delete:
+                matched_scans.remove(s)
+                # Revert Cylinder master
+                uid = s.cylinder_uid
+                cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                if cyl:
+                    prev = Scan.query.filter(
+                        Scan.cylinder_uid.ilike(uid)
+                    ).filter(Scan.id != s.id).order_by(
+                        Scan.scan_date.desc(), Scan.scan_time.desc()
+                    ).first()
+                    if prev:
+                        if prev.action == 'Delivery':
+                            cyl.status   = 'Delivered'
+                            cyl.location = prev.customer or 'Customer'
+                        elif prev.action == 'Collection':
+                            cyl.status   = 'Empty'
+                            cyl.location = 'Depot'
+                        elif prev.action == 'Filling':
+                            cyl.status   = 'Filled'
+                            cyl.location = 'Depot'
+                    else:
+                        cyl.status   = 'Active'
+                        cyl.location = 'Depot'
+                db.session.delete(s)
+
+        # ── 3. Per-cylinder edits (UID rename + gas type) ─────────────────────
         if cylinder_edits:
             edit_map = {}
             for ce in cylinder_edits:
@@ -2328,6 +2376,10 @@ def edit_activity():
 
                 if new_customer is not None:
                     s.customer = new_customer
+                if new_action is not None:
+                    s.action = new_action
+                if new_driver is not None:
+                    s.driver = new_driver
 
                 if ce:
                     new_uid = ce['new_uid']
@@ -2339,63 +2391,58 @@ def edit_activity():
 
                     if new_uid and new_uid != uid_upper:
                         s.cylinder_uid = new_uid
-
+                        # Revert old cylinder
                         old_cyl = Cylinder.query.filter(Cylinder.uid.ilike(old_uid)).first()
                         if old_cyl:
                             prev_scans = Scan.query.filter(
                                 Scan.cylinder_uid.ilike(old_uid)
-                            ).order_by(
-                                Scan.scan_date.desc(), Scan.scan_time.desc()
-                            ).all()
+                            ).order_by(Scan.scan_date.desc(), Scan.scan_time.desc()).all()
                             prev = next((p for p in prev_scans if p.id != s.id), None)
                             if prev:
                                 if prev.action == 'Delivery':
-                                    old_cyl.status   = 'Delivered'
-                                    old_cyl.location = prev.customer or 'Customer'
+                                    old_cyl.status = 'Delivered'; old_cyl.location = prev.customer or 'Customer'
                                 elif prev.action == 'Collection':
-                                    old_cyl.status   = 'Empty'
-                                    old_cyl.location = 'Depot'
+                                    old_cyl.status = 'Empty';     old_cyl.location = 'Depot'
                                 elif prev.action == 'Filling':
-                                    old_cyl.status   = 'Filled'
-                                    old_cyl.location = 'Depot'
+                                    old_cyl.status = 'Filled';    old_cyl.location = 'Depot'
                             else:
-                                old_cyl.status   = 'Active'
-                                old_cyl.location = 'Depot'
-
+                                old_cyl.status = 'Active'; old_cyl.location = 'Depot'
+                        # Update new cylinder
                         new_cyl = Cylinder.query.filter(Cylinder.uid.ilike(new_uid)).first()
                         if new_cyl:
                             if new_gas:
                                 new_cyl.gas_type = new_gas
-                            if action == 'Delivery':
-                                new_cyl.status   = 'Delivered'
-                                new_cyl.location = final_customer
-                            elif action == 'Collection':
-                                new_cyl.status   = 'Empty'
-                                new_cyl.location = 'Depot'
-                            elif action == 'Filling':
-                                new_cyl.status   = 'Filled'
-                                new_cyl.location = 'Depot'
+                            if final_action == 'Delivery':
+                                new_cyl.status = 'Delivered'; new_cyl.location = final_customer
+                            elif final_action == 'Collection':
+                                new_cyl.status = 'Empty';     new_cyl.location = 'Depot'
+                            elif final_action == 'Filling':
+                                new_cyl.status = 'Filled';    new_cyl.location = 'Depot'
                     else:
                         if new_gas:
                             cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid_upper)).first()
                             if cyl:
                                 latest = Scan.query.filter(
                                     Scan.cylinder_uid.ilike(uid_upper)
-                                ).order_by(
-                                    Scan.scan_date.desc(), Scan.scan_time.desc()
-                                ).first()
+                                ).order_by(Scan.scan_date.desc(), Scan.scan_time.desc()).first()
                                 if latest and latest.scan_date == date_str and (latest.scan_time or '') == time_str:
                                     cyl.gas_type = new_gas
+                                    if new_customer is not None and final_action == 'Delivery':
+                                        cyl.location = new_customer
                 updated_count += 1
 
         else:
+            # No per-cylinder edits — apply batch-level changes to all matched rows
             for s in matched_scans:
                 if new_customer is not None:
                     s.customer = new_customer
-                if new_gas_type is not None:
-                    s.gas_type = new_gas_type
+                if new_action is not None:
+                    s.action = new_action
+                if new_driver is not None:
+                    s.driver = new_driver
                 updated_count += 1
 
+            # Cascade to Cylinder master records
             for s in matched_scans:
                 uid = s.cylinder_uid
                 cyl = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
@@ -2403,30 +2450,85 @@ def edit_activity():
                     continue
                 latest_scan = Scan.query.filter(
                     Scan.cylinder_uid.ilike(uid)
-                ).order_by(
-                    Scan.scan_date.desc(), Scan.scan_time.desc()
-                ).first()
+                ).order_by(Scan.scan_date.desc(), Scan.scan_time.desc()).first()
                 if latest_scan and latest_scan.scan_date == date_str and (latest_scan.scan_time or '') == time_str:
-                    if new_customer is not None and action == 'Delivery':
+                    if new_customer is not None and final_action == 'Delivery':
                         cyl.location = new_customer
-                    if new_gas_type is not None:
-                        cyl.gas_type = new_gas_type
+                    if new_action is not None:
+                        if final_action == 'Delivery':
+                            cyl.status   = 'Delivered'
+                            cyl.location = final_customer
+                        elif final_action == 'Collection':
+                            cyl.status   = 'Empty'
+                            cyl.location = 'Depot'
+                        elif final_action == 'Filling':
+                            cyl.status   = 'Filled'
+                            cyl.location = 'Depot'
 
-        if new_customer is not None:
-            cmap_query = CustomerMap.query.filter(
-                CustomerMap.scan_date == date_str,
-                CustomerMap.action    == action
-            )
-            if time_str:
-                cmap_query = cmap_query.filter(CustomerMap.scan_time == time_str)
-            if driver:
-                cmap_query = cmap_query.filter(CustomerMap.driver == driver)
+        # ── 4. Add new cylinders to batch ─────────────────────────────────────
+        if cylinders_add:
+            for ca in cylinders_add:
+                new_uid = (ca.get('uid') or '').strip().upper()
+                new_gas = (ca.get('gas_type') or '').strip()
+                if not new_uid:
+                    continue
+                new_scan = Scan(
+                    scan_date    = date_str,
+                    scan_time    = time_str,
+                    driver       = final_driver,
+                    action       = final_action,
+                    cylinder_uid = new_uid,
+                    customer     = final_customer if final_customer not in ('\u2014', '—') else None,
+                    gas_type     = new_gas or None,
+                    entry_source = 'manual_edit',
+                )
+                db.session.add(new_scan)
+                # Update Cylinder master
+                cyl = Cylinder.query.filter(Cylinder.uid.ilike(new_uid)).first()
+                if cyl:
+                    if new_gas:
+                        cyl.gas_type = new_gas
+                    if final_action == 'Delivery':
+                        cyl.status   = 'Delivered'
+                        cyl.location = final_customer if final_customer not in ('\u2014', '—') else 'Customer'
+                    elif final_action == 'Collection':
+                        cyl.status   = 'Empty'
+                        cyl.location = 'Depot'
+                    elif final_action == 'Filling':
+                        cyl.status   = 'Filled'
+                        cyl.location = 'Depot'
+                updated_count += 1
 
-            for cm in cmap_query.all():
-                cm_cust    = cm.customer or ''
-                cm_display = cm_cust if cm_cust else ('Depot' if cm.action == 'Filling' else '\u2014')
-                if cm_display.lower() == old_customer.lower() or cm_cust.lower() == old_customer.lower():
+        # ── 5. Cascade CustomerMap (customer / action / driver changes) ────────
+        cmap_q = CustomerMap.query.filter(
+            CustomerMap.scan_date == date_str,
+        )
+        if time_str:
+            cmap_q = cmap_q.filter(CustomerMap.scan_time == time_str)
+        if driver:
+            cmap_q = cmap_q.filter(CustomerMap.driver == driver)
+        if action:
+            cmap_q = cmap_q.filter(CustomerMap.action == action)
+
+        for cm in cmap_q.all():
+            cm_cust    = cm.customer or ''
+            cm_display = cm_cust if cm_cust else ('Depot' if cm.action == 'Filling' else '\u2014')
+            if cm_display.lower() == old_customer.lower() or cm_cust.lower() == old_customer.lower():
+                if new_customer is not None:
                     cm.customer = new_customer
+                if new_action is not None:
+                    cm.action = new_action
+                if new_driver is not None:
+                    cm.driver = new_driver
+                # Update count if cylinders were added or removed
+                if cylinders_add or cylinders_remove:
+                    remaining = Scan.query.filter(
+                        Scan.scan_date == date_str,
+                        Scan.scan_time == time_str,
+                        Scan.driver    == final_driver,
+                        Scan.action    == final_action,
+                    ).count()
+                    cm.count = remaining
 
         db.session.commit()
         clear_cache()
