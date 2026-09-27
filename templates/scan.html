@@ -1407,6 +1407,7 @@
             {% endfor %}
           </div>
         </div>
+        <div id="manual-cust-autodetect-badge" style="display:none; font-size:12px; color:#065f46; font-weight:600; margin-top:6px; background:#ecfdf5; border:1px solid #a7f3d0; padding:4px 8px; border-radius:6px; width:fit-content;"></div>
       </div>
 
       <!-- 3. Default Gas Type Selector -->
@@ -1460,6 +1461,9 @@
 
       <!-- Results Content -->
       <div id="man-results" style="display:none;flex:1;flex-direction:column;min-height:0;">
+
+        <!-- Customer Conflict Alert Banner -->
+        <div id="man-conflict-banner" style="display:none; margin-bottom:14px;"></div>
 
         <!-- 4 Stat Metric Cards (Dimmed Zeros) -->
         <div class="sum-grid">
@@ -2357,6 +2361,7 @@ var GAS_OPTS   = (GAS_LABELS || []).map(function(o) { return typeof o === 'strin
 let manualItems   = [];   // verified items from last verify call
 let activeFilter  = 'all';
 let isSubmitting  = false;
+let lastVerifyData = null;
 
 // ─── Mode toggle ───────────────────────────────────────────────────────────
 function setEntryMode(mode) {
@@ -2406,8 +2411,13 @@ function manualFilterCustDd() {
   });
 }
 function manualSelectCust(val) {
-  const el = document.getElementById('manual-customer'); if(el) el.value = val.trim();
-  const dd = document.getElementById('manual-cust-dd');   if(dd) dd.style.display = 'none';
+  const el = document.getElementById('manual-customer');
+  if(el) {
+    el.value = val.trim();
+    delete el.dataset.autoFilled;
+  }
+  const ab = document.getElementById('manual-cust-autodetect-badge'); if(ab) ab.style.display = 'none';
+  const dd = document.getElementById('manual-cust-dd'); if(dd) dd.style.display = 'none';
 }
 
 // ─── UID count ─────────────────────────────────────────────────────────────
@@ -2424,6 +2434,10 @@ function manualClear() {
   document.getElementById('manual-uids').value = '';
   manualUpdateCount();
   manualItems = [];
+  lastVerifyData = null;
+  const cb = document.getElementById('man-conflict-banner'); if(cb) { cb.innerHTML = ''; cb.style.display = 'none'; }
+  const ab = document.getElementById('manual-cust-autodetect-badge'); if(ab) ab.style.display = 'none';
+  const ci = document.getElementById('manual-customer'); if(ci && ci.dataset.autoFilled === 'true') { ci.value = ''; delete ci.dataset.autoFilled; }
   document.getElementById('man-empty').style.display   = 'flex';
   document.getElementById('man-results').style.display = 'none';
   document.getElementById('man-summary').style.display = 'none';
@@ -2523,6 +2537,7 @@ function manualRemoveRow(idx) {
 async function manualVerify() {
   const uids = document.getElementById('manual-uids').value;
   const action = document.getElementById('manual-action').value;
+  const customer = (document.getElementById('manual-customer').value || '').trim();
   if (!uids.trim()) { alert('Enter at least one cylinder ID.'); return; }
 
   const btn = document.getElementById('btn-verify');
@@ -2535,7 +2550,7 @@ async function manualVerify() {
     const res = await fetch('/api/admin/scan/verify', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({uids, action})
+      body: JSON.stringify({uids, action, customer})
     });
 
     if (!res.ok) {
@@ -2555,8 +2570,63 @@ async function manualVerify() {
 
     const data = await res.json();
     if (data.error) { alert(data.error); return; }
+    lastVerifyData = data;
     manualItems = data.results || [];
     activeFilter = 'all';
+
+    // ── Auto-Detect Customer for Collection ──
+    const custInput = document.getElementById('manual-customer');
+    const autoBadge = document.getElementById('manual-cust-autodetect-badge');
+    if (action === 'Collection' && data.suggested_customer) {
+      if (!custInput.value || custInput.dataset.autoFilled === 'true') {
+        custInput.value = data.suggested_customer;
+        custInput.dataset.autoFilled = 'true';
+      }
+      if (autoBadge) {
+        autoBadge.style.display = 'inline-flex';
+        autoBadge.innerHTML = `✓ Auto-detected Customer: <strong>${data.suggested_customer}</strong>`;
+      }
+    } else if (autoBadge) {
+      autoBadge.style.display = 'none';
+    }
+
+    // ── Multi-Customer Conflict Banner ──
+    const conflictBanner = document.getElementById('man-conflict-banner');
+    if (conflictBanner) {
+      if (action === 'Collection' && data.has_customer_conflict && data.customer_groups) {
+        let groupListHtml = '';
+        for (const [cName, uList] of Object.entries(data.customer_groups)) {
+          const isMajority = (cName === data.suggested_customer);
+          groupListHtml += `<li><strong>${uList.length} cylinder(s)</strong> belong to <strong>${cName}</strong> (${uList.slice(0, 5).join(', ')}${uList.length > 5 ? '…' : ''}) ${isMajority ? '<span style="color:#065f46; font-size:11px; font-weight:700;">(Primary)</span>' : '<span style="color:#991b1b; font-size:11px; font-weight:700;">(Mismatch)</span>'}</li>`;
+        }
+        conflictBanner.innerHTML = `
+          <div style="background:#fffbeb; border:1.5px solid #f59e0b; border-radius:10px; padding:14px 16px;">
+            <div style="font-weight:700; color:#b45309; font-size:14px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:17px;">⚠️</span>
+              <span>Mixed Customers Detected in this Collection Batch</span>
+            </div>
+            <div style="font-size:13px; color:#78350f; margin:8px 0 10px 0;">
+              These cylinders belong to multiple customers based on past delivery records:
+              <ul style="margin:6px 0 0 18px; padding-left:4px; line-height:1.6;">
+                ${groupListHtml}
+              </ul>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+              <button type="button" class="btn btn-primary btn-sm" onclick="manualAutoSplitBatches()" style="background:#0F6E56; color:#fff; border-radius:7px; font-weight:600; padding:6px 14px; cursor:pointer;">
+                ⚡ Auto-Split into Separate Batches
+              </button>
+              <button type="button" class="btn btn-outline btn-sm" onclick="manualRemoveMismatched()" style="background:#fff; color:#b91c1c; border:1.5px solid #fca5a5; border-radius:7px; font-weight:600; padding:6px 14px; cursor:pointer;">
+                🗑 Remove Mismatched Cylinders
+              </button>
+            </div>
+          </div>
+        `;
+        conflictBanner.style.display = 'block';
+      } else {
+        conflictBanner.innerHTML = '';
+        conflictBanner.style.display = 'none';
+      }
+    }
 
     try {
       manualRender();
@@ -2649,12 +2719,36 @@ function manualRender() {
       actionCell = `<span style="font-size:12px;color:#0F6E56;font-weight:600;">✓ Ready</span>`;
     }
 
+    // Customer history badge
+    const lastCust = item.last_customer || '';
+    const lastDate = item.last_delivery_date || '';
+    const isMismatch = (item.customer_mismatch === true);
+    let custInfoHtml = '';
+    if (lastCust) {
+      if (isMismatch) {
+        custInfoHtml = `
+          <div style="margin-top:4px;">
+            <span style="background:#fee2e2; color:#991b1b; padding:2px 7px; border-radius:4px; font-size:11px; font-weight:700; display:inline-block;" title="${item.mismatch_msg || ''}">
+              ⚠️ Belongs to ${lastCust}${lastDate ? ` (${lastDate})` : ''}
+            </span>
+          </div>`;
+      } else {
+        custInfoHtml = `
+          <div style="margin-top:3px;">
+            <span style="color:#065f46; font-size:11px; font-weight:600; display:inline-block;">
+              📍 Last with: ${lastCust}${lastDate ? ` · ${lastDate}` : ''}
+            </span>
+          </div>`;
+      }
+    }
+
     // ── Desktop Row ────────────────────────────────────────────────
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td>
         <strong style="font-size:14px;color:#0F6E56;">${item.entered_id}</strong>
         ${aliasNote}
+        ${custInfoHtml}
       </td>
       <td>
         <span class="badge ${badgeClass}">${displayStatus}</span>
@@ -2680,6 +2774,7 @@ function manualRender() {
         <button type="button" class="row-remove-btn" title="Remove" onclick="manualRemoveRow(${idx})">×</button>
       </div>
       ${item.master_id !== item.entered_id ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Matched ID</span><span style="font-weight:600;">${item.master_id}</span></div>` : ''}
+      ${lastCust ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Last Customer</span><span style="${isMismatch ? 'color:#991b1b;font-weight:700;background:#fee2e2;padding:2px 6px;border-radius:4px;' : 'color:#065f46;font-weight:600;'}">${isMismatch ? '⚠️ ' : ''}${lastCust}${lastDate ? ` (${lastDate})` : ''}</span></div>` : ''}
       ${item.result_msg ? `<div class="res-card-fld"><span style="color:#5F5E5A;">Note</span><span style="font-size:12px;">${item.result_msg}</span></div>` : ''}
       ${isUnreg ? `<div style="margin-top:10px;"><span class="f-label">Gas Type</span>${gasSelectHtml(idx + '_m', preGas, isUnreg, preCylType)}</div>` : `<div class="res-card-fld"><span style="color:#5F5E5A;">Gas Type</span><span style="font-weight:600;">${preGas || '—'}${preCylType === 'Dura' ? ' (Dura)' : ''}</span></div>`}
     `;
@@ -2741,10 +2836,14 @@ function manualValidateSubmission() {
     }
   });
 
-  const canSubmit = (validCount > 0) && (errCount === 0) && !hasMissingGas;
+  const action = document.getElementById('manual-action').value;
+  const hasMismatch = (action === 'Collection') && manualItems.some(item => item.customer_mismatch && itemCategory(item) !== 'dup' && itemCategory(item) !== 'err');
+  const canSubmit = (validCount > 0) && (errCount === 0) && !hasMissingGas && !hasMismatch;
 
   let submitLabel = 'Nothing to submit';
-  if (hasMissingGas) {
+  if (hasMismatch) {
+    submitLabel = 'Resolve Customer Mismatches to Submit';
+  } else if (hasMissingGas) {
     submitLabel = 'Select Gas Type for Unregistered Cylinders';
   } else if (errCount > 0) {
     submitLabel = `Fix ${errCount} error(s) to submit`;
@@ -2774,6 +2873,14 @@ async function manualSubmit() {
   const customer = (document.getElementById('manual-customer').value || '').trim();
   if ((action === 'Delivery' || action === 'Collection') && !customer) {
     alert('Please select a customer.'); return;
+  }
+
+  if (action === 'Collection') {
+    const hasMismatch = manualItems.some(item => item.customer_mismatch && itemCategory(item) !== 'dup' && itemCategory(item) !== 'err');
+    if (hasMismatch) {
+      alert('Cannot submit batch with customer mismatches. Please click "Auto-Split into Separate Batches" or remove mismatched cylinders.');
+      return;
+    }
   }
 
   const itemsToSubmit = [];
@@ -2869,6 +2976,114 @@ async function manualSubmit() {
     console.error('Submission error:', e);
     alert('Network error during submission: ' + (e.message || 'Please check your connection.'));
     isSubmitting = false;
+    manualRender();
+  }
+}
+
+// ─── Auto-Split Batches when Mixed Customers are Detected ────────────────
+async function manualAutoSplitBatches() {
+  if (!lastVerifyData || !lastVerifyData.customer_groups) {
+    alert("No multiple customer groups detected.");
+    return;
+  }
+  const groups = lastVerifyData.customer_groups;
+  const custNames = Object.keys(groups);
+  if (custNames.length <= 1) {
+    alert("All verified cylinders belong to a single customer.");
+    return;
+  }
+
+  const promptMsg = `Are you sure you want to split these cylinders into ${custNames.length} separate collection batches?\n\n` +
+    custNames.map(c => `• ${c}: ${groups[c].length} cylinder(s)`).join('\n');
+  if (!confirm(promptMsg)) return;
+
+  const isMob = window.innerWidth < 769;
+  const action = 'Collection';
+  const vBtn = document.getElementById('btn-verify');
+  if (vBtn) vBtn.disabled = true;
+
+  let createdBatches = [];
+  let failed = false;
+
+  for (const custName of custNames) {
+    const custUids = new Set(groups[custName].map(u => u.toUpperCase()));
+    const itemsForCust = [];
+
+    for (let i = 0; i < manualItems.length; i++) {
+      const item = manualItems[i];
+      if (itemCategory(item) === 'dup' || itemCategory(item) === 'err') continue;
+      const uUp = item.entered_id.toUpperCase();
+      const mUp = (item.master_id || '').toUpperCase();
+      if (custUids.has(uUp) || custUids.has(mUp)) {
+        const deskSel = document.getElementById(`gas-${i}`);
+        const mobSel  = document.getElementById(`gas-${i}_m`);
+        const activeSel = (isMob && mobSel) ? mobSel : deskSel;
+        let gas = item.registry_gas || '';
+        let cylType = item.cylinder_type || 'Standard';
+
+        if (activeSel && activeSel.selectedOptions && activeSel.selectedOptions.length > 0) {
+          const opt = activeSel.selectedOptions[0];
+          if (opt && opt.value) {
+            gas = opt.value;
+            cylType = opt.dataset.cylType || cylType;
+          }
+        }
+
+        itemsForCust.push({
+          entered_id:      item.entered_id,
+          master_id:       item.master_id,
+          transaction_gas: gas,
+          cylinder_type:   cylType,
+          registry_status: item.status === 'Unregistered' ? 'unregistered' : 'registered',
+          save_alias:      false,
+        });
+      }
+    }
+
+    if (!itemsForCust.length) continue;
+
+    try {
+      const res = await fetch('/api/admin/scan/submit_manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, customer: custName, items: itemsForCust })
+      });
+      if (!res.ok) {
+        let errTxt = await res.text();
+        throw new Error(errTxt);
+      }
+      const resJson = await res.json();
+      createdBatches.push(`${custName}: ${itemsForCust.length} cyl(s)${resJson.batch_ref ? ` (${resJson.batch_ref})` : ''}`);
+    } catch (e) {
+      alert(`Error submitting batch for ${custName}: ` + e.message);
+      failed = true;
+      break;
+    }
+  }
+
+  if (vBtn) vBtn.disabled = false;
+
+  if (createdBatches.length > 0) {
+    alert(`✓ Successfully created ${createdBatches.length} collection batch(es):\n\n` + createdBatches.map(b => `• ${b}`).join('\n'));
+    manualClear();
+  }
+}
+
+// ─── Remove Mismatched Cylinders from Collection Batch ────────────────────
+function manualRemoveMismatched() {
+  const currentCust = (document.getElementById('manual-customer').value || '').trim();
+  const targetCust = currentCust || (lastVerifyData ? lastVerifyData.suggested_customer : '');
+
+  manualItems = manualItems.filter(item => {
+    return !item.customer_mismatch;
+  });
+
+  const conflictBanner = document.getElementById('man-conflict-banner');
+  if (conflictBanner) conflictBanner.style.display = 'none';
+
+  if (manualItems.length === 0) {
+    manualClear();
+  } else {
     manualRender();
   }
 }
