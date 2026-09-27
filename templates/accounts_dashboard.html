@@ -73,23 +73,23 @@
             <div class="gas-chips">
               {% for gas, cnt in gas_sum.items() %}
                 {% set g_lower = gas | lower %}
-                {% if 'arg' in g_lower or 'ar' == g_lower %}
-                  <span class="gas-badge gas-badge-arg">{{ cnt }} {{ gas }}</span>
-                {% elif 'oxy' in g_lower or 'o2' in g_lower %}
-                  <span class="gas-badge gas-badge-oxy">{{ cnt }} {{ gas }}</span>
-                {% elif 'nitr' in g_lower or 'n2' in g_lower %}
-                  <span class="gas-badge gas-badge-n2">{{ cnt }} {{ gas }}</span>
-                {% elif 'co2' in g_lower or 'carbon' in g_lower %}
-                  <span class="gas-badge gas-badge-co2">{{ cnt }} {{ gas }}</span>
-                {% elif 'helium' in g_lower or 'he' == g_lower %}
-                  <span class="gas-badge gas-badge-helium">{{ cnt }} {{ gas }}</span>
-                {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}
-                  <span class="gas-badge gas-badge-hydrogen">{{ cnt }} {{ gas }}</span>
-                {% elif 'acetyl' in g_lower %}
-                  <span class="gas-badge gas-badge-acm">{{ cnt }} {{ gas }}</span>
-                {% else %}
-                  <span class="gas-badge gas-badge-gen">{{ cnt }} {{ gas }}</span>
-                {% endif %}
+                {% set gas_uids = [] %}
+                {% for item in b.items %}{% if (item.gas_type or 'Unknown') == gas %}{{ gas_uids.append(item.cylinder_uid) or '' }}{% endif %}{% endfor %}
+                {% set badge_class = 'gen' %}
+                {% if 'arg' in g_lower or 'ar' == g_lower %}{% set badge_class = 'arg' %}
+                {% elif 'oxy' in g_lower or 'o2' in g_lower %}{% set badge_class = 'oxy' %}
+                {% elif 'nitr' in g_lower or 'n2' in g_lower %}{% set badge_class = 'n2' %}
+                {% elif 'co2' in g_lower or 'carbon' in g_lower %}{% set badge_class = 'co2' %}
+                {% elif 'helium' in g_lower or 'he' == g_lower %}{% set badge_class = 'helium' %}
+                {% elif 'hydrogen' in g_lower or 'h2' in g_lower %}{% set badge_class = 'hydrogen' %}
+                {% elif 'acetyl' in g_lower %}{% set badge_class = 'acm' %}{% endif %}
+                
+                <button type="button" class="gas-badge gas-badge-{{ badge_class }}" 
+                        style="border:none; cursor:pointer; font-family:inherit; padding:3px 8px; transition:transform 0.1s; display:inline-flex; align-items:center;"
+                        onclick="copyGasUids(this, {{ gas_uids | tojson | forceescape }})"
+                        title="Copy {{ gas }} UIDs">
+                  {{ cnt }} {{ gas }} <span style="opacity:0.6; font-size:10px; margin-left:4px;">📋</span>
+                </button>
               {% endfor %}
             </div>
           </td>
@@ -99,7 +99,15 @@
               <div style="color: #991b1b; font-size: 11px; font-weight: 600; margin-top: 4px;">({{ deleted_counts[b.id] }} deleted)</div>
             {% endif %}
           </td>
-          <td><span class="badge-{{ b.status | lower }}">{{ b.status }}</span></td>
+          <td>
+            <button type="button" onclick="toggleStatus({{ b.id }}, '{{ b.status }}')"
+                    class="badge-{{ b.status | lower }}" 
+                    style="border:none; cursor:pointer; font-family:inherit; outline:none; transition: opacity 0.15s;"
+                    onmouseover="this.style.opacity='0.8'" onmouseout="this.style.opacity='1'"
+                    title="Click to toggle status">
+              {{ b.status }}
+            </button>
+          </td>
           <td style="font-size:12px; color:#777;">
             {% if b.billed_by %}{{ b.billed_by }}<br><span style="font-size:11px;">{{ b.billed_at.strftime('%d-%m-%Y %H:%M') if b.billed_at else '' }}</span>{% else %}—{% endif %}
           </td>
@@ -167,7 +175,42 @@
     .catch(err => alert("Error: " + err));
   }
 
-  // Auto-refresh logic (Polling)
+  
+  function copyGasUids(btn, uids) {
+    if(!uids || uids.length === 0) return;
+    const text = uids.join('\n');
+    navigator.clipboard.writeText(text).then(() => {
+      const origHTML = btn.innerHTML;
+      btn.innerHTML = 'Copied ✓';
+      const origBg = btn.style.backgroundColor;
+      const origColor = btn.style.color;
+      btn.style.backgroundColor = '#d1fae5';
+      btn.style.color = '#065f46';
+      setTimeout(() => {
+        btn.innerHTML = origHTML;
+        btn.style.backgroundColor = origBg;
+        btn.style.color = origColor;
+      }, 1500);
+    });
+  }
+
+  function toggleStatus(batchId, currentStatus) {
+    const isBilled = currentStatus === 'Billed';
+    const url = isBilled ? `/accounts/batch/${batchId}/unmark_billed` : `/accounts/batch/${batchId}/mark_billed`;
+    
+    // Optimistic UI update could go here if needed, but reload is safer and consistent
+    fetch(url, { method: 'POST' })
+      .then(r => r.json())
+      .then(data => {
+        if(data.success) {
+          window.location.reload();
+        } else {
+          alert(data.error || 'Failed to update status.');
+        }
+      })
+      .catch(err => alert('Network error.'));
+  }
+\n  // Auto-refresh logic (Polling)
   let refreshInterval = setInterval(() => {
     fetch(window.location.href)
       .then(r => r.text())
