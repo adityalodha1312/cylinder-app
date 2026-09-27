@@ -178,23 +178,59 @@
   function fallbackCopy(text) {
     var textArea = document.createElement("textarea");
     textArea.value = text;
+    textArea.style.position = "fixed";
     textArea.style.top = "0";
     textArea.style.left = "0";
-    textArea.style.position = "fixed";
+    textArea.style.width = "2em";
+    textArea.style.height = "2em";
+    textArea.style.padding = "0";
+    textArea.style.border = "none";
+    textArea.style.outline = "none";
+    textArea.style.boxShadow = "none";
+    textArea.style.background = "transparent";
     document.body.appendChild(textArea);
     textArea.focus();
     textArea.select();
-    try { document.execCommand('copy'); } catch (err) {}
+    if (textArea.setSelectionRange) {
+      textArea.setSelectionRange(0, textArea.value.length);
+    }
+    try {
+      document.execCommand('copy');
+    } catch (err) {
+      console.error('execCommand copy error:', err);
+    }
     document.body.removeChild(textArea);
   }
 
   function copyGasUids(event, btn) {
-    if(event) event.stopPropagation();
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    if (!btn && event) btn = event.target;
+    btn = btn.closest('button') || btn;
+
+    let raw = btn.getAttribute('data-uids') || (btn.dataset ? btn.dataset.uids : '');
     let uids = [];
-    try { uids = JSON.parse(btn.dataset.uids); } catch(e) {}
-    if(!uids || uids.length === 0) return;
+    if (typeof raw === 'string') {
+      try {
+        uids = JSON.parse(raw);
+      } catch (e) {
+        uids = raw.replace(/[\[\]"']/g, '').split(',').map(s => s.trim()).filter(Boolean);
+      }
+    } else if (Array.isArray(raw)) {
+      uids = raw;
+    }
+
+    if (!uids || uids.length === 0) {
+      const origHTML = btn.innerHTML;
+      btn.innerHTML = 'No UIDs';
+      setTimeout(() => { btn.innerHTML = origHTML; }, 1200);
+      return;
+    }
+
     const text = uids.join('\n');
-    
+
     function onSuccess() {
       const origHTML = btn.innerHTML;
       btn.innerHTML = 'Copied ✓';
@@ -210,7 +246,7 @@
     }
 
     if (navigator.clipboard && window.isSecureContext) {
-      navigator.clipboard.writeText(text).then(onSuccess).catch(() => {
+      navigator.clipboard.writeText(text).then(onSuccess).catch(err => {
         fallbackCopy(text);
         onSuccess();
       });
@@ -220,35 +256,54 @@
     }
   }
 
+  // Delegated event listener for gas badges (handles dynamically refreshed rows)
+  document.addEventListener('click', function(e) {
+    const gasBtn = e.target.closest('.gas-badge');
+    if (gasBtn) {
+      copyGasUids(e, gasBtn);
+    }
+  });
+
   function toggleStatus(batchId, currentStatus, btn) {
+    if (!btn && event) btn = event.target;
+    btn = btn.closest('button') || btn;
     const isBilled = currentStatus === 'Billed';
     const url = isBilled ? `/accounts/batch/${batchId}/unmark_billed` : `/accounts/batch/${batchId}/mark_billed`;
     
     btn.disabled = true;
     
-    fetch(url, { method: 'POST' })
-      .then(r => r.json())
+    fetch(url, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    })
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(data => {
-        if(data.success) {
+        if (data.success) {
           const row = btn.closest('tr');
           if (row) {
             const statusCell = row.cells[6];
+            const billedByCell = row.cells[7];
             const actionCell = row.cells[8];
             
             if (!isBilled) {
                statusCell.innerHTML = '<span class="badge-billed">Billed</span>';
+               billedByCell.innerHTML = '<span style="font-size:11px; color:#065f46;">Just now</span>';
                actionCell.innerHTML = `
                   <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus(${batchId}, 'Billed', this)" style="color:#666;">⟲ Revert</button>
+                    <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus(${batchId}, \'Billed\', this)" style="color:#666;">⟲ Revert</button>
                     <a href="/accounts/batch/${batchId}" class="btn btn-outline btn-sm">View</a>
                   </div>
                `;
                row.dataset.status = 'Billed';
             } else {
                statusCell.innerHTML = '<span class="badge-pending">Pending</span>';
+               billedByCell.innerHTML = '—';
                actionCell.innerHTML = `
                   <div style="display:flex; gap:6px;">
-                    <button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus(${batchId}, 'Pending', this)">✓ Mark Billed</button>
+                    <button type="button" class="btn btn-primary btn-sm" onclick="toggleStatus(${batchId}, \'Pending\', this)">✓ Mark Billed</button>
                     <a href="/accounts/batch/${batchId}" class="btn btn-outline btn-sm">View</a>
                   </div>
                `;
@@ -261,8 +316,8 @@
           if (pendingEl && billedEl) {
              let pending = parseInt(pendingEl.innerText) || 0;
              let billed = parseInt(billedEl.innerText) || 0;
-             if (!isBilled) { pending--; billed++; }
-             else { pending++; billed--; }
+             if (!isBilled) { pending = Math.max(0, pending - 1); billed++; }
+             else { pending++; billed = Math.max(0, billed - 1); }
              pendingEl.innerText = pending;
              billedEl.innerText = billed;
           }
@@ -272,11 +327,13 @@
         }
       })
       .catch(err => {
-        alert('Network error.');
+        console.error('toggleStatus error:', err);
+        alert('Network error: ' + err.message);
         btn.disabled = false;
       });
   }
-\n  // Auto-refresh logic (Polling)
+
+  // Auto-refresh logic (Polling)
   let refreshInterval = setInterval(() => {
     fetch(window.location.href)
       .then(r => r.text())
