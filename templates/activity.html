@@ -176,7 +176,7 @@
                   data-driver="{{ e.driver }}"
                   data-action="{{ e.action }}"
                   data-customer="{{ e.customer }}"
-                  data-uids="{{ e.uids | tojson | e }}"
+                  data-uids="{{ e.uids | tojson | forceescape }}"
                   style="background: none; border: none; padding: 6px; cursor: pointer; color: #0f6e56; display: inline-flex; align-items: center; justify-content: center; transition: color 0.15s;"
                   title="Edit Batch"
                   onmouseover="this.style.color='#04342c'" onmouseout="this.style.color='#0f6e56'">
@@ -393,7 +393,13 @@
       " title="Close">✕</button>
     </div>
 
-    <!-- Modal Body -->
+    
+<datalist id="customerList">
+  {% for name in customer_names %}
+  <option value="{{ name }}">
+  {% endfor %}
+</datalist>
+<!-- Modal Body -->
     <div style="padding: 20px 24px;">
       
       <!-- Action & Driver -->
@@ -415,7 +421,7 @@
       <!-- Customer Name -->
       <div style="margin-bottom: 24px;">
         <label style="display: block; font-size: 12px; font-weight: 600; color: #5f5e5a; margin-bottom: 6px; text-transform: uppercase; letter-spacing: .04em;">Customer / Location Name</label>
-        <input id="editCustomerInput" type="text" style="width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1.5px solid #d8d9d4; border-radius: 9px; font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.15s;" placeholder="Customer name" onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#d8d9d4'">
+        <input id="editCustomerInput" type="text" list="customerList" style="width: 100%; box-sizing: border-box; padding: 9px 12px; border: 1.5px solid #d8d9d4; border-radius: 9px; font-family: inherit; font-size: 14px; outline: none; transition: border-color 0.15s;" placeholder="Customer name" onfocus="this.style.borderColor='#0f6e56'" onblur="this.style.borderColor='#d8d9d4'">
       </div>
 
       <!-- Cylinders Table -->

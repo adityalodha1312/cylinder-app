@@ -2227,6 +2227,7 @@ def toggle_fill_required():
 def admin_activity():
     events = get_activity_events()
     drivers = sorted(list(set(e['driver'] for e in events if e.get('driver'))))
+    customer_names = get_customer_names()
     today_str = date.today().strftime('%d-%m-%Y')
     # Build gas type list for the Edit Batch modal dropdown
     products = get_products_config()
@@ -2243,6 +2244,7 @@ def admin_activity():
         drivers   = drivers,
         today_str = today_str,
         gas_types = gas_types,
+        customer_names = customer_names,
     )
 
 
