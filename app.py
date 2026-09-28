@@ -2022,7 +2022,9 @@ def get_cylinder_history(uid):
         r_uid = (r.get('uid') or '').strip().upper()
         if r_uid in all_uids:
             key      = f"{r['date']}||{r['time']}||{r['driver']}||{r['action']}"
-            customer = batch_map.get(key, '(Not mapped yet)')
+            customer = (r.get('customer') or '').strip()
+            if not customer:
+                customer = batch_map.get(key, '(Not mapped yet)')
             history.append({**r, 'customer': customer})
 
     history.sort(key=lambda x: (parse_date(x['date']) or date.min, x['time']))
@@ -2053,9 +2055,11 @@ def get_cylinder_status(uid):
     if action == 'Filling':
         return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
     elif action == 'Delivery':
-        batch_map = build_batch_map()
-        key = f"{last_event['date']}||{last_event['time']}||{last_event['driver']}||{last_event['action']}"
-        customer = batch_map.get(key, '(Unknown Customer)')
+        customer = (last_event.get('customer') or '').strip()
+        if not customer:
+            batch_map = build_batch_map()
+            key = f"{last_event['date']}||{last_event['time']}||{last_event['driver']}||{last_event['action']}"
+            customer = batch_map.get(key, '(Unknown Customer)')
         return {'status': 'Delivered', 'owner': customer, 'date': last_event['date'], 'registered': registered}
     elif action == 'Collection':
         return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
