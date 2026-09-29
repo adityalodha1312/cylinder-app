@@ -8904,6 +8904,17 @@ def admin_vehicles_list():
             'latest_fuel_date':   latest.fuel_date if latest else None,
         })
 
+    # Sort: 1. Active vehicles first, Inactive bottom
+    #       2. Never refuelled or longest time since refuel at the top (Option A)
+    #       3. Plate number tie-breaker
+    def get_vehicle_sort_key(item):
+        is_active = 0 if item['vehicle'].status == 'active' else 1
+        days = item['days_since_refuel']
+        days_priority = 999999 if days is None else days
+        return (is_active, -days_priority, item['vehicle'].vehicle_number or '')
+
+    vehicle_data.sort(key=get_vehicle_sort_key)
+
     summary_stats = {
         'total_vehicles': total_vehicles,
         'active_vehicles': active_vehicles,
