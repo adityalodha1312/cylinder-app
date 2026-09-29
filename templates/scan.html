@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f6e56">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -31,6 +31,8 @@
     background: #f7f8f6;
     color: var(--gray-900);
     min-height: 100vh;
+    overscroll-behavior-y: none;
+    -webkit-tap-highlight-color: transparent;
     animation: softLoad 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
   @keyframes softLoad {
@@ -1325,11 +1327,11 @@
   /* Single Column Stack */
   .manual-entry-workspace {
     grid-template-columns: 1fr !important;
-    padding: 10px 12px 100px !important;
+    padding: 10px 12px calc(130px + env(safe-area-inset-bottom)) !important;
   }
   .entry-panel-card, .verif-panel-card {
     width: 100% !important;
-    padding: 16px !important;
+    padding: 14px !important;
   }
 
   /* Hide Desktop Table, Show Cards */
@@ -1340,9 +1342,43 @@
     display: flex !important;
   }
 
-  /* 2x2 Stat Cards Grid */
+  /* Tighter 2×2 Stat Cards on Phone */
   .sum-grid {
     grid-template-columns: 1fr 1fr !important;
+    gap: 6px !important;
+    margin-bottom: 10px !important;
+  }
+  .sum-box {
+    padding: 7px 4px !important;
+  }
+  .sum-box-val {
+    font-size: 18px !important;
+  }
+  .sum-box-lbl {
+    font-size: 9.5px !important;
+  }
+
+  /* Filter pills: never wrap, always single scrollable row */
+  .filter-pills-row {
+    flex-wrap: nowrap !important;
+  }
+  .filter-pill-btn {
+    flex-shrink: 0 !important;
+    padding: 5px 11px !important;
+    font-size: 12px !important;
+  }
+
+  /* Cylinder card Note field: stack label above value */
+  .res-card-fld.note-fld {
+    flex-direction: column !important;
+    gap: 2px !important;
+  }
+  .res-card-fld.note-fld span:first-child {
+    color: #5F5E5A;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
   }
 
   /* Pinned Sticky Bottom Bar */
@@ -1363,6 +1399,7 @@
   .mob-action-bar { display: none !important; }
   .mobile-cards   { display: none !important; }
 }
+
 </style>
 
 <div id="manual-form" style="display:none;">
@@ -1541,13 +1578,35 @@
   <!-- Mobile Sticky Bottom Action Bar -->
   <div class="mob-action-bar" id="mob-bar" style="display:none;">
     <div style="max-width:600px;margin:0 auto;">
-      <div id="mob-gas-warning" style="display:none;color:#dc2626;font-size:11px;font-weight:600;margin-bottom:4px;text-align:center;">
-        ⚠️ Select a gas type for all unregistered cylinders
-      </div>
+      <!-- Summary line -->
       <div style="font-size:12px;font-weight:600;color:#5F5E5A;text-align:center;margin-bottom:6px;" id="mob-bar-summary">
         0 ready · 0 errors
       </div>
-      <button id="btn-submit-mob" type="button" onclick="manualSubmit()" class="btn-submit-main" disabled>
+      <!-- Gas warning (shown when unreg cyls have no gas) -->
+      <div id="mob-gas-warning" style="display:none;color:#dc2626;font-size:11px;font-weight:600;margin-bottom:4px;text-align:center;">
+        ⚠️ Select a gas type for all unregistered cylinders
+      </div>
+      <!-- Conflict mode: 2 buttons + radio list -->
+      <div id="mob-conflict-zone" style="display:none;">
+        <!-- Radio list of customers to keep -->
+        <div id="mob-radio-list" style="background:#fffbeb;border:1.5px solid #f59e0b;border-radius:10px;padding:10px 12px;margin-bottom:8px;">
+          <div style="font-size:11.5px;font-weight:700;color:#b45309;margin-bottom:7px;">⚠️ Mixed customers — choose which to keep:</div>
+          <div id="mob-radio-options" style="display:flex;flex-direction:column;gap:6px;"></div>
+        </div>
+        <!-- Two action buttons -->
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button id="btn-autosplit-mob" type="button" onclick="manualAutoSplitBatches()" touch-action="manipulation"
+            style="width:100%;min-height:46px;background:#0F6E56;color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+            ⚡ Auto-Split &amp; Submit All
+          </button>
+          <button id="btn-keepone-mob" type="button" onclick="manualRemoveMismatchedAndSubmit()" touch-action="manipulation"
+            style="width:100%;min-height:44px;background:#fff;color:#b45309;border:1.5px solid #f59e0b;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:7px;">
+            Keep &amp; Remove Others
+          </button>
+        </div>
+      </div>
+      <!-- Normal mode: single submit button -->
+      <button id="btn-submit-mob" type="button" onclick="manualSubmit()" touch-action="manipulation" class="btn-submit-main" disabled style="display:none;">
         Submit Verified Entries
       </button>
     </div>
@@ -2827,6 +2886,7 @@ function manualValidateSubmission() {
       const mSel = document.getElementById(`gas-${idx}_m`);
       const val = (dSel ? dSel.value : (mSel ? mSel.value : ''));
       if (!val) {
+        hasMissingGas = true;
         if (dSel) dSel.classList.add('missing-gas');
         if (mSel) mSel.classList.add('missing-gas');
       } else {
@@ -2840,6 +2900,7 @@ function manualValidateSubmission() {
   const hasMismatch = (action === 'Collection') && manualItems.some(item => item.customer_mismatch && itemCategory(item) !== 'dup' && itemCategory(item) !== 'err');
   const canSubmit = (validCount > 0) && (errCount === 0) && !hasMissingGas && !hasMismatch;
 
+  // ── Desktop submit bar (unchanged) ──────────────────────────────────────
   let submitLabel = 'Nothing to submit';
   if (hasMismatch) {
     submitLabel = 'Resolve Customer Mismatches to Submit';
@@ -2850,21 +2911,73 @@ function manualValidateSubmission() {
   } else if (validCount > 0) {
     submitLabel = `Submit ${validCount} Transaction${validCount > 1 ? 's' : ''}`;
   }
+  const deskBtn = document.getElementById('btn-submit-desk');
+  if (deskBtn) { deskBtn.disabled = !canSubmit; deskBtn.innerText = submitLabel; }
 
-  [document.getElementById('btn-submit-desk'), document.getElementById('btn-submit-mob')].forEach(b => {
-    if (!b) return;
-    b.disabled = !canSubmit;
-    b.innerText = submitLabel;
-  });
-
-  // Mobile bar summary
+  // ── Mobile bar ───────────────────────────────────────────────────────────
   const mb = document.getElementById('mob-bar');
   const mbSum = document.getElementById('mob-bar-summary');
-  if (mb && mbSum) {
-    mb.style.display = 'block';
-    mbSum.innerText = `${validCount} ready · ${errCount} error${errCount !== 1 ? 's' : ''}`;
+  const conflictZone = document.getElementById('mob-conflict-zone');
+  const submitMob = document.getElementById('btn-submit-mob');
+  const gasWarn = document.getElementById('mob-gas-warning');
+
+  if (!mb) return;
+  mb.style.display = 'block';
+  if (mbSum) mbSum.innerText = `${validCount} ready · ${errCount} error${errCount !== 1 ? 's' : ''}`;
+  if (gasWarn) gasWarn.style.display = hasMissingGas ? 'block' : 'none';
+
+  if (hasMismatch && lastVerifyData && lastVerifyData.customer_groups) {
+    // ── Conflict mode: show radio list + two buttons ──
+    if (conflictZone) conflictZone.style.display = 'block';
+    if (submitMob) submitMob.style.display = 'none';
+
+    // Build radio list from customer groups
+    const groups = lastVerifyData.customer_groups;
+    const suggested = lastVerifyData.suggested_customer || Object.keys(groups)[0];
+    const radioContainer = document.getElementById('mob-radio-options');
+    if (radioContainer) {
+      radioContainer.innerHTML = '';
+      Object.entries(groups).forEach(([cust, uids]) => {
+        const isSelected = (cust === suggested);
+        const lbl = document.createElement('label');
+        lbl.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;color:#2C2C2A;';
+        lbl.innerHTML = `
+          <input type="radio" name="mob-keep-cust" value="${cust}" ${isSelected ? 'checked' : ''}
+            style="width:17px;height:17px;accent-color:#0F6E56;cursor:pointer;"
+            onchange="manualUpdateKeepButton()">
+          <span style="flex:1;">${cust}</span>
+          <span style="font-size:11px;color:#5F5E5A;font-weight:500;">${uids.length} cyl${uids.length !== 1 ? 's' : ''}</span>
+        `;
+        radioContainer.appendChild(lbl);
+      });
+      // Set initial keep-button label
+      manualUpdateKeepButton();
+    }
+  } else {
+    // ── Normal mode: single submit button ──
+    if (conflictZone) conflictZone.style.display = 'none';
+    if (submitMob) {
+      submitMob.style.display = 'block';
+      submitMob.disabled = !canSubmit;
+      submitMob.innerText = canSubmit ? `Submit ${validCount} Transaction${validCount > 1 ? 's' : ''}` : submitLabel;
+    }
   }
 }
+
+// Updates the "Keep X & Remove Others" button label based on current radio selection
+function manualUpdateKeepButton() {
+  const selected = document.querySelector('input[name="mob-keep-cust"]:checked');
+  const btn = document.getElementById('btn-keepone-mob');
+  if (!btn) return;
+  if (selected) {
+    const name = selected.value;
+    const short = name.length > 22 ? name.slice(0, 22) + '…' : name;
+    btn.textContent = `Keep ${short} & Remove Others`;
+  } else {
+    btn.textContent = 'Keep & Remove Others';
+  }
+}
+
 
 // ─── Submit ────────────────────────────────────────────────────────────────
 async function manualSubmit() {
@@ -2878,7 +2991,7 @@ async function manualSubmit() {
   if (action === 'Collection') {
     const hasMismatch = manualItems.some(item => item.customer_mismatch && itemCategory(item) !== 'dup' && itemCategory(item) !== 'err');
     if (hasMismatch) {
-      alert('Cannot submit batch with customer mismatches. Please click "Auto-Split into Separate Batches" or remove mismatched cylinders.');
+      // On mobile this path is blocked by the action bar UI — just return silently
       return;
     }
   }
@@ -2982,28 +3095,20 @@ async function manualSubmit() {
 
 // ─── Auto-Split Batches when Mixed Customers are Detected ────────────────
 async function manualAutoSplitBatches() {
-  if (!lastVerifyData || !lastVerifyData.customer_groups) {
-    alert("No multiple customer groups detected.");
-    return;
-  }
+  if (!lastVerifyData || !lastVerifyData.customer_groups) return;
   const groups = lastVerifyData.customer_groups;
   const custNames = Object.keys(groups);
-  if (custNames.length <= 1) {
-    alert("All verified cylinders belong to a single customer.");
-    return;
-  }
+  if (custNames.length <= 1) return;
 
-  const promptMsg = `Are you sure you want to split these cylinders into ${custNames.length} separate collection batches?\n\n` +
-    custNames.map(c => `• ${c}: ${groups[c].length} cylinder(s)`).join('\n');
-  if (!confirm(promptMsg)) return;
-
+  // No confirm() — user already chose this by tapping the button
   const isMob = window.innerWidth < 769;
-  const action = 'Collection';
+  const action = document.getElementById('manual-action').value || 'Collection';
   const vBtn = document.getElementById('btn-verify');
+  const splitBtn = document.getElementById('btn-autosplit-mob');
   if (vBtn) vBtn.disabled = true;
+  if (splitBtn) { splitBtn.disabled = true; splitBtn.textContent = 'Submitting…'; }
 
   let createdBatches = [];
-  let failed = false;
 
   for (const custName of custNames) {
     const custUids = new Set(groups[custName].map(u => u.toUpperCase()));
@@ -3023,10 +3128,7 @@ async function manualAutoSplitBatches() {
 
         if (activeSel && activeSel.selectedOptions && activeSel.selectedOptions.length > 0) {
           const opt = activeSel.selectedOptions[0];
-          if (opt && opt.value) {
-            gas = opt.value;
-            cylType = opt.dataset.cylType || cylType;
-          }
+          if (opt && opt.value) { gas = opt.value; cylType = opt.dataset.cylType || cylType; }
         }
 
         itemsForCust.push({
@@ -3048,45 +3150,58 @@ async function manualAutoSplitBatches() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action, customer: custName, items: itemsForCust })
       });
-      if (!res.ok) {
-        let errTxt = await res.text();
-        throw new Error(errTxt);
-      }
+      if (!res.ok) throw new Error(await res.text());
       const resJson = await res.json();
-      createdBatches.push(`${custName}: ${itemsForCust.length} cyl(s)${resJson.batch_ref ? ` (${resJson.batch_ref})` : ''}`);
+      createdBatches.push(`${custName}: ${itemsForCust.length} cyl(s)`);
     } catch (e) {
       alert(`Error submitting batch for ${custName}: ` + e.message);
-      failed = true;
-      break;
+      if (vBtn) vBtn.disabled = false;
+      if (splitBtn) { splitBtn.disabled = false; splitBtn.textContent = '⚡ Auto-Split & Submit All'; }
+      return;
     }
   }
 
   if (vBtn) vBtn.disabled = false;
-
-  if (createdBatches.length > 0) {
-    alert(`✓ Successfully created ${createdBatches.length} collection batch(es):\n\n` + createdBatches.map(b => `• ${b}`).join('\n'));
-    manualClear();
-  }
+  if (createdBatches.length > 0) manualClear();
 }
 
-// ─── Remove Mismatched Cylinders from Collection Batch ────────────────────
-function manualRemoveMismatched() {
-  const currentCust = (document.getElementById('manual-customer').value || '').trim();
-  const targetCust = currentCust || (lastVerifyData ? lastVerifyData.suggested_customer : '');
+// ─── "Keep X & Remove Others" — reads radio, removes others, submits ─────
+async function manualRemoveMismatchedAndSubmit() {
+  const selected = document.querySelector('input[name="mob-keep-cust"]:checked');
+  const keepCust = selected ? selected.value : (lastVerifyData ? lastVerifyData.suggested_customer : '');
+  if (!keepCust) return;
 
+  // Remove items belonging to other customers (mismatched ones)
   manualItems = manualItems.filter(item => {
-    return !item.customer_mismatch;
+    if (!item.customer_mismatch) return true; // keep non-mismatched
+    // keep if this item's last_customer matches the chosen customer
+    return (item.last_customer || '').toLowerCase() === keepCust.toLowerCase();
   });
 
   const conflictBanner = document.getElementById('man-conflict-banner');
   if (conflictBanner) conflictBanner.style.display = 'none';
 
-  if (manualItems.length === 0) {
-    manualClear();
-  } else {
-    manualRender();
-  }
+  // Update the customer field to the selected customer
+  const custInput = document.getElementById('manual-customer');
+  if (custInput) custInput.value = keepCust;
+
+  if (manualItems.length === 0) { manualClear(); return; }
+
+  // Re-render to clear conflict state, then submit
+  manualRender();
+  await manualSubmit();
 }
+
+// ─── Remove Mismatched Cylinders (desktop banner button) ──────────────────
+function manualRemoveMismatched() {
+  manualItems = manualItems.filter(item => !item.customer_mismatch);
+
+  const conflictBanner = document.getElementById('man-conflict-banner');
+  if (conflictBanner) conflictBanner.style.display = 'none';
+
+  if (manualItems.length === 0) { manualClear(); } else { manualRender(); }
+}
+
 </script>
 
 </body>
