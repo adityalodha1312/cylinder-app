@@ -8887,11 +8887,21 @@ def admin_vehicles_list():
     for v in vehicles:
         latest = VehicleRefuelling.query.filter_by(vehicle_id=v.id)\
                     .order_by(VehicleRefuelling.id.desc()).first()
+        days_since = None
+        if latest and latest.fuel_date:
+            try:
+                from datetime import date as _date
+                fd = datetime.strptime(latest.fuel_date, '%d-%m-%Y').date()
+                days_since = (_date.today() - fd).days
+            except Exception:
+                days_since = None
         vehicle_data.append({
             'vehicle': v,
-            'latest_odometer': float(latest.ending_odometer_km) if latest else None,
-            'latest_mileage':  float(latest.mileage_km_per_litre) if latest else None,
-            'total_entries':   VehicleRefuelling.query.filter_by(vehicle_id=v.id).count(),
+            'latest_odometer':    float(latest.ending_odometer_km) if latest else None,
+            'latest_mileage':     float(latest.mileage_km_per_litre) if latest else None,
+            'total_entries':      VehicleRefuelling.query.filter_by(vehicle_id=v.id).count(),
+            'days_since_refuel':  days_since,
+            'latest_fuel_date':   latest.fuel_date if latest else None,
         })
 
     summary_stats = {

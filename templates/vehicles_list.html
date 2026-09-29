@@ -197,82 +197,236 @@
     box-shadow: 0 2px 6px rgba(15,110,86,0.22);
   }
 
-  /* ── Vehicles Grid (3 Columns on Desktop) ── */
+  /* ── Vehicles List (single column on mobile, 2-col tablet, 3-col desktop) ── */
   .vehicles-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
   }
 
-  /* ── Vehicle Card ── */
+  /* ── Compact Vehicle Card ── */
   .vehicle-card {
     background: #ffffff;
     border: 1.5px solid #e8e9e4;
-    border-radius: 16px;
-    overflow: hidden;
+    border-radius: 14px;
     box-shadow: 0 1px 4px rgba(0,0,0,0.05);
-    transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+    transition: box-shadow 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
-    display: flex;
-    flex-direction: column;
     position: relative;
+    overflow: hidden;
   }
   .vehicle-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px rgba(0,0,0,0.08);
-    border-color: #cbd5e1;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.09);
+    border-color: #b8d9cf;
   }
   .vehicle-card.inactive {
-    opacity: 0.72;
+    opacity: 0.7;
+  }
+  /* Amber left accent for overdue (≥7 days since last fill) */
+  .vehicle-card.overdue {
+    border-left: 4px solid #f59e0b;
   }
 
-  /* Card Top Banner (Mint Placeholder with Vehicle Icon) */
-  .card-top-banner {
-    background: linear-gradient(135deg, #e6f4f0 0%, #d8eee7 100%);
-    height: 120px;
+  /* Card inner layout */
+  .card-inner {
+    padding: 12px 12px 10px;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  /* Small 48px icon block replacing the full-width banner */
+  .card-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    background: #E1F5EE;
+    color: #0F6E56;
     display: flex;
     align-items: center;
     justify-content: center;
-    position: relative;
-    border-bottom: 1px solid #e2ede8;
-  }
-  .card-top-banner svg.banner-truck-icon {
-    width: 60px;
-    height: 60px;
-    color: #0F6E56;
-    opacity: 0.65;
+    flex-shrink: 0;
+    margin-top: 2px;
   }
 
-  /* 3-Dot Floating Action Button on Card */
+  /* Right content column */
+  .card-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  /* Row 1: plate + fuel badge + status pill */
+  .card-row1 {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+  .plate-chip {
+    background: #E1F5EE;
+    border: 1px solid #a7e3cc;
+    border-radius: 5px;
+    padding: 2px 8px;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 700;
+    color: #0F6E56;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .fuel-badge {
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    white-space: nowrap;
+  }
+  .fuel-badge.diesel { background: #fff3cd; color: #92400e; }
+  .fuel-badge.petrol { background: #ffedd5; color: #c2410c; }
+  .fuel-badge.cng    { background: #dcfce7; color: #15803d; }
+  .fuel-badge.elec   { background: #e0f2fe; color: #0369a1; }
+  .fuel-badge.other  { background: #f1f5f9; color: #64748b; }
+
+  .status-pill {
+    padding: 2px 8px;
+    border-radius: 10px;
+    font-size: 10.5px;
+    font-weight: 700;
+    white-space: nowrap;
+  }
+  .status-pill.active   { background: #d1fae5; color: #065f46; }
+  .status-pill.inactive { background: #e2e8f0; color: #64748b; }
+
+  /* Row 2: vehicle type + odometer reading */
+  .card-row2 {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11.5px;
+    color: #5F5E5A;
+  }
+  .card-type-label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 500;
+  }
+  .card-reading-inline {
+    font-weight: 600;
+    color: #0F6E56;
+    white-space: nowrap;
+    text-align: right;
+  }
+  .card-reading-inline.no-data {
+    color: #9ca3af;
+    font-weight: 400;
+    font-style: italic;
+  }
+
+  /* Divider before action row */
+  .card-divider {
+    height: 1px;
+    background: #f0f1ed;
+    margin: 0 12px;
+  }
+
+  /* Bottom action row: last refuelled + add button */
+  .card-action-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px 10px;
+    gap: 8px;
+  }
+  .card-last-refuel {
+    font-size: 10.5px;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    flex: 1;
+  }
+  .card-last-refuel.overdue-text {
+    color: #d97706;
+    font-weight: 600;
+  }
+  .btn-add-refuel {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 13px;
+    background: #0F6E56;
+    color: #ffffff;
+    border: none;
+    border-radius: 7px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    text-decoration: none;
+    box-shadow: 0 1px 4px rgba(15,110,86,0.2);
+    transition: background 0.12s ease;
+    flex-shrink: 0;
+  }
+  .btn-add-refuel:hover {
+    background: #0c5945;
+  }
+  /* "Add first entry" ghost link */
+  .btn-first-entry {
+    font-size: 11.5px;
+    font-weight: 700;
+    color: #0F6E56;
+    background: #E1F5EE;
+    border: 1px solid #0F6E56;
+    padding: 4px 10px;
+    border-radius: 6px;
+    text-decoration: none;
+    transition: all 0.12s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .btn-first-entry:hover {
+    background: #0F6E56;
+    color: #ffffff;
+  }
+
+  /* 3-Dot Menu Button */
   .card-menu-btn {
     position: absolute;
     top: 10px;
     right: 10px;
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    background: rgba(255,255,255,0.9);
-    border: 1px solid #d8d9d4;
-    color: #2C2C2A;
+    background: #ffffff;
+    border: 1px solid #e8e9e4;
+    color: #5F5E5A;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     transition: all 0.15s ease;
     z-index: 5;
   }
   .card-menu-btn:hover {
-    background: #ffffff;
+    background: #f4fbf8;
     color: #0F6E56;
-    transform: scale(1.05);
   }
 
   /* Card Menu Dropdown */
   .card-dropdown-menu {
     display: none;
     position: absolute;
-    top: 46px;
+    top: 44px;
     right: 10px;
     background: #ffffff;
     border: 1.5px solid #e8e9e4;
@@ -287,9 +441,7 @@
     from { opacity: 0; transform: translateY(-4px); }
     to   { opacity: 1; transform: translateY(0); }
   }
-  .card-dropdown-menu.show {
-    display: block;
-  }
+  .card-dropdown-menu.show { display: block; }
   .card-dropdown-item {
     display: flex;
     align-items: center;
@@ -307,137 +459,11 @@
     transition: background 0.1s;
     box-sizing: border-box;
   }
-  .card-dropdown-item:hover {
-    background: #f4fbf8;
-    color: #0F6E56;
-  }
-  .card-dropdown-item.del-item:hover {
-    background: #fef2f2;
-    color: #dc2626;
-  }
-
-  /* Card Body */
-  .card-body {
-    padding: 16px 18px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    flex: 1;
-  }
-  .card-badges-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .plate-chip {
-    background: #f8fafc;
-    border: 1.5px solid #cbd5e1;
-    border-radius: 6px;
-    padding: 3px 9px;
-    font-family: monospace;
-    font-size: 14px;
-    font-weight: 700;
-    color: #0f172a;
-    letter-spacing: 0.5px;
-  }
-  .badges-group {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  .fuel-badge {
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-  .fuel-badge.diesel { background: #e2e8f0; color: #334155; }
-  .fuel-badge.petrol { background: #ffedd5; color: #c2410c; }
-  .fuel-badge.cng    { background: #dcfce7; color: #15803d; }
-  .fuel-badge.elec   { background: #e0f2fe; color: #0369a1; }
-  .fuel-badge.other  { background: #f1f5f9; color: #64748b; }
-
-  .status-pill {
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-size: 11px;
-    font-weight: 700;
-  }
-  .status-pill.active { background: #d1fae5; color: #065f46; }
-  .status-pill.inactive { background: #e2e8f0; color: #64748b; }
-
-  .card-type-row {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-    font-weight: 500;
-    color: #5F5E5A;
-  }
-  .card-type-row svg {
-    color: #0F6E56;
-  }
-
-  /* Latest Reading Block */
-  .card-reading-block {
-    background: #f8faf9;
-    border: 1px solid #e8edea;
-    border-radius: 10px;
-    padding: 10px 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    margin-top: auto;
-  }
-  .reading-label {
-    font-size: 10.5px;
-    font-weight: 600;
-    color: #64748b;
-    text-transform: uppercase;
-    letter-spacing: 0.4px;
-  }
-  .reading-val {
-    font-size: 14px;
-    font-weight: 700;
-    color: #0F6E56;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-  }
-  .reading-empty-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .reading-empty-text {
-    font-size: 12.5px;
-    color: #8c8d87;
-    font-style: italic;
-  }
-  .btn-first-entry {
-    font-size: 11.5px;
-    font-weight: 700;
-    color: #0F6E56;
-    background: #E1F5EE;
-    border: 1px solid #0F6E56;
-    padding: 3px 9px;
-    border-radius: 6px;
-    text-decoration: none;
-    transition: all 0.12s ease;
-  }
-  .btn-first-entry:hover {
-    background: #0F6E56;
-    color: #ffffff;
-  }
+  .card-dropdown-item:hover { background: #f4fbf8; color: #0F6E56; }
+  .card-dropdown-item.del-item:hover { background: #fef2f2; color: #dc2626; }
 
   /* Empty State */
   .empty-fleet-state {
-    grid-column: 1 / -1;
     text-align: center;
     padding: 60px 20px;
     background: #ffffff;
@@ -446,10 +472,66 @@
     color: #5F5E5A;
   }
 
-  /* Floating Action Button for Mobile */
-  .fab-add-vehicle {
+  /* Floating "+" FAB on mobile */
+  .fab-add-refuel {
     display: none;
   }
+
+  /* ── Desktop: side-by-side grid ── */
+  @media (min-width: 769px) {
+    .vehicles-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 14px;
+    }
+  }
+  @media (min-width: 1100px) {
+    .vehicles-grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  /* ── Phone-specific overrides ── */
+  @media (max-width: 768px) {
+    .search-filter-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 10px;
+    }
+    .search-input-wrap { max-width: 100%; }
+    .filter-pills-row {
+      flex-wrap: nowrap;
+      padding-bottom: 6px;
+    }
+    .filter-pill { flex-shrink: 0; }
+    .header-actions .btn-header-add { display: none; }
+    .veh-container { padding-bottom: 90px; }
+
+    /* FAB */
+    .fab-add-refuel {
+      display: flex !important;
+      position: fixed;
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      right: 20px;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      background: #0F6E56;
+      color: #ffffff;
+      border: none;
+      box-shadow: 0 4px 14px rgba(15,110,86,0.4);
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+      font-weight: 400;
+      cursor: pointer;
+      z-index: 1000;
+      -webkit-tap-highlight-color: transparent;
+      transition: transform 0.15s ease;
+    }
+    .fab-add-refuel:active { transform: scale(0.92); }
+  }
+
 
   /* ── Modal & Bottom Sheet ── */
   .modal-overlay {
@@ -778,98 +860,97 @@
         {% set f_lower = (v.fuel_type or '') | lower %}
         {% set v_type = v.vehicle_type or 'Vehicle' %}
         
-        <div class="vehicle-card {% if v.status == 'inactive' %}inactive{% endif %}"
+        {% set days = row.days_since_refuel %}
+        {% set is_overdue = days is not none and days >= 7 %}
+        <div class="vehicle-card {% if v.status == 'inactive' %}inactive{% endif %} {% if is_overdue %}overdue{% endif %}"
              data-num="{{ v.vehicle_number | lower }}"
              data-reg="{{ (v.registration_number or '') | lower }}"
              data-fuel="{{ f_lower }}"
              data-status="{{ v.status }}"
              onclick="handleCardClick(event, '{{ v.id }}')">
 
-          <!-- Card Top Banner with stylized Truck Icon -->
-          <div class="card-top-banner">
-            <svg class="banner-truck-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-              <rect x="1" y="3" width="15" height="13" rx="2"/>
-              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-              <circle cx="5.5" cy="18.5" r="2.5"/>
-              <circle cx="18.5" cy="18.5" r="2.5"/>
-            </svg>
-
-            <!-- Floating 3-Dot (⋮) Menu Button -->
-            <button type="button" class="card-menu-btn" title="Options" onclick="toggleCardMenu(event, '{{ v.id }}')">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-            </button>
-
-            <!-- Card Menu Dropdown -->
-            <div class="card-dropdown-menu" id="menu-{{ v.id }}">
-              <a href="/admin/vehicles/{{ v.id }}" class="card-dropdown-item" onclick="event.stopPropagation();">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                <span>View Details</span>
-              </a>
-              <a href="/admin/vehicles/{{ v.id }}/edit" class="card-dropdown-item" onclick="event.stopPropagation();">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                <span>Edit Vehicle</span>
-              </a>
-              <form class="toggle-status-form" data-veh-id="{{ v.id }}" data-current-status="{{ v.status }}" style="margin:0;" onclick="event.stopPropagation();">
-                <button type="button" class="card-dropdown-item {% if v.status == 'active' %}del-item{% endif %}" onclick="toggleVehicleStatus(this)">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-                  <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
-                </button>
-              </form>
-            </div>
+          <!-- ⋮ Three-dot menu button -->
+          <button type="button" class="card-menu-btn" title="Options" onclick="toggleCardMenu(event, '{{ v.id }}')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"/><circle cx="12" cy="5" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </button>
+          <!-- Dropdown menu -->
+          <div class="card-dropdown-menu" id="menu-{{ v.id }}">
+            <a href="/admin/vehicles/{{ v.id }}" class="card-dropdown-item" onclick="event.stopPropagation();">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+              <span>View Details</span>
+            </a>
+            <a href="/admin/vehicles/{{ v.id }}/edit" class="card-dropdown-item" onclick="event.stopPropagation();">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              <span>Edit Vehicle</span>
+            </a>
+            <form class="toggle-status-form" data-veh-id="{{ v.id }}" data-current-status="{{ v.status }}" style="margin:0;" onclick="event.stopPropagation();">
+              <button type="button" class="card-dropdown-item {% if v.status == 'active' %}del-item{% endif %}" onclick="toggleVehicleStatus(this)">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
+              </button>
+            </form>
           </div>
 
-          <!-- Card Body -->
-          <div class="card-body">
-            <!-- Row 1: Plate Number Chip + Fuel Badge + Status -->
-            <div class="card-badges-row">
-              <span class="plate-chip">{{ v.vehicle_number }}</span>
-              <div class="badges-group">
-                {% if 'diesel' in f_lower %}
-                  <span class="fuel-badge diesel">Diesel</span>
-                {% elif 'petrol' in f_lower %}
-                  <span class="fuel-badge petrol">Petrol</span>
-                {% elif 'cng' in f_lower %}
-                  <span class="fuel-badge cng">CNG</span>
-                {% elif 'elec' in f_lower %}
-                  <span class="fuel-badge elec">Electric</span>
-                {% else %}
-                  <span class="fuel-badge other">{{ v.fuel_type or 'Fuel' }}</span>
-                {% endif %}
-
+          <!-- Card inner: thumb + two-row content -->
+          <div class="card-inner">
+            <!-- 48px truck icon (replaces full-width banner) -->
+            <div class="card-thumb">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+              </svg>
+            </div>
+            <!-- Right content -->
+            <div class="card-content" style="padding-right:34px;">
+              <!-- Row 1: plate · fuel · status -->
+              <div class="card-row1">
+                <span class="plate-chip">{{ v.vehicle_number }}</span>
+                {% if 'diesel' in f_lower %}<span class="fuel-badge diesel">Diesel</span>
+                {% elif 'petrol' in f_lower %}<span class="fuel-badge petrol">Petrol</span>
+                {% elif 'cng' in f_lower %}<span class="fuel-badge cng">CNG</span>
+                {% elif 'elec' in f_lower %}<span class="fuel-badge elec">Electric</span>
+                {% else %}<span class="fuel-badge other">{{ v.fuel_type or 'Fuel' }}</span>{% endif %}
                 <span class="status-pill {{ v.status }}">{{ v.status | capitalize }}</span>
               </div>
+              <!-- Row 2: type · odometer · efficiency -->
+              <div class="card-row2">
+                <span class="card-type-label">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  {{ v_type }}
+                </span>
+                {% if row.total_entries > 0 %}
+                  <span class="card-reading-inline">{{ "{:,.1f}".format(row.latest_odometer) }} km · {{ "%.1f"|format(row.latest_mileage) }} km/L</span>
+                {% else %}
+                  <span class="card-reading-inline no-data">No entries yet</span>
+                {% endif %}
+              </div>
             </div>
-
-            <!-- Row 2: Vehicle Type with Icon -->
-            <div class="card-type-row">
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="3" width="15" height="13" rx="2"/>
-                <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/>
-                <circle cx="5.5" cy="18.5" r="2.5"/>
-                <circle cx="18.5" cy="18.5" r="2.5"/>
-              </svg>
-              <span>{{ v_type }}</span>
-            </div>
-
-            <!-- Row 3: Latest Reading Block -->
-            <div class="card-reading-block">
-              <span class="reading-label">Latest Reading</span>
-              {% if row.total_entries > 0 %}
-                <div class="reading-val">
-                  <span>{{ "{:,.1f}".format(row.latest_odometer) }} km</span>
-                  <span style="font-weight:400;color:#8c8d87;margin:0 4px;">·</span>
-                  <span>{{ "%.1f"|format(row.latest_mileage) }} km/L</span>
-                </div>
-              {% else %}
-                <div class="reading-empty-row">
-                  <span class="reading-empty-text">No entries yet</span>
-                  <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-first-entry" onclick="event.stopPropagation();">+ Add first entry</a>
-                </div>
-              {% endif %}
-            </div>
-
           </div>
+
+          <!-- Divider -->
+          <div class="card-divider"></div>
+
+          <!-- Action row: last refuelled + Add Refuelling button -->
+          <div class="card-action-row">
+            <span class="card-last-refuel {% if is_overdue %}overdue-text{% endif %}">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              {% if days is not none %}
+                {% if days == 0 %}Refuelled today
+                {% elif days == 1 %}Last refuelled: yesterday
+                {% else %}Last refuelled: {{ days }} day{{ 's' if days != 1 }} ago{% endif %}
+              {% else %}Never refuelled{% endif %}
+            </span>
+            {% if row.total_entries > 0 %}
+              <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-add-refuel" onclick="event.stopPropagation();">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                Add Refuelling
+              </a>
+            {% else %}
+              <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-first-entry" onclick="event.stopPropagation();">+ First entry</a>
+            {% endif %}
+          </div>
+
         </div>
+
       {% endfor %}
     {% else %}
       <div class="empty-fleet-state">
@@ -881,10 +962,51 @@
     {% endif %}
   </div>
 
-  <!-- Floating Circular '+' Action Button for Phone -->
-  <button type="button" class="fab-add-vehicle" onclick="openAddVehicleModal()" title="Add Vehicle">+</button>
+  <!-- Floating "+" FAB for mobile: quick add refuelling without scrolling -->
+  <button type="button" class="fab-add-refuel" onclick="openFabPicker()" title="Add Refuelling">+</button>
 
 </div>
+
+<!-- FAB Vehicle Picker Bottom Sheet -->
+<div class="modal-overlay" id="fabPickerModal" onclick="if(event.target.id==='fabPickerModal') closeFabPicker()">
+  <div class="modal-container">
+    <div class="modal-drag-handle"></div>
+    <div class="modal-header">
+      <h3 class="modal-title">Add Refuelling — Pick Vehicle</h3>
+      <button type="button" class="modal-close-btn" onclick="closeFabPicker()">×</button>
+    </div>
+    <div class="modal-body" style="padding:14px 16px;">
+      <div style="position:relative;margin-bottom:12px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#9ca3af;"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input type="text" id="fab-picker-search" placeholder="Search vehicle…" oninput="filterFabPicker()"
+          style="width:100%;min-height:42px;padding:8px 12px 8px 38px;border:1.5px solid #d8d9d4;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:15px;box-sizing:border-box;outline:none;">
+      </div>
+      <div id="fab-picker-list" style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;">
+        {% for row in vehicle_data %}
+          {% set v = row.vehicle %}
+          {% if v.status == 'active' %}
+          <a href="/admin/vehicles/{{ v.id }}/refuellings/new"
+             class="fab-picker-item"
+             data-num="{{ v.vehicle_number | lower }}"
+             style="display:flex;align-items:center;gap:12px;padding:11px 12px;background:#f8faf9;border:1.5px solid #e8e9e4;border-radius:10px;text-decoration:none;color:#2C2C2A;transition:background 0.12s;">
+            <div style="width:36px;height:36px;border-radius:8px;background:#E1F5EE;color:#0F6E56;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:700;font-size:13.5px;font-family:monospace;color:#0F6E56;">{{ v.vehicle_number }}</div>
+              <div style="font-size:11px;color:#5F5E5A;margin-top:1px;">{{ v.vehicle_type or 'Vehicle' }}
+                {% if row.days_since_refuel is not none %}· {{ row.days_since_refuel }}d ago{% endif %}
+              </div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2.5"><polyline points="9 18 15 12 9 6"/></svg>
+          </a>
+          {% endif %}
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ── Add Vehicle Modal & Mobile Bottom Sheet ── -->
 <div class="modal-overlay" id="vehicleModal" onclick="handleModalOverlayClick(event)">
@@ -1230,6 +1352,23 @@
   function handleModalOverlayClick(e) {
     if (e.target.id === 'vehicleModal') closeVehicleModal();
   }
+
+  // FAB picker (Add Refuelling quick picker)
+  function openFabPicker() {
+    document.getElementById('fabPickerModal').classList.add('open');
+    const inp = document.getElementById('fab-picker-search');
+    if (inp) { inp.value = ''; filterFabPicker(); setTimeout(() => inp.focus(), 120); }
+  }
+  function closeFabPicker() {
+    document.getElementById('fabPickerModal').classList.remove('open');
+  }
+  function filterFabPicker() {
+    const q = (document.getElementById('fab-picker-search').value || '').toLowerCase().trim();
+    document.querySelectorAll('.fab-picker-item').forEach(el => {
+      el.style.display = (!q || (el.dataset.num || '').includes(q)) ? 'flex' : 'none';
+    });
+  }
+
 </script>
 {% endblock %}
 
