@@ -337,56 +337,62 @@
     margin: 0 12px;
   }
 
-  /* Bottom action row: last refuelled */
+  /* Bottom action row: last refuelled on left + compact + Refuel button right-aligned */
   .card-action-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 7px 12px 8px;
-    gap: 8px;
+    padding: 8px 12px 10px;
+    gap: 10px;
   }
   .card-last-refuel {
     font-size: 11px;
     color: #9ca3af;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
     min-width: 0;
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .card-last-refuel.overdue-text {
     color: #d97706;
     font-weight: 600;
   }
 
-  /* Full-width primary "+ Add Refuelling" button (Style 1) */
-  .btn-add-refuel-full {
-    display: flex;
+  /* Compact primary "+ Refuel" button (~38-40px height, right-aligned, not full-width) */
+  .btn-add-refuel-compact {
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 7px;
-    width: calc(100% - 24px);
-    margin: 0 12px 12px;
-    min-height: 40px;
+    gap: 5px;
+    padding: 0 13px;
+    height: 38px;
+    min-height: 38px;
     background: #0F6E56;
     color: #ffffff;
     border: none;
-    border-radius: 9px;
+    border-radius: 8px;
     font-family: 'DM Sans', sans-serif;
-    font-size: 13px;
+    font-size: 12.5px;
     font-weight: 600;
     cursor: pointer;
     text-decoration: none;
-    box-shadow: 0 2px 6px rgba(15,110,86,0.22);
-    transition: background 0.15s ease, transform 0.1s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+    box-shadow: 0 1.5px 5px rgba(15,110,86,0.22);
+    transition: background 0.12s ease, transform 0.1s ease;
     box-sizing: border-box;
   }
-  .btn-add-refuel-full:hover {
+  .btn-add-refuel-compact:hover {
     background: #0c5945;
   }
-  .btn-add-refuel-full:active {
-    transform: scale(0.985);
+  .btn-add-refuel-compact:active {
+    transform: scale(0.96);
   }
+
 
 
   /* 3-Dot Menu Button */
@@ -851,7 +857,7 @@
         {% set v_type = v.vehicle_type or 'Vehicle' %}
         
         {% set days = row.days_since_refuel %}
-        {% set is_overdue = days is not none and days >= 7 %}
+        {% set is_overdue = days is not none and days > 7 %}
         <div class="vehicle-card {% if v.status == 'inactive' %}inactive{% endif %} {% if is_overdue %}overdue{% endif %}"
              data-num="{{ v.vehicle_number | lower }}"
              data-reg="{{ (v.registration_number or '') | lower }}"
@@ -886,7 +892,7 @@
             <!-- 48px truck icon (replaces full-width banner) -->
             <div class="card-thumb">
               <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
+                <rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>
               </svg>
             </div>
             <!-- Right content -->
@@ -904,7 +910,7 @@
               <!-- Row 2: type · odometer · efficiency -->
               <div class="card-row2">
                 <span class="card-type-label">
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
                   {{ v_type }}
                 </span>
                 {% if row.total_entries > 0 %}
@@ -919,7 +925,7 @@
           <!-- Divider -->
           <div class="card-divider"></div>
 
-          <!-- Action row: last refuelled -->
+          <!-- Single Action row: Last refuelled on left, compact + Refuel button right-aligned -->
           <div class="card-action-row">
             <span class="card-last-refuel {% if is_overdue %}overdue-text{% endif %}">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
@@ -929,13 +935,11 @@
                 {% else %}Last refuelled: {{ days }} day{{ 's' if days != 1 }} ago{% endif %}
               {% else %}Never refuelled{% endif %}
             </span>
+            <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-add-refuel-compact" onclick="event.stopPropagation();">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>Refuel</span>
+            </a>
           </div>
-
-          <!-- Full-width Primary "+ Add Refuelling" Button (Style 1) -->
-          <a href="/admin/vehicles/{{ v.id }}/refuellings/new" class="btn-add-refuel-full" onclick="event.stopPropagation();">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-            <span>+ Add Refuelling</span>
-          </a>
 
         </div>
 
@@ -1229,7 +1233,7 @@
           else                                     fuelBadge = `<span class="fuel-badge other">${v.fuel_type || 'Fuel'}</span>`;
 
           const cardHtml = `
-            <div class="vehicle-card overdue"
+            <div class="vehicle-card"
                  data-num="${(v.vehicle_number||'').toLowerCase()}"
                  data-reg="${(v.registration_number||'').toLowerCase()}"
                  data-fuel="${fuelLower}"
@@ -1268,7 +1272,7 @@
                   </div>
                   <div class="card-row2">
                     <span class="card-type-label">
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
                       ${v.vehicle_type || 'Truck'}
                     </span>
                     <span class="card-reading-inline no-data">No entries yet</span>
@@ -1277,15 +1281,15 @@
               </div>
               <div class="card-divider"></div>
               <div class="card-action-row">
-                <span class="card-last-refuel overdue-text">
+                <span class="card-last-refuel">
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
                   Never refuelled
                 </span>
+                <a href="/admin/vehicles/${v.id}/refuellings/new" class="btn-add-refuel-compact" onclick="event.stopPropagation();">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  <span>Refuel</span>
+                </a>
               </div>
-              <a href="/admin/vehicles/${v.id}/refuellings/new" class="btn-add-refuel-full" onclick="event.stopPropagation();">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                <span>+ Add Refuelling</span>
-              </a>
             </div>`;
 
           // Remove empty-state placeholder if present
