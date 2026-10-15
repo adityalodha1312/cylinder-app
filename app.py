@@ -9003,51 +9003,82 @@ def admin_vehicle_toggle_status(vehicle_id):
 @app.route('/admin/vehicles/reports')
 @admin_required
 def admin_vehicles_reports():
-    from sqlalchemy import func as sqfunc
     vehicles = Vehicle.query.order_by(Vehicle.vehicle_number).all()
+
     # Filters
     sel_vehicle_id = request.args.get('vehicle_id', '', type=int) or None
     start_date_str = request.args.get('start_date', '').strip()
     end_date_str   = request.args.get('end_date', '').strip()
 
-    q = db.session.query(
-        Vehicle.vehicle_number,
-        sqfunc.count(VehicleRefuelling.id).label('entries'),
-        sqfunc.sum(VehicleRefuelling.fuel_quantity_litres).label('total_litres'),
-        sqfunc.sum(VehicleRefuelling.fuel_price_total).label('total_cost'),
-        sqfunc.sum(VehicleRefuelling.distance_km).label('total_distance'),
-        sqfunc.avg(VehicleRefuelling.mileage_km_per_litre).label('avg_mileage'),
-    ).join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
-
-    if sel_vehicle_id:
-        q = q.filter(VehicleRefuelling.vehicle_id == sel_vehicle_id)
-    # Date filter: convert dd-mm-yyyy strings to compare lexicographically using yyyy-mm-dd
+    # Parse filter bounds as real date objects
+    start_date = None
+    end_date   = None
     if start_date_str:
         try:
-            sd = datetime.strptime(start_date_str, '%Y-%m-%d')
-            sd_fmt = sd.strftime('%d-%m-%Y')
-            q = q.filter(VehicleRefuelling.fuel_date >= sd_fmt)
+            start_date = datetime.strptime(start_date_str, '%Y-%m-%d').date()
         except ValueError:
             pass
     if end_date_str:
         try:
-            ed = datetime.strptime(end_date_str, '%Y-%m-%d')
-            ed_fmt = ed.strftime('%d-%m-%Y')
-            q = q.filter(VehicleRefuelling.fuel_date <= ed_fmt)
+            end_date = datetime.strptime(end_date_str, '%Y-%m-%d').date()
         except ValueError:
             pass
 
-    rows = q.group_by(Vehicle.vehicle_number).all()
+    # Fetch all refuellings (optionally filtered by vehicle) — NO date filter in SQL
+    # because DD-MM-YYYY string comparison in SQL gives wrong lexicographic ordering
+    q = db.session.query(VehicleRefuelling, Vehicle)\
+        .join(Vehicle, VehicleRefuelling.vehicle_id == Vehicle.id)
+    if sel_vehicle_id:
+        q = q.filter(VehicleRefuelling.vehicle_id == sel_vehicle_id)
+    raw_records = q.all()
+
+    # Filter by date in Python using proper date parsing (read-only, no DB writes)
+    vehicle_buckets = {}   # vehicle_number -> aggregation dict
+    for ref, veh in raw_records:
+        r_date = None
+        if ref.fuel_date:
+            try:
+                r_date = datetime.strptime(ref.fuel_date, '%d-%m-%Y').date()
+            except ValueError:
+                try:
+                    r_date = datetime.strptime(ref.fuel_date, '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+        # Apply date bounds — skip records outside range
+        if start_date and (r_date is None or r_date < start_date):
+            continue
+        if end_date and (r_date is None or r_date > end_date):
+            continue
+
+        vnum = veh.vehicle_number
+        if vnum not in vehicle_buckets:
+            vehicle_buckets[vnum] = {
+                'vehicle_number': vnum,
+                'vehicle_id':     veh.id,
+                'entries':        0,
+                'total_litres':   0.0,
+                'total_cost':     0.0,
+                'total_distance': 0.0,
+                'mileage_sum':    0.0,   # for avg calculation
+            }
+        b = vehicle_buckets[vnum]
+        b['entries']        += 1
+        b['total_litres']   += float(ref.fuel_quantity_litres or 0)
+        b['total_cost']     += float(ref.fuel_price_total or 0)
+        b['total_distance'] += float(ref.distance_km or 0)
+        b['mileage_sum']    += float(ref.mileage_km_per_litre or 0)
 
     report_rows = []
-    for r in rows:
+    for b in sorted(vehicle_buckets.values(), key=lambda x: x['vehicle_number']):
+        avg_mileage = round(b['mileage_sum'] / b['entries'], 2) if b['entries'] > 0 else 0.0
         report_rows.append({
-            'vehicle_number': r.vehicle_number,
-            'entries':        int(r.entries or 0),
-            'total_litres':   round(float(r.total_litres or 0), 2),
-            'total_cost':     round(float(r.total_cost or 0), 2),
-            'total_distance': round(float(r.total_distance or 0), 2),
-            'avg_mileage':    round(float(r.avg_mileage or 0), 2),
+            'vehicle_number': b['vehicle_number'],
+            'vehicle_id':     b['vehicle_id'],
+            'entries':        b['entries'],
+            'total_litres':   round(b['total_litres'], 2),
+            'total_cost':     round(b['total_cost'], 2),
+            'total_distance': round(b['total_distance'], 2),
+            'avg_mileage':    avg_mileage,
         })
 
     totals = {
