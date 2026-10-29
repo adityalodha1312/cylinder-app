@@ -1162,10 +1162,14 @@
     if (targetMenu) targetMenu.classList.toggle('show');
   }
 
+  function closeAllMenus() {
+    document.querySelectorAll('.card-dropdown-menu').forEach(m => m.classList.remove('show'));
+  }
+
   // Close menus when clicking outside
   document.addEventListener('click', function(e) {
     if (!e.target.closest('.card-menu-btn')) {
-      document.querySelectorAll('.card-dropdown-menu').forEach(m => m.classList.remove('show'));
+      closeAllMenus();
     }
   });
 
@@ -1305,6 +1309,11 @@
                     <span>Deactivate</span>
                   </button>
                 </form>
+                <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;"
+                  onclick="event.stopPropagation(); closeAllMenus(); openDeleteVehicleConfirm('${v.id}', '${v.vehicle_number}', 0);">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  <span>Delete Vehicle</span>
+                </button>
               </div>
               <div class="card-inner">
                 <div class="card-thumb">
@@ -1407,7 +1416,8 @@
       el.style.display = (!q || (el.dataset.num || '').includes(q)) ? 'flex' : 'none';
     });
   }
-  // ── Delete Vehicle Confirm Modal ────────────────────────────────
+
+  // ── Delete Vehicle Confirm Modal ────────────────────────────────
   let _deleteVehicleId = null;
 
   function openDeleteVehicleConfirm(vehId, vehNum, entryCount) {
@@ -1465,7 +1475,5 @@
     });
   }
 
-
-
+</script>
 {% endblock %}
-
