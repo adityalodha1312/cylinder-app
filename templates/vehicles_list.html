@@ -213,7 +213,10 @@
     transition: box-shadow 0.15s ease, border-color 0.15s ease;
     cursor: pointer;
     position: relative;
-    overflow: hidden;
+    /* overflow: visible so 3-dot dropdown menu is not clipped */
+  }
+  .vehicle-card.menu-open {
+    z-index: 100;
   }
   .vehicle-card:hover {
     box-shadow: 0 4px 14px rgba(0,0,0,0.09);
@@ -422,14 +425,14 @@
   .card-dropdown-menu {
     display: none;
     position: absolute;
-    top: 44px;
+    top: 42px;
     right: 10px;
     background: #ffffff;
     border: 1.5px solid #e8e9e4;
     border-radius: 12px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-    min-width: 150px;
-    z-index: 20;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.18);
+    min-width: 165px;
+    z-index: 100;
     overflow: hidden;
     animation: fadeInPop 0.12s ease;
   }
@@ -885,10 +888,11 @@
                 <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
               </button>
             </form>
-            <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;"
+            <div style="height:1px;background:#f3f4f6;margin:3px 0;"></div>
+            <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;font-weight:600;"
               onclick="event.stopPropagation(); closeAllMenus(); openDeleteVehicleConfirm('{{ v.id }}', '{{ v.vehicle_number }}', {{ row.total_entries }});">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-              <span>Delete Vehicle</span>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              <span style="color:#dc2626;">Delete Vehicle</span>
             </button>
           </div>
 
@@ -1154,16 +1158,27 @@
   // Floating 3-Dot menu toggle
   function toggleCardMenu(e, id) {
     e.stopPropagation();
+    const allCards = document.querySelectorAll('.vehicle-card');
+    allCards.forEach(c => c.classList.remove('menu-open'));
+
     const allMenus = document.querySelectorAll('.card-dropdown-menu');
     allMenus.forEach(m => {
       if (m.id !== `menu-${id}`) m.classList.remove('show');
     });
+
     const targetMenu = document.getElementById(`menu-${id}`);
-    if (targetMenu) targetMenu.classList.toggle('show');
+    if (targetMenu) {
+      const isShow = targetMenu.classList.toggle('show');
+      const card = targetMenu.closest('.vehicle-card');
+      if (card && isShow) {
+        card.classList.add('menu-open');
+      }
+    }
   }
 
   function closeAllMenus() {
     document.querySelectorAll('.card-dropdown-menu').forEach(m => m.classList.remove('show'));
+    document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('menu-open'));
   }
 
   // Close menus when clicking outside
@@ -1309,10 +1324,11 @@
                     <span>Deactivate</span>
                   </button>
                 </form>
-                <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;"
+                <div style="height:1px;background:#f3f4f6;margin:3px 0;"></div>
+                <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;font-weight:600;"
                   onclick="event.stopPropagation(); closeAllMenus(); openDeleteVehicleConfirm('${v.id}', '${v.vehicle_number}', 0);">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-                  <span>Delete Vehicle</span>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+                  <span style="color:#dc2626;">Delete Vehicle</span>
                 </button>
               </div>
               <div class="card-inner">
