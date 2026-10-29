@@ -9267,7 +9267,7 @@ def admin_vehicle_delete(vehicle_id):
             db.session.commit()
             clear_cache()
             if is_ajax:
-                return jsonify({'success': True, 'action': 'delete', 'redirect': '/admin/vehicles'})
+                return jsonify({'success': True, 'action': 'delete', 'vehicle_id': vehicle_id, 'redirect': '/admin/vehicles'})
             return redirect('/admin/vehicles')
         else:
             v.status = 'inactive'

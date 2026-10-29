@@ -885,6 +885,11 @@
                 <span>{{ 'Deactivate' if v.status == 'active' else 'Activate' }}</span>
               </button>
             </form>
+            <button type="button" class="card-dropdown-item del-item" style="color:#dc2626;"
+              onclick="event.stopPropagation(); closeAllMenus(); openDeleteVehicleConfirm('{{ v.id }}', '{{ v.vehicle_number }}', {{ row.total_entries }});">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+              <span>Delete Vehicle</span>
+            </button>
           </div>
 
           <!-- Card inner: thumb + two-row content -->
@@ -1007,6 +1012,41 @@
   </div>
 </div>
 
+
+<!-- ── Delete Vehicle Confirmation Modal ── -->
+<div class="modal-overlay" id="deleteVehicleModal" onclick="if(event.target.id==='deleteVehicleModal') closeDeleteVehicleConfirm()">
+  <div class="modal-container" style="max-width:420px;">
+    <div class="modal-drag-handle"></div>
+    <div class="modal-header" style="border-bottom:1px solid #fee2e2;">
+      <h3 class="modal-title" style="color:#dc2626;">Delete Vehicle</h3>
+      <button type="button" class="modal-close-btn" onclick="closeDeleteVehicleConfirm()">×</button>
+    </div>
+    <div class="modal-body" style="padding:20px 20px 8px;">
+      <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:16px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:#fee2e2;color:#dc2626;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </div>
+        <div>
+          <p style="font-size:14px;font-weight:700;color:#1a1a18;margin:0 0 6px;">Are you sure you want to delete <span id="del-veh-name" style="color:#dc2626;font-family:monospace;"></span>?</p>
+          <p id="del-veh-warn" style="font-size:13px;color:#6b7280;margin:0;line-height:1.5;"></p>
+        </div>
+      </div>
+      <p style="font-size:12px;color:#9ca3af;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 12px;margin:0 0 18px;">
+        ⚠️ This action is <strong>permanent and cannot be undone.</strong> All refuelling entries for this vehicle will also be deleted.
+      </p>
+    </div>
+    <div class="modal-footer" style="display:flex;gap:10px;padding:0 20px 20px;">
+      <button type="button" onclick="closeDeleteVehicleConfirm()"
+        style="flex:1;height:42px;border:1.5px solid #d8d9d4;border-radius:9px;background:#fff;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:600;color:#5F5E5A;cursor:pointer;">
+        Cancel
+      </button>
+      <button type="button" id="btn-confirm-delete" onclick="confirmDeleteVehicle()"
+        style="flex:1;height:42px;border:none;border-radius:9px;background:#dc2626;font-family:'DM Sans',sans-serif;font-size:13.5px;font-weight:700;color:#fff;cursor:pointer;">
+        Yes, Delete
+      </button>
+    </div>
+  </div>
+</div>
 
 <!-- ── Add Vehicle Modal & Mobile Bottom Sheet ── -->
 <div class="modal-overlay" id="vehicleModal" onclick="handleModalOverlayClick(event)">
@@ -1367,7 +1407,65 @@
       el.style.display = (!q || (el.dataset.num || '').includes(q)) ? 'flex' : 'none';
     });
   }
+  // ── Delete Vehicle Confirm Modal ────────────────────────────────
+  let _deleteVehicleId = null;
 
-</script>
+  function openDeleteVehicleConfirm(vehId, vehNum, entryCount) {
+    _deleteVehicleId = vehId;
+    document.getElementById('del-veh-name').textContent = vehNum;
+    const warn = document.getElementById('del-veh-warn');
+    warn.textContent = entryCount > 0
+      ? `This vehicle has ${entryCount} refuelling entr${entryCount === 1 ? 'y' : 'ies'} that will also be permanently deleted.`
+      : 'This vehicle has no refuelling entries.';
+    document.getElementById('deleteVehicleModal').style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeDeleteVehicleConfirm() {
+    document.getElementById('deleteVehicleModal').style.display = 'none';
+    document.body.style.overflow = '';
+    _deleteVehicleId = null;
+  }
+
+  function confirmDeleteVehicle() {
+    if (!_deleteVehicleId) return;
+    const btn = document.getElementById('btn-confirm-delete');
+    btn.disabled = true;
+    btn.textContent = 'Deleting…';
+
+    fetch(`/admin/vehicles/${_deleteVehicleId}/delete`, {
+      method: 'POST',
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: 'action=delete'
+    })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success) {
+        const deletedId = data.vehicle_id || _deleteVehicleId;
+        closeDeleteVehicleConfirm();
+        // Remove the card that owns the matching dropdown menu
+        const menu = document.getElementById(`menu-${deletedId}`);
+        if (menu) menu.closest('.vehicle-card').remove();
+        showListToast('Vehicle deleted successfully.');
+        // Reload after short delay so KPI counts update
+        setTimeout(() => location.reload(), 1200);
+      } else {
+        showListToast(data.error || 'Failed to delete vehicle. Please try again.', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Yes, Delete';
+      }
+    })
+    .catch(() => {
+      showListToast('Network error. Please try again.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Yes, Delete';
+    });
+  }
+
+
+
 {% endblock %}
 
