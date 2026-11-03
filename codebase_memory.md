@@ -177,3 +177,38 @@ Configuration parameters inside `.env` include:
 * **Dual Writes Delay**: Google Sheets appends are synchronous and can be slow under load. A retry mechanism (`sheets_write_with_retry`) mitigates transient API failures.
 * **Template Filter Dependencies**: Changing templates requires matching filter registrations (e.g., standardizing `|trim` instead of custom filters).
 * **No Database Migrations Engine**: Database schemas are checked and modified programmatically on startup instead of using Alembic.
+
+---
+
+## 13. Mobile & Performance Standards (Mandatory for All New Features)
+Whenever creating new templates, routes, or front-end features, the following standards MUST be maintained:
+
+1. **Static Asset Delivery & Caching**:
+   - Always reference static assets (images, CSS, JS) using `{{ static_v('path/to/asset') }}`.
+   - Static assets are cached with `Cache-Control: public, max-age=31536000, immutable`. The `?v=<mtime>` query string ensures clients immediately load new versions when files are modified.
+   - Keep PNG/JPEG images optimized and lightweight (target < 40 KB for UI icons and branding).
+
+2. **Compression Integrity**:
+   - Text responses (HTML, CSS, JS, JSON, SVG) are automatically compressed via `flask-compress` (Brotli/Gzip).
+   - Dynamic exports (XLSX, PDF, ZIP, CSV) must remain byte-identical and uncompressed (`Content-Encoding: none`).
+
+3. **Input Fields & iOS Auto-Zoom Prevention**:
+   - Mobile browsers (especially iOS Safari) automatically zoom in on any input with font size under 16px.
+   - Ensure all `input`, `select`, and `textarea` elements render with `font-size: 16px` on screens $\le$ 768px (using `@media (max-width: 768px)`).
+   - Desktop viewports (> 768px) must retain their compact desktop styling.
+
+4. **Virtual Keyboard Ergonomics (`inputmode`)**:
+   - Every input field must have an explicit `inputmode` attribute:
+     - `inputmode="numeric"` for integers (cylinder count, quantities, PINs).
+     - `inputmode="decimal"` for floating point numbers (litres, odometer, rates, currency).
+     - `inputmode="search"` for search filter inputs.
+
+5. **Touch Targets & Hover Independence**:
+   - Interactive elements (buttons, links, drag handles, icons) must meet a minimum 44×44px tap target on mobile (`@media (max-width: 768px)`).
+   - Never hide essential controls behind `:hover` alone. Always supply `@media (hover: none)` rules so touch devices have permanent visibility or tap access.
+
+6. **Hardware & Offline Scanner Standards**:
+   - Always specify `{ facingMode: { ideal: "environment" } }` for camera scanners so phones default to the rear camera while PC/laptops cleanly fall back to webcams.
+   - Always guard haptic feedback with `if (navigator.vibrate)`.
+   - Use local/WebAudio synthesized beeps (`playWebAudioBeep`) instead of remote audio URLs so sound feedback works with zero latency and 100% offline.
+
