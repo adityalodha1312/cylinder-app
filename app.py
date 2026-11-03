@@ -1,4 +1,5 @@
 from flask import Flask, render_template, render_template_string, request, redirect, session, jsonify, flash, url_for, send_from_directory
+from flask_compress import Compress
 from openpyxl import load_workbook
 from datetime import datetime, date, timedelta
 import math
@@ -35,6 +36,21 @@ load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = 'cyl-tracker-secret-2026'
+
+# Flask-Compress: compress text responses only, exclude already-compressed/binary exports
+app.config['COMPRESS_MIMETYPES'] = [
+    'text/html',
+    'text/css',
+    'text/xml',
+    'text/javascript',
+    'application/json',
+    'application/javascript',
+    'image/svg+xml'
+]
+app.config['COMPRESS_LEVEL'] = 6
+app.config['COMPRESS_MIN_SIZE'] = 500
+app.config['COMPRESS_ALGORITHM'] = ['br', 'gzip']
+Compress(app)
 
 @app.template_filter('strip')
 def strip_filter(s):
@@ -530,10 +546,27 @@ app.config['SESSION_COOKIE_SECURE'] = not os.environ.get('FLASK_DEBUG') == '1'
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 
+@app.context_processor
+def static_version_processor():
+    def static_v(filename):
+        try:
+            full_path = os.path.join(app.static_folder or 'static', filename)
+            if os.path.exists(full_path):
+                return f"/static/{filename}?v={int(os.path.getmtime(full_path))}"
+        except Exception:
+            pass
+        return f"/static/{filename}"
+    return dict(static_v=static_v)
+
+
 @app.after_request
 def add_header(response):
-    # Prevent browser and CDN caching for all dynamic endpoints to ensure independent sessions
-    if not request.path.startswith('/static'):
+    # Serve static assets with public immutable caching, excluding manifest.json
+    if request.path.startswith('/static/'):
+        if not request.path.endswith('manifest.json'):
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    else:
+        # Prevent browser and CDN caching for all dynamic endpoints and /sw.js
         response.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, post-check=0, pre-check=0, max-age=0'
         response.headers['Pragma'] = 'no-cache'
         response.headers['Expires'] = '-1'

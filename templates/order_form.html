@@ -212,7 +212,7 @@
       <!-- Tel -->
       <div class="form-group">
         <label for="tel">Tel (Phone)</label>
-        <input type="text" id="tel" name="tel" placeholder="e.g. +91 9225309555">
+        <input type="text" id="tel" name="tel" inputmode="numeric" placeholder="e.g. +91 9225309555">
         <span class="hint">Customer contact number.</span>
       </div>
 
@@ -248,7 +248,7 @@
           <tr>
             <td><input type="text" name="product_name[]" placeholder="e.g. Argon (5.5 Grade)" required></td>
             <td><input type="text" name="product_content[]" placeholder="e.g. 07 Cum" required></td>
-            <td><input type="number" name="product_qty[]" value="1" min="1" required style="width: 100%;"></td>
+            <td><input type="number" name="product_qty[]" value="1" min="1" inputmode="numeric" required style="width: 100%;"></td>
             <td style="text-align: center;">
               <button type="button" class="btn-action btn-remove" onclick="removeRow(this)">✕ Remove</button>
             </td>
@@ -300,7 +300,7 @@
     tr.innerHTML = `
       <td><input type="text" name="product_name[]" placeholder="e.g. Argon (5.5 Grade)" required></td>
       <td><input type="text" name="product_content[]" placeholder="e.g. 07 Cum" required></td>
-      <td><input type="number" name="product_qty[]" value="1" min="1" required style="width: 100%;"></td>
+      <td><input type="number" name="product_qty[]" value="1" min="1" inputmode="numeric" required style="width: 100%;"></td>
       <td style="text-align: center;"><button type="button" class="btn-action btn-remove" onclick="removeRow(this)">✕ Remove</button></td>
     `;
     tbody.appendChild(tr);

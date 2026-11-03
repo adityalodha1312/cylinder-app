@@ -9,9 +9,9 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="CylinderScan">
 <link rel="manifest" href="/static/manifest.json">
-<link rel="apple-touch-icon" href="/static/icon-192.png">
+<link rel="apple-touch-icon" href="{{ static_v('icon-192.png') }}">
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <title>Cylinder Tracking</title>
 <style>
   :root {
@@ -555,6 +555,14 @@
     gap: 4px;
   }
 
+  /* Touch devices (hover: none) */
+  @media (hover: none) {
+    .remove-btn {
+      opacity: 1 !important;
+      visibility: visible !important;
+    }
+  }
+
   /* Full-width scan reader */
   #reader {
     width: 100% !important;
@@ -812,7 +820,7 @@
   <div class="sidebar-header" style="display:flex; align-items:center; justify-content:space-between; padding: 16px 18px 14px; border-bottom: 1px solid rgba(255,255,255,0.12);">
     <a class="sidebar-brand" href="/admin/dashboard">
       <div class="brand-logo-wrap">
-        <img src="/static/img/noble_logo.png" alt="Noble Air Gases" />
+        <img src="{{ static_v('img/noble_logo.png') }}" alt="Noble Air Gases" />
       </div>
       <div class="brand-text">
         <div class="b-title">Admin Portal</div>
@@ -931,7 +939,7 @@
 <div class="header">
   <div style="display: flex; align-items: center; gap: 10px;">
     <div style="background:#fff; border-radius:8px; padding:3px 8px; display:flex; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-      <img src="/static/img/noble_logo.png" alt="Noble Air Gases" style="height:24px; width:auto; display:block;" />
+      <img src="{{ static_v('img/noble_logo.png') }}" alt="Noble Air Gases" style="height:24px; width:auto; display:block;" />
     </div>
     <div>
       <h1 style="font-size: 16px; font-weight: 600; line-height: 1.2;">Admin Scan App</h1>
@@ -1053,7 +1061,7 @@
     <div class="field" id="customer-field" style="display: none; margin-top: 12px;">
       <label>Customer Name</label>
       <div class="autocomplete-container">
-        <input type="text" id="customer-select" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+        <input type="text" id="customer-select" inputmode="search" placeholder="Search or select customer..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
         <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
           {% for name in customers %}
             <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
@@ -1728,6 +1736,29 @@
     padding: 14px !important;
   }
 
+  /* Form inputs 16px on mobile to prevent iOS auto-zoom */
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  /* Mobile touch target minimum 44x44px */
+  .remove-btn {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    font-size: 20px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+  .mode-toggle-btn,
+  .btn-submit,
+  .action-btn,
+  #submit-btn {
+    min-height: 44px !important;
+  }
+
   /* Hide Desktop Table, Show Cards */
   .verif-table-wrap, .desk-submit-bar {
     display: none !important;
@@ -2064,7 +2095,7 @@
       <label style="display: block; font-size: 12.5px; font-weight: 600; color: #374151; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px;">
         Cylinder Count <span style="color: #dc2626;">*</span>
       </label>
-      <input type="number" id="party-count-input" min="1" value="1" placeholder="e.g. 5"
+      <input type="number" id="party-count-input" inputmode="numeric" min="1" value="1" placeholder="e.g. 5"
         style="width: 100%; min-height: 44px; padding: 10px 12px; border: 1.5px solid #d8d9d4; border-radius: 9px; font-size: 15px; box-sizing: border-box;">
     </div>
 
@@ -2804,7 +2835,26 @@ function resetForm() {
 </script>
 
 <script>
-const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+// WebAudio beep (works 100% offline, zero network latency)
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function playWebAudioBeep(freq = 880, duration = 0.12) {
+  try {
+    if (!audioCtx) audioCtx = new AudioContextClass();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {}
+}
+const beep = { play: () => playWebAudioBeep(880, 0.12) };
 let scanLocked = false;
 
 function onScanSuccess(decodedText) {
@@ -2816,6 +2866,7 @@ function onScanSuccess(decodedText) {
   let inputs = document.getElementsByName("cylinders");
   for (let i = 0; i < inputs.length; i++) {
     if (inputs[i].value === decodedText) {
+      if (navigator.vibrate) { navigator.vibrate([120, 60, 120]); }
       showStatus("⚠ Already scanned: " + decodedText);
       setTimeout(() => {
         scanLocked = false;
@@ -2852,13 +2903,14 @@ function onScanSuccess(decodedText) {
 
   updateCount();
   beep.play();
+  if (navigator.vibrate) { navigator.vibrate(60); }
   showStatus("✓ Added: " + decodedText);
   setTimeout(() => {
     scanLocked = false;
   }, 1000); // 1000ms delay to prevent duplicate scans
 }
 
-const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250, videoConstraints: { facingMode: { ideal: "environment" } } });
 html5QrcodeScanner.render(onScanSuccess);
 </script>
 

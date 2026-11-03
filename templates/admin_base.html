@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0F6E56">
   <title>{% block title %}Admin{% endblock %} – Cylinder Tracker</title>
   <link rel="manifest" href="/static/manifest.json">
-  <link rel="apple-touch-icon" href="/static/icon-192.png">
+  <link rel="apple-touch-icon" href="{{ static_v('icon-192.png') }}">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -532,6 +532,52 @@
       .global-avatar-wrapper { top: 8px !important; right: 64px !important; }
       .avatar-btn { width: 40px !important; height: 40px !important; }
       .av-item { padding: 14px 16px !important; }
+
+      /* Form inputs 16px on mobile to prevent iOS auto-zoom */
+      input:not([type="checkbox"]):not([type="radio"]),
+      select,
+      textarea,
+      .form-control,
+      .search-input {
+        font-size: 16px !important;
+      }
+
+      /* Mobile touch target minimum 44x44px */
+      .drag-handle {
+        min-width: 44px !important;
+        min-height: 44px !important;
+      }
+      .reset-nav-btn {
+        min-height: 44px !important;
+        padding: 10px 14px !important;
+        display: inline-flex !important;
+        align-items: center !important;
+      }
+      .btn,
+      .action-btn,
+      .table-btn,
+      .filter-btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+    }
+
+    /* ══════════════════════════════
+       TOUCH (NO-HOVER) INTERACTIONS
+    ══════════════════════════════ */
+    @media (hover: none) {
+      .drag-handle {
+        opacity: 0.75 !important;
+      }
+      .sidebar-nav a .drag-handle {
+        opacity: 0.75 !important;
+      }
+      .hover-reveal,
+      .action-buttons-hover,
+      .show-on-hover {
+        opacity: 1 !important;
+        visibility: visible !important;
+      }
     }
 
     /* ══════════════════════════════
@@ -821,7 +867,7 @@
 <aside class="sidebar" id="sidebar">
   <a class="sidebar-brand" href="/admin/dashboard">
     <div class="brand-logo-wrap">
-      <img src="/static/img/noble_logo.png" alt="Noble Air Gases" />
+      <img src="{{ static_v('img/noble_logo.png') }}" alt="Noble Air Gases" />
     </div>
     <div class="brand-text">
       <div class="b-sub" style="font-size:12px; opacity:0.85; font-weight:500; margin-top:0;">Admin Portal</div>
@@ -1007,7 +1053,7 @@
   <div class="top-bar">
     <div class="tb-brand" style="gap: 10px;">
       <div style="background:#fff; border-radius:8px; padding:3px 8px; display:flex; align-items:center; box-shadow:0 1px 3px rgba(0,0,0,0.12);">
-        <img src="/static/img/noble_logo.png" alt="Noble Air Gases" style="height:22px; width:auto; display:block;" />
+        <img src="{{ static_v('img/noble_logo.png') }}" alt="Noble Air Gases" style="height:22px; width:auto; display:block;" />
       </div>
       {{ self.title() }}
     </div>

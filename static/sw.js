@@ -1,5 +1,5 @@
-// CylinderScan Service Worker v1
-const CACHE_NAME = 'cylscan-v1';
+// CylinderScan Service Worker v2
+const CACHE_NAME = 'cylscan-v2';
 const OFFLINE_URL = '/scan';
 
 // Assets to cache on install

@@ -3,7 +3,7 @@
 {% block title %}Admin Scanner{% endblock %}
 
 {% block head %}
-<script src="https://unpkg.com/html5-qrcode"></script>
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
   .scanner-page { max-width: 600px; margin: 0 auto; padding-bottom: 40px; }
   .page-header { margin-bottom: 24px; }
@@ -87,7 +87,7 @@
     <div class="form-group" id="customer-field-container">
       <label id="customer-label">Customer (Optional / Custom allowed)</label>
       <div class="autocomplete-container">
-        <input type="text" id="customer-select" placeholder="Search or type custom customer name..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
+        <input type="text" id="customer-select" inputmode="search" placeholder="Search or type custom customer name..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
         <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
           {% for name in customers %}
             <div class="dropdown-item" onclick="selectCustomer(this.textContent)">{{ name }}</div>
@@ -109,7 +109,7 @@
         <span>Cylinder Count <span style="color:#dc2626;">*</span></span>
         <span style="font-size:12px; font-weight:400; color:var(--gray-700);">Number of cylinders refilled</span>
       </label>
-      <input type="number" id="party-count" min="1" value="1" placeholder="e.g. 5" oninput="updateFeed()" style="width:100%; padding:10px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:14px;">
+      <input type="number" id="party-count" inputmode="numeric" min="1" value="1" placeholder="e.g. 5" oninput="updateFeed()" style="width:100%; padding:10px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:14px;">
     </div>
   </div>
   
@@ -137,7 +137,26 @@
 
 <script>
   let scannedUIDs = new Set();
-  const beep = new Audio("https://actions.google.com/sounds/v1/alarms/beep_short.ogg");
+  // WebAudio beep (works 100% offline, zero network latency)
+const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+let audioCtx = null;
+function playWebAudioBeep(freq = 880, duration = 0.12) {
+  try {
+    if (!audioCtx) audioCtx = new AudioContextClass();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.25, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {}
+}
+const beep = { play: () => playWebAudioBeep(880, 0.12) };
   let scanLocked = false;
 
   function showCustomerDropdown() {
@@ -245,11 +264,13 @@
     uid = uid.trim().toUpperCase();
     if (!uid) return;
     if (scannedUIDs.has(uid)) {
+      if (navigator.vibrate) { navigator.vibrate([120, 60, 120]); }
       showStatus("⚠ Already scanned: " + uid);
       return;
     }
     scannedUIDs.add(uid);
     beep.play();
+    if (navigator.vibrate) { navigator.vibrate(60); }
     showStatus("✓ Added: " + uid);
     updateFeed();
   }
@@ -282,7 +303,7 @@
     }, 1000); // 1s delay to prevent duplicate scans
   }
 
-  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+  const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250, videoConstraints: { facingMode: { ideal: "environment" } } });
   html5QrcodeScanner.render(onScanSuccess);
   
   async function submitScans() {
