@@ -1718,6 +1718,8 @@ def build_outstanding():
     customer_stats  = {}
 
     for ev in events:
+        if ev.get('action') == 'Party Refill':
+            continue
         c = ev['customer']
         if c not in customer_stats:
             customer_stats[c] = {'total_delivered': 0, 'total_collected': 0, 'last_activity': ev['date']}
@@ -3848,6 +3850,11 @@ def calculate_fleet_sizes():
     cylinders = get_all_cylinders()
     fleet = {'Argon': 0, 'CO2': 0, 'N2': 0, 'Oxygen': 0}
     for c in cylinders:
+        if (c.get('status') or '').strip().capitalize() == 'Party':
+            continue
+        owner = (c.get('owner') or '').strip().upper()
+        if owner and owner not in ('DEPOT', 'COMPANY'):
+            continue
         gas = c.get('gas_type', '').upper()
         if gas in ('ARG', 'ACM', 'AHM'):
             fleet['Argon'] += 1
@@ -4103,7 +4110,7 @@ def calculate_daily_dispatch_report(target_date_str):
             try:
                 scans = Scan.query.filter(
                     Scan.scan_date == target_date_str,
-                    Scan.action.in_(['Delivery', 'Collection'])
+                    Scan.action.in_(['Delivery', 'Collection', 'Party Refill'])
                 ).all()
                 for s in scans:
                     day_scans.append({
@@ -4129,7 +4136,7 @@ def calculate_daily_dispatch_report(target_date_str):
 
             for r in rows[1:]:
                 if len(r) >= 6:
-                    if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection'):
+                    if r[0].strip() == target_date_str and r[3].strip() in ('Delivery', 'Collection', 'Party Refill'):
                         day_scans.append({
                             'action':   r[3].strip(),
                             'uid':      r[4].strip().upper(),
@@ -4252,7 +4259,7 @@ def calculate_daily_dispatch_report(target_date_str):
                     'collection': make_empty_row()
                 }
 
-            act_key  = 'dispatch' if action == 'delivery' else 'collection'
+            act_key  = 'dispatch' if action in ('delivery', 'party refill') else 'collection'
             row_dict = group[customer][act_key]
 
             if col_key == 'DURA':
@@ -7951,19 +7958,122 @@ def admin_scanner_logs_bulk_delete():
 @app.route('/admin/scanner/submit', methods=['POST'])
 @admin_required
 def admin_scanner_submit():
-    data = request.json
+    data = request.json or {}
     action = data.get('action')
-    customer = data.get('customer')
+    customer = (data.get('customer') or '').strip()
     selected_gas = (data.get('gas_type') or '').strip().upper()
     selected_cyl_type = (data.get('cylinder_type') or 'Standard').strip().capitalize()
-    uids = data.get('uids', [])
-    if not uids or not action:
-        return jsonify({'error': 'Missing required fields'}), 400
+    uids = [u.strip().upper() for u in data.get('uids', []) if u.strip()]
+    is_party = (action == 'Party Refill')
+    req_count = int(data.get('count') or len(uids) or 0)
+
+    if not action:
+        return jsonify({'error': 'Missing required field: action is required.'}), 400
+
+    if is_party:
+        if not customer:
+            return jsonify({'error': 'Party/Customer name is required for Party Refill.'}), 400
+        if not selected_gas:
+            return jsonify({'error': 'Product / Gas Type is required for Party Refill.'}), 400
+        if req_count <= 0 and not uids:
+            return jsonify({'error': 'Cylinder count must be at least 1.'}), 400
+    elif not uids:
+        return jsonify({'error': 'No cylinder UIDs provided.'}), 400
 
     admin_name = session.get('user', {}).get('name', 'Admin')
     now = datetime.now()
     d_str = now.strftime('%d-%m-%Y')
     t_str = now.strftime('%H:%M:%S')
+    today_compact = now.strftime('%Y%m%d')
+
+    # Generate sequential placeholders for Party Refill if needed
+    if is_party:
+        needed = max(req_count, len(uids))
+        if len(uids) < needed:
+            prefix = f"PARTY-{today_compact}-"
+            existing_count = 0
+            if os.environ.get('DATABASE_URL'):
+                try:
+                    existing_count = Cylinder.query.filter(Cylinder.uid.like(f"{prefix}%")).count()
+                except Exception:
+                    existing_count = 0
+            curr_idx = existing_count + 1
+            while len(uids) < needed:
+                gen_uid = f"{prefix}{curr_idx:03d}"
+                if gen_uid not in uids:
+                    uids.append(gen_uid)
+                curr_idx += 1
+
+        # Register or update party-owned cylinders (status = 'Party', owner = customer)
+        if os.environ.get('DATABASE_URL'):
+            try:
+                for uid in uids:
+                    c_party = Cylinder.query.filter(Cylinder.uid.ilike(uid)).first()
+                    if c_party:
+                        c_party.owner = customer
+                        c_party.status = 'Party'
+                        c_party.location = customer
+                        c_party.gas_type = selected_gas
+                        c_party.cylinder_type = selected_cyl_type
+                        c_party.last_activity_date = d_str
+                    else:
+                        db.session.add(Cylinder(
+                            uid=uid,
+                            gas_type=selected_gas,
+                            cylinder_type=selected_cyl_type,
+                            owner=customer,
+                            status='Party',
+                            location=customer,
+                            last_activity_date=d_str
+                        ))
+                db.session.commit()
+                clear_cache()
+            except Exception as pce:
+                db.session.rollback()
+                print("[admin_scanner] Error registering party cylinders:", pce)
+
+        # Write permanent scan transactions to Scan table for Party Refill
+        if os.environ.get('DATABASE_URL'):
+            try:
+                for uid in uids:
+                    scan_record = Scan(
+                        scan_date=d_str,
+                        scan_time=t_str,
+                        driver=admin_name,
+                        action='Party Refill',
+                        cylinder_uid=uid,
+                        customer=customer,
+                        gas_type=selected_gas,
+                        cylinder_type=selected_cyl_type,
+                        entry_source='admin_scanner'
+                    )
+                    db.session.add(scan_record)
+                db.session.commit()
+                clear_cache()
+            except Exception as se:
+                db.session.rollback()
+                print("[admin_scanner] Error adding scans for party refill:", se)
+
+        # Create CustomerMap record for Receipts section (/admin/receipts)
+        if os.environ.get('DATABASE_URL'):
+            try:
+                cmap_record = CustomerMap(
+                    scan_date=d_str,
+                    scan_time=t_str,
+                    driver=admin_name,
+                    action='Party Refill',
+                    count=len(uids),
+                    uids=', '.join(uids),
+                    customer=customer,
+                    send_receipt=False,
+                    receipt_status=''
+                )
+                db.session.add(cmap_record)
+                db.session.commit()
+                clear_cache()
+            except Exception as cme:
+                db.session.rollback()
+                print("[admin_scanner] Error creating CustomerMap for party refill:", cme)
 
     # Resolve aliases and context data for each uid
     cyls_dict = {}
@@ -8061,7 +8171,8 @@ def admin_scanner_submit():
                 batch_time=t_str,
                 customer=customer,
                 admin_name=admin_name,
-                status='Pending'
+                status='Pending',
+                notes='Party Refill' if is_party else 'Admin scanner log'
             )
             db.session.add(acct_batch)
             db.session.flush()  # get acct_batch.id
@@ -10116,7 +10227,7 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                             alias_obj = CylinderAlias.query.filter_by(alias_name=scan_uid.upper()).first()
                         except Exception:
                             pass
-                        if not alias_obj:
+                        if not alias_obj and scan_action != 'Party Refill':
                             try:
                                 existing_p = PendingCylinderReview.query.filter_by(
                                     entered_id=scan_uid.upper(), status='pending'

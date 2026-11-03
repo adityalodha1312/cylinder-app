@@ -78,13 +78,14 @@
   <div class="form-section">
     <div class="form-group">
       <label>Action</label>
-      <select id="action-select">
+      <select id="action-select" onchange="onActionChange()">
         <option value="Delivery">Delivery</option>
         <option value="Collection">Collection</option>
+        <option value="Party Refill">Party Refill</option>
       </select>
     </div>
     <div class="form-group" id="customer-field-container">
-      <label>Customer (Optional / Custom allowed)</label>
+      <label id="customer-label">Customer (Optional / Custom allowed)</label>
       <div class="autocomplete-container">
         <input type="text" id="customer-select" placeholder="Search or type custom customer name..." autocomplete="off" onfocus="showCustomerDropdown()" onclick="showCustomerDropdown()" oninput="filterCustomerDropdown()">
         <div id="customer-dropdown" class="custom-dropdown-list" style="display: none;">
@@ -94,8 +95,8 @@
         </div>
       </div>
     </div>
-    <div class="form-group">
-      <label>Product / Gas Type <small style="font-weight:400;color:var(--gray-700);">(Optional &mdash; auto-detected from cylinder registry if blank)</small></label>
+    <div class="form-group" id="product-field-container">
+      <label id="product-label">Product / Gas Type <small style="font-weight:400;color:var(--gray-700);">(Optional &mdash; auto-detected from cylinder registry if blank)</small></label>
       <select id="product-select">
         <option value="">Auto-detect from Cylinder Registry</option>
         {% for p in products %}
@@ -103,9 +104,19 @@
         {% endfor %}
       </select>
     </div>
+    <div class="form-group" id="party-count-container" style="display: none;">
+      <label style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Cylinder Count <span style="color:#dc2626;">*</span></span>
+        <span style="font-size:12px; font-weight:400; color:var(--gray-700);">Number of cylinders refilled</span>
+      </label>
+      <input type="number" id="party-count" min="1" value="1" placeholder="e.g. 5" oninput="updateFeed()" style="width:100%; padding:10px 12px; border:1.5px solid var(--gray-bd); border-radius:8px; font-size:14px;">
+    </div>
   </div>
   
   <div class="form-section">
+    <div id="party-refill-banner" style="display: none; background: #faf5ff; border: 1.5px solid #d8b4fe; border-radius: 8px; padding: 12px 14px; margin-bottom: 16px; font-size: 13px; color: #581c87;">
+      <strong>Party Refill Mode:</strong> Scanning or entering cylinder IDs below is <em>optional</em>. If IDs are omitted, sequential IDs (e.g. <code>PARTY-YYYYMMDD-001</code>) will be generated automatically for the entered count.
+    </div>
     <label style="display:block; font-size:13px; font-weight:600; margin-bottom:8px;">Camera Scanner</label>
     <div id="reader"></div>
     <div class="status-text" id="status-text"></div>
@@ -169,19 +180,54 @@
     }
   });
 
+  function onActionChange() {
+    const action = document.getElementById('action-select').value;
+    const isParty = (action === 'Party Refill');
+    
+    const countContainer = document.getElementById('party-count-container');
+    const banner = document.getElementById('party-refill-banner');
+    const custLabel = document.getElementById('customer-label');
+    const prodLabel = document.getElementById('product-label');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    if (countContainer) countContainer.style.display = isParty ? 'block' : 'none';
+    if (banner) banner.style.display = isParty ? 'block' : 'none';
+    
+    if (isParty) {
+      if (custLabel) custLabel.innerHTML = 'Party / Customer Name <span style="color:#dc2626;">*</span>';
+      if (prodLabel) prodLabel.innerHTML = 'Product / Gas Type <span style="color:#dc2626;">*</span>';
+      if (submitBtn) submitBtn.innerText = 'Save Party Refill';
+    } else {
+      if (custLabel) custLabel.innerHTML = 'Customer (Optional / Custom allowed)';
+      if (prodLabel) prodLabel.innerHTML = 'Product / Gas Type <small style="font-weight:400;color:var(--gray-700);">(Optional &mdash; auto-detected from cylinder registry if blank)</small>';
+      if (submitBtn) submitBtn.innerText = 'Save Admin Log';
+    }
+    updateFeed();
+  }
+
   function updateFeed() {
     const feed = document.getElementById('scan-feed');
     const emptyState = document.getElementById('empty-state');
     const submitBtn = document.getElementById('submit-btn');
+    const action = document.getElementById('action-select').value;
+    const isParty = (action === 'Party Refill');
+    
     document.getElementById('scan-count').innerText = scannedUIDs.size;
     
+    if (isParty) {
+      const countInput = document.getElementById('party-count');
+      const countVal = parseInt(countInput ? countInput.value : 1) || 0;
+      submitBtn.disabled = countVal <= 0;
+    } else {
+      submitBtn.disabled = scannedUIDs.size === 0;
+    }
+    
     if (scannedUIDs.size === 0) {
-      feed.innerHTML = '<div id="empty-state" style="text-align:center; padding: 20px; color: var(--gray-700); font-size: 13px;">No cylinders scanned yet.</div>';
-      submitBtn.disabled = true;
+      const emptyMsg = isParty ? 'No cylinder IDs entered yet (placeholders will be generated automatically).' : 'No cylinders scanned yet.';
+      feed.innerHTML = `<div id="empty-state" style="text-align:center; padding: 20px; color: var(--gray-700); font-size: 13px;">${emptyMsg}</div>`;
       return;
     }
     
-    submitBtn.disabled = false;
     feed.innerHTML = '';
     const arr = Array.from(scannedUIDs).reverse();
     arr.forEach(uid => {
@@ -240,21 +286,45 @@
   html5QrcodeScanner.render(onScanSuccess);
   
   async function submitScans() {
-    if (scannedUIDs.size === 0) return;
-    const btn = document.getElementById('submit-btn');
-    btn.disabled = true;
-    btn.innerText = "Saving...";
-    
+    const action = document.getElementById('action-select').value;
+    const isParty = (action === 'Party Refill');
+    const customer = (document.getElementById('customer-select').value || '').trim();
     const prodSel = document.getElementById('product-select');
     const selectedOpt = prodSel && prodSel.selectedOptions ? prodSel.selectedOptions[0] : null;
     const gasType = selectedOpt ? selectedOpt.value : '';
     const cylType = (selectedOpt && selectedOpt.dataset.cylType) ? selectedOpt.dataset.cylType : 'Standard';
+    
+    if (isParty) {
+      if (!customer) {
+        alert("Please select or type a Customer / Party name.");
+        document.getElementById('customer-select').focus();
+        return;
+      }
+      if (!gasType) {
+        alert("Please select a Product / Gas Type.");
+        prodSel.focus();
+        return;
+      }
+      const countInput = document.getElementById('party-count');
+      const countVal = parseInt(countInput ? countInput.value : 0) || 0;
+      if (countVal <= 0) {
+        alert("Please enter a cylinder count greater than 0.");
+        return;
+      }
+    } else {
+      if (scannedUIDs.size === 0) return;
+    }
+
+    const btn = document.getElementById('submit-btn');
+    btn.disabled = true;
+    btn.innerText = "Saving...";
 
     const payload = {
-      action: document.getElementById('action-select').value,
-      customer: document.getElementById('customer-select').value,
+      action: action,
+      customer: customer,
       gas_type: gasType,
       cylinder_type: cylType,
+      count: isParty ? (parseInt(document.getElementById('party-count').value) || scannedUIDs.size) : scannedUIDs.size,
       uids: Array.from(scannedUIDs)
     };
     
@@ -264,20 +334,21 @@
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
       });
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to submit");
       }
-      alert("Admin log saved successfully!");
+      alert(isParty ? `Party Refill saved successfully (${data.count} cylinders)!` : "Admin log saved successfully!");
       scannedUIDs.clear();
       updateFeed();
-      document.getElementById('customer-select').value = "";
+      document.getElementById('customer-select').value = "";
       if (document.getElementById('product-select')) document.getElementById('product-select').value = "";
+      if (document.getElementById('party-count')) document.getElementById('party-count').value = "1";
     } catch (err) {
       alert("Error: " + err.message);
     } finally {
       btn.disabled = false;
-      btn.innerText = "Save Admin Log";
+      btn.innerText = isParty ? "Save Party Refill" : "Save Admin Log";
     }
   }
 </script>

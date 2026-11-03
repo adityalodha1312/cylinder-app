@@ -76,6 +76,7 @@
         <option value="delivery">Delivery</option>
         <option value="collection">Collection</option>
         <option value="filling">Filling</option>
+        <option value="party refill">Party Refill</option>
       </select>
     </div>
 
@@ -152,6 +153,8 @@
             <span class="badge badge-orange">Collection</span>
           {% elif e.action == 'Filling' %}
             <span class="badge badge-blue">Filling</span>
+          {% elif e.action == 'Party Refill' %}
+            <span class="badge" style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; font-weight: 600;">Party Refill</span>
           {% else %}
             <span class="badge" style="background:#eee; color:#666;">{{ e.action }}</span>
           {% endif %}
@@ -413,6 +416,7 @@
             <option value="Delivery">Delivery</option>
             <option value="Collection">Collection</option>
             <option value="Filling">Filling</option>
+            <option value="Party Refill">Party Refill</option>
           </select>
         </div>
         <div style="flex: 1;">
