@@ -583,7 +583,7 @@
       {% if user.role in ['manager', 'owner'] %}
         <a href="/admin" style="color: white; font-size: 12px; font-weight: 500; text-decoration: none; padding: 6px 12px; border: 1.5px solid rgba(255,255,255,0.35); border-radius: 8px; background: rgba(255,255,255,0.1); transition: background 0.2s;">Admin Portal</a>
       {% endif %}
-      <a href="/logout" style="color: white; font-size: 12px; font-weight: 500; text-decoration: none; padding: 6px 12px; border: 1.5px solid rgba(255,255,255,0.35); border-radius: 8px; background: rgba(255,255,255,0.1); transition: background 0.2s;">Logout</a>
+      <a href="/logout" onclick="sessionStorage.removeItem('party_info_seen');" style="color: white; font-size: 12px; font-weight: 500; text-decoration: none; padding: 6px 12px; border: 1.5px solid rgba(255,255,255,0.35); border-radius: 8px; background: rgba(255,255,255,0.1); transition: background 0.2s;">Logout</a>
     {% endif %}
   </div>
 </div>
@@ -1635,8 +1635,9 @@
       </div>
     </div>
 
-    <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 10px 12px; margin: 14px 0 18px; font-size: 12.5px; color: #6b21a8; line-height: 1.4;">
+    <div id="party-info-banner" style="display: none; background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 8px; padding: 10px 32px 10px 12px; margin: 14px 0 18px; font-size: 12.5px; color: #6b21a8; line-height: 1.4; position: relative;">
       💡 <strong>Zero Depot Stock Impact:</strong> Party cylinders are owned by the customer and excluded from filled depot stock and outstanding debt. Refills route directly to the Party section of the Daily Dispatch Matrix.
+      <button type="button" onclick="dismissPartyInfoBanner()" title="Dismiss" style="position: absolute; top: 6px; right: 8px; background: none; border: none; font-size: 18px; font-weight: 700; line-height: 1; color: #9333ea; cursor: pointer; padding: 2px 6px;">&times;</button>
     </div>
 
     <!-- 1. Party / Customer Selection -->
@@ -2530,6 +2531,7 @@ function setEntryMode(mode) {
     document.body.classList.remove('manual-mode-active');
     if (btnParty) { btnParty.classList.add('active'); btnParty.setAttribute('aria-pressed', 'true'); }
     if (fmParty) fmParty.style.display = 'block';
+    checkPartyInfoBanner();
   }
 }
 
@@ -2550,6 +2552,23 @@ function manualSelectAction(act) {
 }
 
 // ─── Party Refill Dropdown & Submit Handlers ───────────────────────────────
+function checkPartyInfoBanner() {
+  const banner = document.getElementById('party-info-banner');
+  if (!banner) return;
+  // Only show on 1st visit of this login session
+  if (!sessionStorage.getItem('party_info_seen')) {
+    banner.style.display = 'block';
+    sessionStorage.setItem('party_info_seen', 'true');
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function dismissPartyInfoBanner() {
+  const banner = document.getElementById('party-info-banner');
+  if (banner) banner.style.display = 'none';
+  sessionStorage.setItem('party_info_seen', 'true');
+}
 function partyShowCustDd() {
   const d = document.getElementById('party-cust-dd');
   if (d) { d.style.display = 'block'; partyFilterCustDd(); }

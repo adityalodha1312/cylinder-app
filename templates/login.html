@@ -204,6 +204,7 @@
 </div>
 
 <script>
+  try { sessionStorage.removeItem('party_info_seen'); } catch (e) {}
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')
