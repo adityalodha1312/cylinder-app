@@ -212,3 +212,7 @@ Whenever creating new templates, routes, or front-end features, the following st
    - Always guard haptic feedback with `if (navigator.vibrate)`.
    - Use local/WebAudio synthesized beeps (`playWebAudioBeep`) instead of remote audio URLs so sound feedback works with zero latency and 100% offline.
 
+7. **Git Workflow Automation**:
+   - **Always push upon completion:** Stage, commit with a clear, concise message, and execute `git push origin main` immediately after completing and verifying any change, bugfix, or feature. Never leave verified changes unpushed.
+
+
