@@ -303,14 +303,6 @@
     }
   }
 
-  // Delegated event listener for gas badges (handles dynamically refreshed rows)
-  document.addEventListener('click', function(e) {
-    const gasBtn = e.target.closest('.gas-badge');
-    if (gasBtn) {
-      copyGasUids(e, gasBtn);
-    }
-  });
-
   function toggleStatus(batchId, currentStatus, btn) {
     if (!btn && event) btn = event.target;
     btn = btn.closest('button') || btn;

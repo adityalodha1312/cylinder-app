@@ -94,6 +94,15 @@
         </div>
       </div>
     </div>
+    <div class="form-group">
+      <label>Product / Gas Type <small style="font-weight:400;color:var(--gray-700);">(Optional &mdash; auto-detected from cylinder registry if blank)</small></label>
+      <select id="product-select">
+        <option value="">Auto-detect from Cylinder Registry</option>
+        {% for p in products %}
+          <option value="{{ p.gas_type }}" data-cyl-type="{{ p.cylinder_type }}">{{ p.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
   </div>
   
   <div class="form-section">
@@ -236,9 +245,16 @@
     btn.disabled = true;
     btn.innerText = "Saving...";
     
+    const prodSel = document.getElementById('product-select');
+    const selectedOpt = prodSel && prodSel.selectedOptions ? prodSel.selectedOptions[0] : null;
+    const gasType = selectedOpt ? selectedOpt.value : '';
+    const cylType = (selectedOpt && selectedOpt.dataset.cylType) ? selectedOpt.dataset.cylType : 'Standard';
+
     const payload = {
       action: document.getElementById('action-select').value,
       customer: document.getElementById('customer-select').value,
+      gas_type: gasType,
+      cylinder_type: cylType,
       uids: Array.from(scannedUIDs)
     };
     
@@ -255,7 +271,8 @@
       alert("Admin log saved successfully!");
       scannedUIDs.clear();
       updateFeed();
-      document.getElementById('customer-select').value = "";
+      document.getElementById('customer-select').value = "";
+      if (document.getElementById('product-select')) document.getElementById('product-select').value = "";
     } catch (err) {
       alert("Error: " + err.message);
     } finally {

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, render_template_string, request, redirect, session, jsonify, flash, url_for
+from flask import Flask, render_template, render_template_string, request, redirect, session, jsonify, flash, url_for, send_from_directory
 from openpyxl import load_workbook
 from datetime import datetime, date, timedelta
 import math
@@ -4062,6 +4062,8 @@ def calculate_daily_dispatch_report(target_date_str):
     gas_cols = [{'key': k, 'label': l} for k, l in seen_gas.items()]
     # Always append Dura as the last column (cylinder type col)
     gas_cols.append({'key': 'DURA', 'label': 'Dura'})
+    # Append UNKNOWN column so unidentifiable cylinders are never silently dropped
+    gas_cols.append({'key': 'UNKNOWN', 'label': 'Unknown'})
 
     all_col_keys = [c['key'] for c in gas_cols]  # e.g. ['OXY', 'ACM', ..., 'DURA']
 
@@ -4164,21 +4166,49 @@ def calculate_daily_dispatch_report(target_date_str):
             if gas and gas != 'DURA':
                 if gas not in seen_gas:
                     seen_gas[gas] = gas
-                    gas_cols.insert(len(gas_cols) - 1, {'key': gas, 'label': gas})
+                    # Insert before DURA and UNKNOWN
+                    insert_idx = max(0, len(gas_cols) - 2) if 'UNKNOWN' in [c['key'] for c in gas_cols] else max(0, len(gas_cols) - 1)
+                    gas_cols.insert(insert_idx, {'key': gas, 'label': gas})
                     # Backfill 0 for existing rows (handled below via .get(..., 0))
                 return gas
 
             return None   # truly unknown — skip
 
-        # ── 4. Accumulate counts ─────────────────────────────────────────────
+        # ── 4. Build last_gas history map for fallback ───────────────────────
+        last_gas = {}
+        if os.environ.get('DATABASE_URL'):
+            try:
+                earlier_scans = Scan.query.filter(
+                    Scan.gas_type.isnot(None),
+                    Scan.gas_type != '',
+                    Scan.scan_date != target_date_str
+                ).order_by(Scan.id.asc()).all()
+                for es in earlier_scans:
+                    es_uid = (es.cylinder_uid or '').strip().upper()
+                    es_gas = (es.gas_type or '').strip().upper()
+                    if es_uid and es_gas:
+                        last_gas[es_uid] = es_gas
+            except Exception as he:
+                print("[dispatch_report] Error building last_gas history map:", he)
+        elif scan_ws:
+            try:
+                for r in scan_ws.get_all_values()[1:]:
+                    if len(r) >= 7 and r[0].strip() != target_date_str and r[4].strip() and r[6].strip():
+                        last_gas[r[4].strip().upper()] = r[6].strip().upper()
+            except Exception:
+                pass
+
+        # ── 5. Accumulate counts ─────────────────────────────────────────────
         company_customers = {}
         party_customers   = {}
 
         for s in day_scans:
-            uid      = s['uid']
-            action   = s['action'].lower()
-            customer = s['customer'] or '(No Customer)'
-            scan_gas = s.get('gas_type', '').strip().upper()
+            uid      = (s.get('uid') or '').strip().upper()
+            action   = (s.get('action') or '').strip().lower()
+            customer = (s.get('customer') or '').strip() or '(No Customer)'
+            scan_gas = (s.get('gas_type') or '').strip().upper()
+            if not scan_gas:
+                scan_gas = last_gas.get(uid, '')
 
             cyl     = cyl_map.get(uid)
             owner   = (cyl.get('owner', '') if cyl else '').strip()
@@ -4187,8 +4217,11 @@ def calculate_daily_dispatch_report(target_date_str):
             # Determine gas type and cylinder type
             cyl_type = 'Standard'
             if cyl:
-                gas_type = (cyl.get('gas_type') or '').strip().upper()
+                reg_gas = (cyl.get('gas_type') or '').strip().upper()
+                gas_type = reg_gas or scan_gas
                 cyl_type = (cyl.get('cylinder_type') or 'Standard').capitalize()
+                if not reg_gas and scan_gas and ('DURA' in scan_gas or 'DURA' in uid):
+                    cyl_type = 'Dura'
             elif scan_gas:
                 gas_type = scan_gas
                 cyl_type = 'Dura' if 'DURA' in scan_gas or 'DURA' in uid else 'Standard'
@@ -4209,7 +4242,7 @@ def calculate_daily_dispatch_report(target_date_str):
                 col_key = resolve_col_key(gas_type, uid) if gas_type else None
 
             if col_key is None:
-                continue  # skip unidentifiable
+                col_key = 'UNKNOWN' 
 
             group = company_customers if is_company_owned else party_customers
 
@@ -4275,6 +4308,14 @@ def calculate_daily_dispatch_report(target_date_str):
             'dispatch_total':   company_totals['dispatch_total']   + party_totals['dispatch_total'],
             'collection_total': company_totals['collection_total'] + party_totals['collection_total'],
         }
+
+        # Only show UNKNOWN in gas_cols if there are actually unknown entries counted
+        has_unknown = (
+            grand_totals['dispatch'].get('UNKNOWN', 0) > 0 or 
+            grand_totals['collection'].get('UNKNOWN', 0) > 0
+        )
+        if not has_unknown:
+            gas_cols = [c for c in gas_cols if c['key'] != 'UNKNOWN']
 
         return {
             'company_rows':   company_rows,
@@ -7826,7 +7867,23 @@ def start_scheduler():
 def admin_scanner_page():
     ensure_customer_columns()
     all_customers = [c['name'] for c in get_all_customer_info() if c['name']]
-    return render_template('admin_scanner.html', customers=sorted(list(set(all_customers))))
+    products = get_products_config()
+    product_options = []
+    seen_keys = set()
+    for p in products:
+        g = (p.get('gas_type') or '').strip().upper()
+        c_type = (p.get('cylinder_type') or 'Standard').strip().capitalize()
+        name = (p.get('name') or g).strip()
+        key = (g, c_type)
+        if g and key not in seen_keys:
+            seen_keys.add(key)
+            product_options.append({
+                'value': g,
+                'gas_type': g,
+                'cylinder_type': c_type,
+                'label': name if (c_type.lower() in name.lower() or c_type == 'Standard') else f"{name} ({c_type})"
+            })
+    return render_template('admin_scanner.html', customers=sorted(list(set(all_customers))), products=product_options)
 
 @app.route('/admin/scanner/logs')
 @admin_required
@@ -7897,6 +7954,8 @@ def admin_scanner_submit():
     data = request.json
     action = data.get('action')
     customer = data.get('customer')
+    selected_gas = (data.get('gas_type') or '').strip().upper()
+    selected_cyl_type = (data.get('cylinder_type') or 'Standard').strip().capitalize()
     uids = data.get('uids', [])
     if not uids or not action:
         return jsonify({'error': 'Missing required fields'}), 400
@@ -7945,7 +8004,8 @@ def admin_scanner_submit():
                 for uid in uids:
                     uid_upper = uid.upper()
                     c_data = cyls_dict.get(uid_upper, {})
-                    gas = c_data.get('gas_type', '')
+                    gas = selected_gas if selected_gas else c_data.get('gas_type', '')
+                    cyl_type = selected_cyl_type if selected_gas else (c_data.get('cylinder_type') or 'Standard')
                     owner = c_data.get('owner', '')
 
                     # Aging = days since last DELIVERY scan (purely internal, no registry change)
@@ -7966,6 +8026,7 @@ def admin_scanner_submit():
                         scan_time=t_str,
                         cylinder_uid=uid_upper,
                         gas_type=gas,
+                        cylinder_type=cyl_type,
                         customer=customer,
                         action=action,
                         admin_name=admin_name,
@@ -8007,11 +8068,14 @@ def admin_scanner_submit():
 
             for uid in uids:
                 uid_upper = uid.upper()
-                gas = cyls_dict.get(uid_upper, {}).get('gas_type', '') if isinstance(cyls_dict.get(uid_upper), dict) else ''
+                c_data = cyls_dict.get(uid_upper, {}) if isinstance(cyls_dict.get(uid_upper), dict) else {}
+                gas = selected_gas if selected_gas else c_data.get('gas_type', '')
+                cyl_type = selected_cyl_type if selected_gas else (c_data.get('cylinder_type') or 'Standard')
                 db.session.add(AccountsBatchItem(
                     batch_id=acct_batch.id,
                     cylinder_uid=uid_upper,
-                    gas_type=gas
+                    gas_type=gas,
+                    cylinder_type=cyl_type
                 ))
             db.session.commit()
             clear_cache()
@@ -8023,7 +8087,7 @@ def admin_scanner_submit():
     def _append_admin_scans():
         try:
             client = gspread.authorize(creds)
-            sheet = client.open(SHEET_NAME)
+            sheet = client.open(SPREADSHEET_NAME)
             try:
                 ws = sheet.worksheet("AdminScans")
             except gspread.exceptions.WorksheetNotFound:
@@ -9904,7 +9968,26 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
     # Format rows for Sheets append
     for s in parsed_scans:
         uid = s['uid']
-        gas_val = s.get('override_gas') or cyl_gas_map.get(uid.strip().upper(), '')
+        uid_norm = uid.strip().upper()
+        gas_val = s.get('override_gas') or cyl_gas_map.get(uid_norm, '')
+        
+        # Source fix: auto-fill collection scans with blank gas from registry, then from last known scan gas
+        if not gas_val and s.get('action') == 'Collection':
+            if os.environ.get('DATABASE_URL'):
+                alias_rec = CylinderAlias.query.filter_by(alias_name=uid_norm).first()
+                if alias_rec:
+                    c_alias = Cylinder.query.get(alias_rec.cylinder_id)
+                    if c_alias and (c_alias.gas_type or '').strip():
+                        gas_val = c_alias.gas_type.strip().upper()
+            if not gas_val and os.environ.get('DATABASE_URL'):
+                last_s = Scan.query.filter(
+                    Scan.cylinder_uid.ilike(uid_norm),
+                    Scan.gas_type.isnot(None),
+                    Scan.gas_type != ''
+                ).order_by(Scan.id.desc()).first()
+                if last_s and (last_s.gas_type or '').strip():
+                    gas_val = last_s.gas_type.strip().upper()
+
         rows_to_append.append([
             now.strftime('%d-%m-%Y'),
             now.strftime('%H:%M:%S'),
