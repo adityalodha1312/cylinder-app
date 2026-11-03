@@ -10219,6 +10219,11 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                         elif scan_action == 'Filling':
                             c_db.status = 'Filled'
                             c_db.location = 'Depot'
+                        elif scan_action == 'Party Refill':
+                            c_db.status = 'Party'
+                            c_db.location = scan_cust or 'Customer'
+                            if scan_cust:
+                                c_db.owner = scan_cust
                         c_db.last_activity_date = s_date
                     else:
                         # Check if mapped via alias
@@ -10803,7 +10808,7 @@ def api_admin_scan_submit_manual():
             parsed_scans.append({
                 'uid':           uid_for_scan,
                 'action':        action,
-                'cust_val':      customer if action in ('Delivery', 'Collection') else '',
+                'cust_val':      customer if action in ('Delivery', 'Collection', 'Party Refill') else '',
                 'override_gas':  transaction_gas,
                 'cylinder_type': item_cyl_type or 'Standard',
             })
@@ -10842,7 +10847,7 @@ def api_admin_scan_submit_manual():
                     action=action,
                     count=len(parsed_scans),
                     uids=all_uids_str,
-                    customer=customer if action in ('Delivery', 'Collection') else ('Depot' if action == 'Filling' else ''),
+                    customer=customer if action in ('Delivery', 'Collection', 'Party Refill') else ('Depot' if action == 'Filling' else ''),
                     send_receipt=False,
                     receipt_status=''
                 )
@@ -10868,7 +10873,7 @@ def api_admin_scan_submit_manual():
                                 action,
                                 str(len(parsed_scans)),
                                 all_uids_str,
-                                customer if action in ('Delivery', 'Collection') else ('Depot' if action == 'Filling' else ''),
+                                customer if action in ('Delivery', 'Collection', 'Party Refill') else ('Depot' if action == 'Filling' else ''),
                                 'FALSE',
                                 ''
                             ]
