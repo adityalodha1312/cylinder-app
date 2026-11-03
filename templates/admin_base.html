@@ -128,6 +128,8 @@
       flex-direction: column;
       z-index: 200;
       transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
     }
 
     /* Brand */
@@ -163,6 +165,9 @@
       flex: 1;
       padding: 14px 10px;
       overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-y;
     }
     /* Custom Scrollbar for Sidebar Navigation */
     .sidebar-nav::-webkit-scrollbar {
@@ -397,6 +402,8 @@
       inset: 0;
       background: rgba(4,52,44,0.5);
       z-index: 199;
+      touch-action: none;
+      overscroll-behavior: contain;
     }
     .sidebar-overlay.active { display: block; }
 
@@ -523,6 +530,14 @@
        RESPONSIVE
     ══════════════════════════════ */
     @media (max-width: 768px) {
+      html.sidebar-open,
+      body.sidebar-open {
+        overflow: hidden !important;
+        touch-action: none;
+      }
+      body.sidebar-open .sidebar {
+        touch-action: pan-y;
+      }
       .sidebar { transform: translateX(-100%); }
       .sidebar.open { transform: translateX(0); }
       .main-wrap { margin-left: 0; padding-bottom: 84px; }
@@ -1243,13 +1258,26 @@
   function toggleSidebar() {
     const s = document.getElementById('sidebar');
     const o = document.getElementById('sidebarOverlay');
-    s.classList.toggle('open');
-    o.classList.toggle('active');
+    if (!s || !o) return;
+    const isOpen = s.classList.toggle('open');
+    o.classList.toggle('active', isOpen);
+    document.body.classList.toggle('sidebar-open', isOpen);
+    document.documentElement.classList.toggle('sidebar-open', isOpen);
   }
   function closeSidebar() {
-    document.getElementById('sidebar').classList.remove('open');
-    document.getElementById('sidebarOverlay').classList.remove('active');
+    const s = document.getElementById('sidebar');
+    const o = document.getElementById('sidebarOverlay');
+    if (s) s.classList.remove('open');
+    if (o) o.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+    document.documentElement.classList.remove('sidebar-open');
   }
+  document.addEventListener('DOMContentLoaded', function() {
+    const o = document.getElementById('sidebarOverlay');
+    if (o) {
+      o.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+    }
+  });
 
   // Close mismatch modal
   function closeMismatchModal() {

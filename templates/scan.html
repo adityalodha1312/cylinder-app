@@ -680,6 +680,8 @@
     z-index: 10998;
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
+    touch-action: none;
+    overscroll-behavior: contain;
   }
   .sidebar-overlay.active { display: block; }
 
@@ -696,6 +698,8 @@
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     box-shadow: 4px 0 24px rgba(0,0,0,0.25);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
   }
   .sidebar.open {
     transform: translateX(0);
@@ -728,6 +732,9 @@
     overflow-y: auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   .sidebar-nav::-webkit-scrollbar { width: 5px; }
   .sidebar-nav::-webkit-scrollbar-thumb {
@@ -1711,6 +1718,15 @@
    PHONE / TABLET RESPONSIVE BREAKPOINT (< 768px)
    ══════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+  html.sidebar-open,
+  body.sidebar-open {
+    overflow: hidden !important;
+    touch-action: none;
+  }
+  body.sidebar-open .sidebar {
+    touch-action: pan-y;
+  }
+
   /* Compact Header on Phone */
   .header {
     padding: 10px 14px !important;
@@ -3852,8 +3868,10 @@ function toggleSidebar() {
   const s = document.getElementById('sidebar');
   const o = document.getElementById('sidebarOverlay');
   if (s && o) {
-    s.classList.toggle('open');
-    o.classList.toggle('active');
+    const isOpen = s.classList.toggle('open');
+    o.classList.toggle('active', isOpen);
+    document.body.classList.toggle('sidebar-open', isOpen);
+    document.documentElement.classList.toggle('sidebar-open', isOpen);
   }
 }
 function closeSidebar() {
@@ -3862,8 +3880,16 @@ function closeSidebar() {
   if (s && o) {
     s.classList.remove('open');
     o.classList.remove('active');
+    document.body.classList.remove('sidebar-open');
+    document.documentElement.classList.remove('sidebar-open');
   }
 }
+document.addEventListener('DOMContentLoaded', function() {
+  const o = document.getElementById('sidebarOverlay');
+  if (o) {
+    o.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+  }
+});
 function toggleAvatarMenu(e) {
   if (e) e.stopPropagation();
   const dropdown = document.getElementById('avatarDropdown');
