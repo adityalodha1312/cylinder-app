@@ -7,6 +7,8 @@
   <title>Admin Login – Cylinder Tracker</title>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="apple-touch-icon" href="{{ static_v('icon-192.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -205,6 +207,42 @@
 
 <script>
   try { sessionStorage.removeItem('party_info_seen'); } catch (e) {}
+  (function() {
+    var form = document.querySelector('form');
+    var btn = document.querySelector('.signin-btn');
+    if (!form || !btn) return;
+    var submitting = false;
+    var timer = null;
+
+    function resetBtn() {
+      submitting = false;
+      btn.style.pointerEvents = '';
+      btn.removeAttribute('aria-busy');
+      btn.disabled = false;
+      btn.textContent = 'Sign In';
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    }
+
+    form.addEventListener('submit', function(e) {
+      if (submitting) {
+        e.preventDefault();
+        return;
+      }
+      submitting = true;
+      btn.setAttribute('aria-busy', 'true');
+      btn.textContent = 'Signing in...';
+      btn.style.pointerEvents = 'none';
+      setTimeout(function() {
+        btn.disabled = true;
+      }, 0);
+      timer = setTimeout(resetBtn, 15000);
+    });
+
+    window.addEventListener('pageshow', resetBtn);
+  })();
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('/sw.js')

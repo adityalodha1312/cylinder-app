@@ -2146,11 +2146,11 @@ def service_worker():
 def login():
     if 'user' in session:
         if session['user']['role'] in ['manager', 'owner']:
-            return redirect('/admin')
+            return redirect('/admin/dashboard')
         elif session['user']['role'] == 'accounts':
             return redirect('/accounts/dashboard')
         else:
-            return redirect('/')
+            return redirect('/scan')
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
@@ -2160,11 +2160,11 @@ def login():
             session.permanent = True
             session['user'] = user
             if user['role'] in ['manager', 'owner']:
-                return redirect('/admin')
+                return redirect('/admin/dashboard')
             elif user['role'] == 'accounts':
                 return redirect('/accounts/dashboard')
             else:
-                return redirect('/')
+                return redirect('/scan')
         return render_template('login.html', error='Invalid username or password')
     return render_template('login.html', error=None)
 
@@ -8269,7 +8269,8 @@ def accounts_dashboard():
     batches = []
     deleted_counts = {}
     if os.environ.get('DATABASE_URL'):
-        batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
+        from sqlalchemy.orm import selectinload
+        batches = AccountsBatch.query.options(selectinload(AccountsBatch.items)).order_by(AccountsBatch.id.desc()).all()
         from models import Scan, AdminScanLog
         batch_dates = list(set([b.batch_date for b in batches]))
         valid_uids_by_date = {d: set() for d in batch_dates}
@@ -8520,7 +8521,8 @@ def admin_accounts_batches():
     batches = []
     deleted_counts = {}
     if os.environ.get('DATABASE_URL'):
-        batches = AccountsBatch.query.order_by(AccountsBatch.id.desc()).all()
+        from sqlalchemy.orm import selectinload
+        batches = AccountsBatch.query.options(selectinload(AccountsBatch.items)).order_by(AccountsBatch.id.desc()).all()
         from models import Scan, AdminScanLog
         batch_dates = list(set([b.batch_date for b in batches]))
         valid_uids_by_date = {d: set() for d in batch_dates}

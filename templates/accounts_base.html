@@ -6,6 +6,8 @@
   <title>{% block title %}Accounts{% endblock %} – Cylinder Tracker</title>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="apple-touch-icon" href="{{ static_v('icon-192.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -118,6 +120,7 @@
       .topbar-nav { display: none; }
       .main { padding: 16px 12px; }
     }
+      @keyframes acctSpin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -132,7 +135,7 @@
         <span class="topbar-user-name">{{ session.user.name or session.user.username }}</span>
       {% endif %}
       {% if session.user and session.user.role in ['manager', 'owner'] %}
-        <a href="/admin/dashboard" class="logout-btn" style="border-color: rgba(255,255,255,0.4);">Switch to Admin</a>
+        <a href="/admin/dashboard" class="logout-btn" id="switchToAdminBtn" style="border-color: rgba(255,255,255,0.4);">Switch to Admin</a>
       {% endif %}
       <a href="/accounts/logout" class="logout-btn">Logout</a>
     </div>
@@ -229,6 +232,21 @@
           .catch(err => console.error('ServiceWorker registration failed:', err));
       });
     }
+  </script>
+  <script>
+    (function() {
+      var switchBtn = document.getElementById('switchToAdminBtn');
+      if (!switchBtn) return;
+      var origHtml = switchBtn.innerHTML;
+      switchBtn.addEventListener('click', function() {
+        switchBtn.setAttribute('aria-busy', 'true');
+        switchBtn.innerHTML = '<span style="display:inline-block;width:11px;height:11px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:acctSpin 0.6s linear infinite;margin-right:5px;vertical-align:-1px;"></span>Switching...';
+      });
+      window.addEventListener('pageshow', function() {
+        switchBtn.removeAttribute('aria-busy');
+        switchBtn.innerHTML = origHtml;
+      });
+    })();
   </script>
 </body>
 </html>

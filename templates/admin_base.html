@@ -7,6 +7,8 @@
   <title>{% block title %}Admin{% endblock %} – Cylinder Tracker</title>
   <link rel="manifest" href="/static/manifest.json">
   <link rel="apple-touch-icon" href="{{ static_v('icon-192.png') }}">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -802,6 +804,7 @@
       pointer-events: none;
       animation: popFadeIn 0.15s ease;
     }
+    @keyframes adminSpin { to { transform: rotate(360deg); } }
     @keyframes popFadeIn {
       from { opacity: 0; transform: translateX(-50%) translateY(4px); }
       to   { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -1054,7 +1057,7 @@
       </div>
       <a href="/admin/users" class="av-item">👥 Manage Users</a>
       {% if user and user.role in ['manager', 'owner'] %}
-      <a href="/accounts/dashboard" class="av-item" style="color:#0F6E56;">🧾 Switch to Accounts</a>
+      <a href="/accounts/dashboard" class="av-item" id="switchToAccountsBtn" style="color:#0F6E56;">🧾 Switch to Accounts</a>
       {% endif %}
       <a href="/admin/backup/export" class="av-item" title="Download all data as ZIP of CSVs" style="color:#0F6E56;">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:-1px;margin-right:4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1754,5 +1757,20 @@
 </script>
 
 {% block scripts %}{% endblock %}
+<script>
+  (function() {
+    var switchBtn = document.getElementById('switchToAccountsBtn');
+    if (!switchBtn) return;
+    var origHtml = switchBtn.innerHTML;
+    switchBtn.addEventListener('click', function() {
+      switchBtn.setAttribute('aria-busy', 'true');
+      switchBtn.innerHTML = '<span style="display:inline-block;width:12px;height:12px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:adminSpin 0.6s linear infinite;margin-right:6px;vertical-align:-1px;"></span>Switching...';
+    });
+    window.addEventListener('pageshow', function() {
+      switchBtn.removeAttribute('aria-busy');
+      switchBtn.innerHTML = origHtml;
+    });
+  })();
+</script>
 </body>
 </html>
