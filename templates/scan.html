@@ -3057,9 +3057,7 @@ function manualAddFromInput() {
 
 function manualAddTokens(rawText) {
   if (!rawText) return;
-  const tokens = rawText.split(/[
-
-,	\s]+/).map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
+  const tokens = rawText.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
   if (!tokens.length) return;
 
   let hadDuplicate = false;
