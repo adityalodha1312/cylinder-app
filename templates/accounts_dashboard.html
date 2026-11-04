@@ -329,7 +329,8 @@
             
             if (!isBilled) {
                statusCell.innerHTML = '<span class="badge-billed">Billed</span>';
-               billedByCell.innerHTML = '<span style="font-size:11px; color:#065f46;">Just now</span>';
+               const billedTimeStr = data.billed_at ? `<span style="font-size:11px;">${data.billed_at}</span>` : '<span style="font-size:11px; color:#065f46;">Just now</span>';
+               billedByCell.innerHTML = `${data.billed_by || 'accounts'}<br>${billedTimeStr}`;
                actionCell.innerHTML = `
                   <div style="display:flex; gap:6px;">
                     <button type="button" class="btn btn-outline btn-sm" onclick="toggleStatus(${batchId}, \'Billed\', this)" style="color:#666;">⟲ Revert</button>

@@ -8331,14 +8331,20 @@ def accounts_batch_edit(batch_id):
 def accounts_batch_mark_billed(batch_id):
     batch = AccountsBatch.query.get_or_404(batch_id)
     batch.status = 'Billed'
-    batch.billed_at = datetime.utcnow()
+    batch.billed_at = datetime.utcnow() + timedelta(hours=5, minutes=30)
     batch.billed_by = session.get('user', {}).get('name', 'Accounts')
     try:
         db.session.commit()
         clear_cache()
         flash('Batch marked as Billed.', 'success')
         if request.headers.get('X-Requested-With') == 'XMLHttpRequest' or request.is_json:
-            return jsonify({'success': True, 'status': 'Billed', 'batch_id': batch_id})
+            return jsonify({
+                'success': True,
+                'status': 'Billed',
+                'batch_id': batch_id,
+                'billed_by': batch.billed_by,
+                'billed_at': batch.billed_at.strftime('%d-%m-%Y %H:%M')
+            })
     except Exception as e:
         db.session.rollback()
         flash('Error: Failed, please try again.', 'error')
