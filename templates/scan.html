@@ -1880,19 +1880,20 @@
 
     <!-- 2. Customer Selector (Searchable Picker Bottom Sheet Trigger) -->
     <div id="manual-cust-wrap" style="margin-bottom: 14px;">
-      <span class="f-label">Customer <span style="color:#dc2626;">*</span></span>
+      <span class="f-label">Customer <span id="manual-cust-req-star" style="color:#dc2626;">*</span></span>
       <div class="cust-picker-trigger" id="cust-picker-trigger" onclick="openCustomerBottomSheet()">
         <span id="cust-picker-display" style="color:#9ca3af; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Select Customer...</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" style="flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
+      <div id="manual-cust-autodetect-badge" style="display:none; font-size:12px; font-weight:600; color:#065f46; margin-top:4px;"></div>
       <input type="hidden" id="manual-customer" value="">
     </div>
 
     <!-- 3. Gas Type Selector (Directly after Customer) -->
     <div style="margin-bottom: 14px;">
-      <span class="f-label">Gas Type <span style="color:#dc2626;">*</span></span>
+      <span class="f-label">Gas Type <span id="manual-gas-req-star" style="color:#dc2626;">*</span></span>
       <select id="manual-batch-gas" class="styled-select" onchange="manualOnBatchGasChange()" style="font-size:16px !important;">
-        <option value="">-- Select Gas Type (Required) --</option>
+        <option value="" id="manual-gas-default-opt">-- Select Gas Type (Required) --</option>
         {% for g in gas_types %}
         <option value="{{ g.value }}" data-cyl-type="{{ g.cylinder_type }}">{{ g.label }}</option>
         {% endfor %}
@@ -1916,6 +1917,9 @@
         Press Enter, comma, space, or paste (multi-line supported)
       </div>
     </div>
+
+    <!-- Mixed-Customer Conflict Alert Banner -->
+    <div id="man-conflict-banner" style="display:none; margin-bottom:14px;"></div>
 
     <!-- 5. Chips Container -->
     <div id="manual-chips-container" class="manual-chips-container"></div>
@@ -2922,6 +2926,20 @@ function manualSelectAction(act) {
     cw.style.display = (act === 'Delivery' || act === 'Collection') ? 'block' : 'none';
   }
 
+  const gasOpt = document.getElementById('manual-gas-default-opt');
+  const gasStar = document.getElementById('manual-gas-req-star');
+  if (act === 'Collection') {
+    if (gasOpt) gasOpt.textContent = 'Auto from cylinder records';
+    if (gasStar) gasStar.style.display = 'none';
+  } else {
+    if (gasOpt) gasOpt.textContent = '-- Select Gas Type (Required) --';
+    if (gasStar) gasStar.style.display = 'inline';
+    const conflictBanner = document.getElementById('man-conflict-banner');
+    if (conflictBanner) { conflictBanner.innerHTML = ''; conflictBanner.style.display = 'none'; }
+    const autoBadge = document.getElementById('manual-cust-autodetect-badge');
+    if (autoBadge) autoBadge.style.display = 'none';
+  }
+
   // Re-verify existing items if any
   if (manualItems.length > 0) {
     manualItems.forEach(i => {
@@ -3134,11 +3152,17 @@ async function runAutoVerification() {
       resultMap[(r.entered_id || '').toUpperCase()] = r;
     });
 
+    lastVerifyData = data;
+
     pendingItems.forEach(item => {
       const match = resultMap[item.entered_id.toUpperCase()];
       if (match) {
         item.master_id = match.master_id || item.entered_id;
         item.registry_gas = match.registry_gas || '';
+        item.resolved_gas = match.resolved_gas || '';
+        item.customer_mismatch = match.customer_mismatch || false;
+        item.mismatch_msg = match.mismatch_msg || '';
+        item.last_customer = match.last_customer || '';
         item.cylinder_type = match.cylinder_type || 'Standard';
         item.result_msg = match.result_msg || '';
 
@@ -3159,6 +3183,7 @@ async function runAutoVerification() {
 
     if (action === 'Collection' && data.suggested_customer) {
       const custInput = document.getElementById('manual-customer');
+      const autoBadge = document.getElementById('manual-cust-autodetect-badge');
       if (custInput && (!custInput.value || custInput.dataset.autoFilled === 'true')) {
         custInput.value = data.suggested_customer;
         custInput.dataset.autoFilled = 'true';
@@ -3167,6 +3192,72 @@ async function runAutoVerification() {
           display.textContent = data.suggested_customer;
           display.style.color = '#1f2937';
         }
+        if (autoBadge) {
+          autoBadge.style.display = 'block';
+          autoBadge.innerHTML = `✓ Auto-detected Customer: <strong>${escapeHtml(data.suggested_customer)}</strong>`;
+        }
+      }
+    } else {
+      const autoBadge = document.getElementById('manual-cust-autodetect-badge');
+      if (autoBadge && (!data.suggested_customer || action !== 'Collection')) {
+        autoBadge.style.display = 'none';
+      }
+    }
+
+    // Render Multi-Customer Conflict Alert Banner for Collection
+    const conflictBanner = document.getElementById('man-conflict-banner');
+    if (conflictBanner) {
+      if (action === 'Collection' && data.has_customer_conflict && data.customer_groups) {
+        const groups = data.customer_groups;
+        let groupListHtml = '';
+        let radioOptionsHtml = '';
+        const suggested = data.suggested_customer || Object.keys(groups)[0];
+
+        for (const [cName, uList] of Object.entries(groups)) {
+          const isMajority = (cName === suggested);
+          groupListHtml += `<li style="margin-bottom:4px;"><strong>${uList.length} cylinder(s)</strong> belong to <strong>${escapeHtml(cName)}</strong> (${escapeHtml(uList.slice(0, 5).join(', '))}${uList.length > 5 ? '…' : ''}) ${isMajority ? '<span style="color:#065f46; font-size:11px; font-weight:700;">(Primary)</span>' : '<span style="color:#991b1b; font-size:11px; font-weight:700;">(Mismatch)</span>'}</li>`;
+
+          radioOptionsHtml += `
+            <label style="display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600; cursor:pointer; color:#2C2C2A; margin-bottom:5px;">
+              <input type="radio" name="keep-cust-radio" value="${escapeHtml(cName)}" ${isMajority ? 'checked' : ''} style="width:17px; height:17px; accent-color:#0F6E56; cursor:pointer;" onchange="manualUpdateKeepButton()">
+              <span style="flex:1;">${escapeHtml(cName)}</span>
+              <span style="font-size:11px; color:#5F5E5A; font-weight:500;">${uList.length} cyl${uList.length !== 1 ? 's' : ''}</span>
+            </label>
+          `;
+        }
+
+        conflictBanner.innerHTML = `
+          <div style="background:#fffbeb; border:1.5px solid #f59e0b; border-radius:12px; padding:14px 16px;">
+            <div style="font-weight:700; color:#b45309; font-size:14px; display:flex; align-items:center; gap:8px;">
+              <span style="font-size:17px;">⚠️</span>
+              <span>Mixed Customers Detected in this Collection Batch</span>
+            </div>
+            <div style="font-size:13px; color:#78350f; margin:8px 0 10px 0;">
+              These cylinders belong to multiple customers based on past delivery records:
+              <ul style="margin:6px 0 0 18px; padding-left:4px; line-height:1.6;">
+                ${groupListHtml}
+              </ul>
+            </div>
+            <div style="background:#fef3c7; border-radius:8px; padding:10px 12px; margin-bottom:12px;">
+              <div style="font-size:12px; font-weight:700; color:#92400e; margin-bottom:6px;">Choose Customer to Keep:</div>
+              <div>${radioOptionsHtml}</div>
+            </div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">
+              <button type="button" id="btn-split-batches" class="btn" onclick="manualAutoSplitBatches()" style="background:#0F6E56; color:#fff; border:none; border-radius:8px; font-weight:600; font-size:13px; padding:8px 14px; cursor:pointer; min-height:44px;">
+                ⚡ Auto-Split into Separate Batches
+              </button>
+              <button type="button" id="btn-keep-cust" class="btn" onclick="manualRemoveMismatchedAndSubmit()" style="background:#fff; color:#b91c1c; border:1.5px solid #fca5a5; border-radius:8px; font-weight:600; font-size:13px; padding:8px 14px; cursor:pointer; min-height:44px;">
+                Keep & Remove Others
+              </button>
+            </div>
+            <div id="split-progress-msg" style="display:none; font-size:12.5px; font-weight:600; margin-top:8px;"></div>
+          </div>
+        `;
+        conflictBanner.style.display = 'block';
+        manualUpdateKeepButton();
+      } else {
+        conflictBanner.innerHTML = '';
+        conflictBanner.style.display = 'none';
       }
     }
   } catch (err) {
@@ -3194,8 +3285,30 @@ function manualRenderChips() {
     const isDup = item.state === 'duplicate';
     const isErr = item.state === 'error';
 
-    const hasMismatch = (selectedGas && item.registry_gas && item.registry_gas.toUpperCase() !== selectedGas.toUpperCase());
-    const canExpand = !isReg || hasMismatch;
+    const action = document.getElementById('manual-action').value || 'Delivery';
+    let gasPillHtml = '';
+
+    if (action === 'Collection') {
+      if (selectedGas) {
+        const stored = item.registry_gas || item.resolved_gas;
+        if (stored && stored.toUpperCase() !== selectedGas.toUpperCase()) {
+          gasPillHtml = `<span class="chip-mismatch-pill">stored as ${escapeHtml(stored)}</span>`;
+        }
+      } else {
+        if (item.resolved_gas) {
+          gasPillHtml = `<span class="chip-badge" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd; font-weight:600;">${escapeHtml(item.resolved_gas)} (auto)</span>`;
+        } else {
+          gasPillHtml = `<span class="chip-mismatch-pill" style="background:#fef3c7; color:#92400e; border-color:#fde68a;">gas type needed</span>`;
+        }
+      }
+    } else {
+      if (selectedGas && item.registry_gas && item.registry_gas.toUpperCase() !== selectedGas.toUpperCase()) {
+        gasPillHtml = `<span class="chip-mismatch-pill">stored as ${escapeHtml(item.registry_gas)}</span>`;
+      }
+    }
+
+    const hasMismatch = Boolean(gasPillHtml && gasPillHtml.includes('chip-mismatch-pill'));
+    const canExpand = !isReg || hasMismatch || isErr;
 
     let badgeText = 'Checking';
     if (isReg) badgeText = '✓ Reg';
@@ -3208,14 +3321,14 @@ function manualRenderChips() {
         <div class="chip-main"${canExpand ? ` onclick="manualToggleChipDetails(${idx})"` : ''} style="${canExpand ? 'cursor:pointer;' : ''}">
           <span class="chip-badge">${badgeText}</span>
           <span class="chip-uid">${escapeHtml(item.entered_id)}</span>
-          ${hasMismatch ? `<span class="chip-mismatch-pill">stored as ${escapeHtml(item.registry_gas)}</span>` : ''}
+          ${gasPillHtml}
           <button type="button" class="chip-remove-btn" onclick="manualRemoveItem(event, ${idx})" aria-label="Remove">&times;</button>
         </div>
-        ${(canExpand && item.details_expanded) ? `
+        ${isErr ? `<div style="color:#b91c1c; font-size:12px; font-weight:600; padding:2px 4px 4px 6px;">${escapeHtml(item.result_msg || 'Error')}</div>` : ''}
+        ${(canExpand && item.details_expanded && !isErr) ? `
           <div class="chip-details">
             <div>${escapeHtml(item.result_msg || '')}</div>
-            ${hasMismatch ? `<div style="color:#b45309; margin-top:3px; font-weight:500;">Stored as ${escapeHtml(item.registry_gas)} · will be logged as ${escapeHtml(selectedGas)}</div>` : ''}
-            ${isErr ? `<button type="button" onclick="manualRetryItem(event, ${idx})" style="margin-top:6px; min-height:36px; padding:4px 12px; background:#ef4444; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Retry</button>` : ''}
+            ${hasMismatch ? `<div style="color:#b45309; margin-top:3px; font-weight:500;">Stored as ${escapeHtml(item.registry_gas || item.resolved_gas)} · will be logged as ${escapeHtml(selectedGas)}</div>` : ''}
           </div>
         ` : ''}
       </div>
@@ -3272,8 +3385,20 @@ function manualUpdateSubmitButton() {
   const btn = document.getElementById('btn-manual-submit');
   if (!btn || isSubmitting) return;
 
-  const validCount = manualItems.filter(i => i.state === 'registered' || i.state === 'unregistered').length;
-  btn.textContent = `Submit ${validCount} cylinder${validCount === 1 ? '' : 's'}`;
+  const action = document.getElementById('manual-action').value || 'Delivery';
+  const hasMismatch = (action === 'Collection') && Boolean(
+    (lastVerifyData && lastVerifyData.has_customer_conflict) ||
+    manualItems.some(i => i.customer_mismatch && i.state !== 'duplicate' && i.state !== 'error')
+  );
+
+  if (hasMismatch) {
+    btn.textContent = 'Resolve Customer Mismatches to Submit';
+    btn.disabled = true;
+  } else {
+    btn.disabled = false;
+    const validCount = manualItems.filter(i => i.state === 'registered' || i.state === 'unregistered').length;
+    btn.textContent = `Submit ${validCount} cylinder${validCount === 1 ? '' : 's'}`;
+  }
 }
 
 // ─── Submission ────────────────────────────────────────────────────────────
@@ -3291,27 +3416,61 @@ async function manualSubmitBatch() {
     return;
   }
 
-  const gasSelect = document.getElementById('manual-batch-gas');
-  const selectedGas = (gasSelect ? gasSelect.value : '').trim();
-  if (!selectedGas) {
-    showManualInlineMsg('Please select a Gas Type first.', 'warn');
-    if (gasSelect) {
-      gasSelect.focus();
-      gasSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-    return;
-  }
-
-  const selectedOpt = gasSelect.selectedOptions ? gasSelect.selectedOptions[0] : null;
-  const selectedCylType = selectedOpt ? (selectedOpt.dataset.cylType || 'Standard') : 'Standard';
-
   const action = document.getElementById('manual-action').value || 'Delivery';
   const customer = (document.getElementById('manual-customer').value || '').trim();
 
+  // If there are error items, block submission and explain
+  const hasErrors = manualItems.some(i => i.state === 'error');
+  if (hasErrors) {
+    const errItem = manualItems.find(i => i.state === 'error');
+    showManualInlineMsg(errItem.result_msg || 'Cannot submit: please resolve errors on highlighted cylinder(s).', 'error');
+    return;
+  }
+
+  // Customer validation
   if ((action === 'Delivery' || action === 'Collection') && !customer) {
     showManualInlineMsg('Please select a Customer first.', 'warn');
     openCustomerBottomSheet();
     return;
+  }
+
+  // Mixed customer conflict block for Collection
+  const hasMismatch = (action === 'Collection') && Boolean(
+    (lastVerifyData && lastVerifyData.has_customer_conflict) ||
+    manualItems.some(i => i.customer_mismatch && i.state !== 'duplicate' && i.state !== 'error')
+  );
+  if (hasMismatch) {
+    showManualInlineMsg('Please resolve mixed customer conflicts before submitting.', 'warn');
+    return;
+  }
+
+  // Gas validation
+  const gasSelect = document.getElementById('manual-batch-gas');
+  const selectedGas = (gasSelect ? gasSelect.value : '').trim();
+  const selectedOpt = gasSelect.selectedOptions ? gasSelect.selectedOptions[0] : null;
+  const selectedCylType = selectedOpt ? (selectedOpt.dataset.cylType || 'Standard') : 'Standard';
+
+  if (action === 'Delivery' || action === 'Filling') {
+    if (!selectedGas) {
+      showManualInlineMsg('Please select a Gas Type first.', 'warn');
+      if (gasSelect) {
+        gasSelect.focus();
+        gasSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      return;
+    }
+  } else if (action === 'Collection') {
+    if (!selectedGas) {
+      const unknownGasItems = validItems.filter(i => !i.resolved_gas);
+      if (unknownGasItems.length > 0) {
+        showManualInlineMsg(`Choose a gas type for ${unknownGasItems.length} cylinder(s) with no history.`, 'warn');
+        if (gasSelect) {
+          gasSelect.focus();
+          gasSelect.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        return;
+      }
+    }
   }
 
   const hasChecking = manualItems.some(i => i.state === 'checking');
@@ -3328,7 +3487,7 @@ async function manualSubmitBatch() {
   const itemsToSubmit = validItems.map(item => ({
     entered_id: item.entered_id,
     master_id: item.master_id || item.entered_id,
-    transaction_gas: selectedGas,
+    transaction_gas: selectedGas || item.resolved_gas || item.registry_gas || '',
     cylinder_type: selectedCylType,
     registry_status: item.state === 'unregistered' ? 'unregistered' : 'registered',
     save_alias: false
@@ -3602,6 +3761,155 @@ document.addEventListener('click', function(e) {
     }
   }
 });
+
+
+// ─── Resolution Actions for Mixed Collection Batches ─────────────────────
+function manualUpdateKeepButton() {
+  const selected = document.querySelector('input[name="keep-cust-radio"]:checked');
+  const btn = document.getElementById('btn-keep-cust');
+  if (!btn) return;
+  if (selected) {
+    const name = selected.value;
+    const short = name.length > 20 ? name.slice(0, 20) + '…' : name;
+    btn.textContent = `Keep ${short} & Remove Others`;
+  } else {
+    btn.textContent = 'Keep & Remove Others';
+  }
+}
+
+async function manualRemoveMismatchedAndSubmit() {
+  const selected = document.querySelector('input[name="keep-cust-radio"]:checked');
+  const keepCust = selected ? selected.value : (lastVerifyData ? lastVerifyData.suggested_customer : '');
+  if (!keepCust) return;
+
+  // Keep only cylinders belonging to chosen customer (or non-mismatched ones)
+  manualItems = manualItems.filter(item => {
+    if (!item.customer_mismatch) return true;
+    return (item.last_customer || '').toLowerCase() === keepCust.toLowerCase();
+  });
+
+  const conflictBanner = document.getElementById('man-conflict-banner');
+  if (conflictBanner) { conflictBanner.innerHTML = ''; conflictBanner.style.display = 'none'; }
+
+  const custInput = document.getElementById('manual-customer');
+  if (custInput) {
+    custInput.value = keepCust;
+    custInput.dataset.autoFilled = 'true';
+    const display = document.getElementById('cust-picker-display');
+    if (display) {
+      display.textContent = keepCust;
+      display.style.color = '#1f2937';
+    }
+  }
+
+  if (manualItems.length === 0) {
+    manualClear();
+    return;
+  }
+
+  manualRenderChips();
+  await manualSubmitBatch();
+}
+
+async function manualAutoSplitBatches() {
+  if (!lastVerifyData || !lastVerifyData.customer_groups) return;
+  const groups = lastVerifyData.customer_groups;
+  const custNames = Object.keys(groups);
+  if (custNames.length <= 1) return;
+
+  const summary = custNames.map(c => `${c} (${groups[c].length})`).join(', ');
+  if (!confirm(`Split into ${custNames.length} batches: ${summary}?`)) return;
+
+  const action = 'Collection';
+  const selectedGas = (document.getElementById('manual-batch-gas').value || '').trim();
+  const splitBtn = document.getElementById('btn-split-batches');
+  const keepBtn = document.getElementById('btn-keep-cust');
+  const submitBtn = document.getElementById('btn-manual-submit');
+  const progressDiv = document.getElementById('split-progress-msg');
+
+  if (splitBtn) { splitBtn.disabled = true; splitBtn.textContent = 'Submitting…'; }
+  if (keepBtn) keepBtn.disabled = true;
+  if (submitBtn) submitBtn.disabled = true;
+
+  if (progressDiv) {
+    progressDiv.style.display = 'block';
+    progressDiv.style.color = '#065f46';
+    progressDiv.textContent = `Saving batch 1 of ${custNames.length}...`;
+  }
+
+  let completedBatches = 0;
+  let failedCust = null;
+  let failedError = null;
+
+  for (let idx = 0; idx < custNames.length; idx++) {
+    const custName = custNames[idx];
+    const uidsForCust = new Set(groups[custName].map(u => u.toUpperCase()));
+
+    const itemsForCust = manualItems.filter(item => 
+      uidsForCust.has(item.entered_id.toUpperCase()) && (item.state === 'registered' || item.state === 'unregistered')
+    ).map(item => ({
+      entered_id: item.entered_id,
+      master_id: item.master_id || item.entered_id,
+      transaction_gas: selectedGas || item.resolved_gas || item.registry_gas || '',
+      cylinder_type: item.cylinder_type || 'Standard',
+      registry_status: item.state === 'unregistered' ? 'unregistered' : 'registered',
+      save_alias: false
+    }));
+
+    if (itemsForCust.length === 0) continue;
+
+    if (!selectedGas && itemsForCust.some(i => !i.transaction_gas)) {
+      failedCust = custName;
+      failedError = `Missing gas type for cylinder(s) with no history in batch for ${custName}`;
+      break;
+    }
+
+    if (progressDiv) {
+      progressDiv.textContent = `Saving batch ${idx + 1} of ${custNames.length} (${custName})...`;
+    }
+
+    try {
+      const res = await fetch('/api/admin/scan/submit_manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, customer: custName, items: itemsForCust })
+      });
+      if (!res.ok) {
+        let errTxt = await res.text();
+        let msg = 'Failed (HTTP ' + res.status + ')';
+        try { msg = JSON.parse(errTxt).error || msg; } catch (_) {}
+        throw new Error(msg);
+      }
+      const resJson = await res.json();
+      if (resJson.error) throw new Error(resJson.error);
+
+      completedBatches++;
+      // Remove successfully submitted items so they are not submitted twice
+      manualItems = manualItems.filter(item => !uidsForCust.has(item.entered_id.toUpperCase()));
+    } catch (e) {
+      failedCust = custName;
+      failedError = e.message || 'Submission error';
+      break;
+    }
+  }
+
+  if (splitBtn) { splitBtn.disabled = false; splitBtn.textContent = '⚡ Auto-Split into Separate Batches'; }
+  if (keepBtn) keepBtn.disabled = false;
+  if (submitBtn) submitBtn.disabled = false;
+
+  if (failedCust) {
+    if (progressDiv) {
+      progressDiv.style.color = '#b91c1c';
+      progressDiv.innerHTML = `⚠️ Batch for ${escapeHtml(failedCust)} failed: ${escapeHtml(failedError)}. Remaining IDs kept below. <button type="button" onclick="manualAutoSplitBatches()" style="margin-left:6px; padding:2px 8px; background:#b91c1c; color:#fff; border:none; border-radius:4px; font-size:11px; font-weight:700; cursor:pointer;">Retry</button>`;
+    }
+    showManualInlineMsg(`Saved ${completedBatches} of ${custNames.length} batches. Failed on ${failedCust}: ${failedError}`, 'error', true);
+    manualRenderChips();
+    scheduleAutoVerification();
+  } else {
+    showManualToast(`✓ All ${completedBatches} of ${custNames.length} batches saved successfully!`);
+    manualClear();
+  }
+}
 
 </script>
 

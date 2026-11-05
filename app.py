@@ -10524,6 +10524,7 @@ def api_admin_scan_verify():
 
         # Batch-query latest transaction scans for all entered UIDs (vital for unregistered cylinders)
         recent_scans_by_uid = {}
+        recent_gas_by_uid = {}
         if unique_uids and os.environ.get('DATABASE_URL'):
             try:
                 all_scans = Scan.query.filter(
@@ -10532,6 +10533,8 @@ def api_admin_scan_verify():
                 for s in all_scans:
                     u_key = s.cylinder_uid.strip().upper()
                     recent_scans_by_uid[u_key] = s
+                    if (s.gas_type or '').strip():
+                        recent_gas_by_uid[u_key] = s.gas_type.strip().upper()
             except Exception as e_scans:
                 print("[verify] Warning checking historical scans:", e_scans)
 
@@ -10546,6 +10549,7 @@ def api_admin_scan_verify():
                     'master_id': entered_id,
                     'status': 'Duplicate',
                     'registry_gas': '',
+                    'resolved_gas': '',
                     'cyl_status': '',
                     'cyl_location': '',
                     'result_msg': 'Duplicate — will not be submitted twice.',
@@ -10579,8 +10583,11 @@ def api_admin_scan_verify():
                 elif hist_scan.action in ('Collection', 'Filling'):
                     last_customer = 'Depot'
 
+            reg_gas = (getattr(c, 'gas_type', '') or '').strip() if c else ''
+            resolved_gas = reg_gas or recent_gas_by_uid.get(master_id) or recent_gas_by_uid.get(entered_id) or last_gas or ''
+
             if c:
-                registry_gas = getattr(c, 'gas_type', '') or last_gas or ''
+                registry_gas = reg_gas or last_gas or ''
                 cyl_status   = getattr(c, 'status', '') or ''
                 cyl_location = getattr(c, 'location', '') or ''
                 cyl_type     = getattr(c, 'cylinder_type', '') or last_cyl_type or 'Standard'
@@ -10599,7 +10606,7 @@ def api_admin_scan_verify():
                 if recent:
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas,
+                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'last_customer': last_customer or '',
@@ -10612,7 +10619,7 @@ def api_admin_scan_verify():
                         cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot' or (hist_scan and hist_scan.action == 'Collection')):
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas,
+                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location or 'Depot',
                         'last_customer': last_customer or '',
@@ -10624,20 +10631,20 @@ def api_admin_scan_verify():
                 elif action == 'Delivery' and cyl_status == 'Delivered':
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas,
+                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'last_customer': last_customer or '',
                         'last_delivery_date': last_date or '',
                         'customer_mismatch': False,
-                        'result_msg': 'Already delivered.',
+                        'result_msg': f"Already delivered to {cyl_location or last_customer or 'unknown customer'}. Must collect first.",
                         'error': True, 'is_duplicate': False,
                     })
                 else:
                     label = 'Registered (via alias)' if via_alias else 'Registered'
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
-                        'status': label, 'registry_gas': registry_gas,
+                        'status': label, 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
                         'last_customer': last_customer or '',
@@ -10668,7 +10675,7 @@ def api_admin_scan_verify():
                 if recent_today:
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '',
+                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
                         'cyl_status': current_status, 'cyl_location': last_customer or owner or '',
                         'last_customer': last_customer or '',
@@ -10682,7 +10689,7 @@ def api_admin_scan_verify():
                     date_msg = f" on {last_date}" if last_date else ""
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '',
+                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
                         'cyl_status': 'Delivered', 'cyl_location': last_customer or owner or '',
                         'last_customer': last_customer or '',
@@ -10696,7 +10703,7 @@ def api_admin_scan_verify():
                         (current_status in ('Empty', 'Filled') and (not owner or owner == 'Depot') and not last_customer)):
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '',
+                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
                         'cyl_status': current_status, 'cyl_location': 'Depot',
                         'last_customer': '',
@@ -10710,6 +10717,7 @@ def api_admin_scan_verify():
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Unregistered',
                         'registry_gas': last_gas or '',
+                        'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
                         'cyl_status': current_status if not hist_scan else ('Delivered' if hist_scan.action == 'Delivery' else 'Empty'),
                         'cyl_location': last_customer or owner or '',
@@ -10724,7 +10732,7 @@ def api_admin_scan_verify():
         for dup_id in duplicate_ids:
             results.append({
                 'entered_id': dup_id, 'master_id': dup_id,
-                'status': 'Duplicate', 'registry_gas': '',
+                'status': 'Duplicate', 'registry_gas': '', 'resolved_gas': '',
                 'cyl_status': '', 'cyl_location': '',
                 'last_customer': '', 'last_delivery_date': '',
                 'customer_mismatch': False,
