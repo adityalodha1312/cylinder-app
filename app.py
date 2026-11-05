@@ -10624,17 +10624,31 @@ def api_admin_scan_verify():
                 except Exception as e_scan:
                     print("[verify] Warning checking recent Scan:", e_scan)
 
+                delivered_cust = ''
+                for cand in [
+                    recent.customer if recent else None,
+                    last_customer,
+                    cyl_location,
+                    getattr(c, 'owner', ''),
+                    getattr(hist_scan, 'customer', '') if hist_scan else None,
+                ]:
+                    c_str = (cand or '').strip()
+                    if c_str and c_str.lower() not in ('depot', 'customer', 'unknown', 'unknown customer', '—', '-'):
+                        delivered_cust = c_str
+                        break
+
                 act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
                 if recent:
+                    cust_info = f" to {delivered_cust}" if (delivered_cust and action == 'Delivery') else ""
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'last_customer': last_customer or '',
-                        'last_delivery_date': last_date or '',
+                        'last_customer': delivered_cust or last_customer or '',
+                        'last_delivery_date': last_date or today_str,
                         'customer_mismatch': False,
-                        'result_msg': f'Already {act_past} today.',
+                        'result_msg': f"Already {act_past}{cust_info} today. Must collect first." if action == 'Delivery' else f"Already {act_past} today.",
                         'error': True, 'is_duplicate': False,
                     })
                 elif action == 'Collection' and (
@@ -10651,15 +10665,16 @@ def api_admin_scan_verify():
                         'error': True, 'is_duplicate': False,
                     })
                 elif action == 'Delivery' and cyl_status == 'Delivered':
+                    cust_target = delivered_cust or 'customer'
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
                         'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'last_customer': last_customer or '',
+                        'last_customer': delivered_cust or last_customer or '',
                         'last_delivery_date': last_date or '',
                         'customer_mismatch': False,
-                        'result_msg': f"Already delivered to {cyl_location or last_customer or 'unknown customer'}. Must collect first.",
+                        'result_msg': f"Already delivered to {cust_target}. Must collect first.",
                         'error': True, 'is_duplicate': False,
                     })
                 else:
@@ -10711,28 +10726,41 @@ def api_admin_scan_verify():
                 except Exception as e_scan:
                     pass
 
+                unreg_delivered_cust = ''
+                for cand in [
+                    recent_today.customer if recent_today else None,
+                    last_customer,
+                    owner,
+                    getattr(hist_scan, 'customer', '') if hist_scan else None
+                ]:
+                    c_str = (cand or '').strip()
+                    if c_str and c_str.lower() not in ('depot', 'customer', 'unknown', 'unknown customer', '—', '-'):
+                        unreg_delivered_cust = c_str
+                        break
+
                 act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
                 if recent_today:
+                    cust_info = f" to {unreg_delivered_cust}" if (unreg_delivered_cust and action == 'Delivery') else ""
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': current_status, 'cyl_location': last_customer or owner or '',
-                        'last_customer': last_customer or '',
-                        'last_delivery_date': last_date or '',
+                        'cyl_status': current_status, 'cyl_location': unreg_delivered_cust or owner or '',
+                        'last_customer': unreg_delivered_cust or last_customer or '',
+                        'last_delivery_date': last_date or today_str,
                         'customer_mismatch': False,
-                        'result_msg': f'Already {act_past} today in scan logs.',
+                        'result_msg': f"Already {act_past}{cust_info} today. Must collect first." if action == 'Delivery' else f"Already {act_past} today in scan logs.",
                         'error': True, 'is_duplicate': False,
                     })
                 elif action == 'Delivery' and current_status == 'Delivered':
-                    cust_msg = f" to {last_customer or owner}" if (last_customer or owner) else ""
+                    cust_msg = f" to {unreg_delivered_cust}" if unreg_delivered_cust else ""
                     date_msg = f" on {last_date}" if last_date else ""
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
                         'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': 'Delivered', 'cyl_location': last_customer or owner or '',
-                        'last_customer': last_customer or '',
+                        'cyl_status': 'Delivered', 'cyl_location': unreg_delivered_cust or owner or '',
+                        'last_customer': unreg_delivered_cust or last_customer or '',
                         'last_delivery_date': last_date or '',
                         'customer_mismatch': False,
                         'result_msg': f'Already delivered{cust_msg}{date_msg} according to scan logs. Must collect first.',
