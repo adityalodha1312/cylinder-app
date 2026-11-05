@@ -10535,11 +10535,16 @@ def api_admin_scan_verify():
             if getattr(mc, 'uid', None):
                 lookup_uids.add(mc.uid.strip().upper())
 
-        if lookup_uids and os.environ.get('DATABASE_URL'):
+        lookup_variants = set()
+        for u in lookup_uids:
+            lookup_variants.add(u)
+            lookup_variants.add(u.upper())
+            lookup_variants.add(u.lower())
+
+        if lookup_variants and os.environ.get('DATABASE_URL'):
             try:
-                from sqlalchemy import func
                 all_scans = Scan.query.filter(
-                    func.upper(Scan.cylinder_uid).in_(list(lookup_uids))
+                    Scan.cylinder_uid.in_(list(lookup_variants))
                 ).order_by(Scan.id.asc()).all()
                 for s in all_scans:
                     u_key = s.cylinder_uid.strip().upper()
@@ -10672,14 +10677,24 @@ def api_admin_scan_verify():
                     })
             else:
                 # Not in registry — check scan logs
-                status_info = get_cylinder_status(entered_id)
-                current_status = status_info.get('status', 'Empty')
-                owner = status_info.get('owner')
-                if not last_date:
-                    last_date = status_info.get('date')
-                if not last_customer and owner and owner != 'Depot':
-                    last_customer = owner
-                status_gas = (status_info.get('gas_type') or '').strip().upper()
+                if hist_scan:
+                    current_status = 'Delivered' if hist_scan.action == 'Delivery' else ('Filled' if hist_scan.action == 'Filling' else 'Empty')
+                    owner = hist_scan.customer if hist_scan.action == 'Delivery' else 'Depot'
+                    if not last_date:
+                        last_date = hist_scan.scan_date
+                    if not last_customer and owner and owner != 'Depot':
+                        last_customer = owner
+                    status_gas = (hist_scan.gas_type or '').strip().upper()
+                else:
+                    status_info = get_cylinder_status(entered_id)
+                    current_status = status_info.get('status', 'Empty')
+                    owner = status_info.get('owner')
+                    if not last_date:
+                        last_date = status_info.get('date')
+                    if not last_customer and owner and owner != 'Depot':
+                        last_customer = owner
+                    status_gas = (status_info.get('gas_type') or '').strip().upper()
+
                 if not latest_scan_gas and status_gas:
                     latest_scan_gas = status_gas
                     last_gas = status_gas

@@ -3321,7 +3321,7 @@ function manualRenderChips() {
       } else {
         if (item.resolved_gas) {
           gasPillHtml = `<span class="chip-badge" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd; font-weight:600;">${escapeHtml(item.resolved_gas)} (auto)</span>`;
-        } else {
+        } else if (!isChecking) {
           gasPillHtml = `<span class="chip-mismatch-pill" style="background:#fef3c7; color:#92400e; border-color:#fde68a;">gas type needed</span>`;
         }
       }
