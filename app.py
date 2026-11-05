@@ -2086,20 +2086,22 @@ def get_cylinder_status(uid):
     history.sort(key=lambda x: (parse_date(x['date']) or date.min, x['time']))
     last_event = history[-1]
     action = last_event['action']
+    last_gas_ev = next((h for h in reversed(history) if (h.get('gas_type') or '').strip()), None)
+    event_gas = (last_gas_ev.get('gas_type') if last_gas_ev else last_event.get('gas_type', '')) or ''
     
     if action == 'Filling':
-        return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
+        return {'status': 'Filled', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered, 'gas_type': event_gas}
     elif action == 'Delivery':
         customer = (last_event.get('customer') or '').strip()
         if not customer:
             batch_map = build_batch_map()
             key = f"{last_event['date']}||{last_event['time']}||{last_event['driver']}||{last_event['action']}"
             customer = batch_map.get(key, '(Unknown Customer)')
-        return {'status': 'Delivered', 'owner': customer, 'date': last_event['date'], 'registered': registered}
+        return {'status': 'Delivered', 'owner': customer, 'date': last_event['date'], 'registered': registered, 'gas_type': event_gas}
     elif action == 'Collection':
-        return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered}
+        return {'status': 'Empty', 'owner': 'Depot', 'date': last_event['date'], 'registered': registered, 'gas_type': event_gas}
         
-    return {'status': 'Empty', 'owner': None, 'date': None, 'registered': registered}
+    return {'status': 'Empty', 'owner': None, 'date': None, 'registered': registered, 'gas_type': event_gas}
 
 @app.route('/api/cylinder_status/<uid>')
 def api_cylinder_status(uid):
@@ -10522,13 +10524,22 @@ def api_admin_scan_verify():
             except Exception as e_alias:
                 print("[verify] Warning checking CylinderAlias:", e_alias)
 
-        # Batch-query latest transaction scans for all entered UIDs (vital for unregistered cylinders)
+        # Batch-query latest transaction scans for all entered UIDs & resolved master IDs
         recent_scans_by_uid = {}
         recent_gas_by_uid = {}
-        if unique_uids and os.environ.get('DATABASE_URL'):
+        lookup_uids = set(u.upper() for u in unique_uids)
+        for c_item in cylinders_db.values():
+            if getattr(c_item, 'uid', None):
+                lookup_uids.add(c_item.uid.strip().upper())
+        for mc in master_cyls.values():
+            if getattr(mc, 'uid', None):
+                lookup_uids.add(mc.uid.strip().upper())
+
+        if lookup_uids and os.environ.get('DATABASE_URL'):
             try:
+                from sqlalchemy import func
                 all_scans = Scan.query.filter(
-                    Scan.cylinder_uid.in_(unique_uids)
+                    func.upper(Scan.cylinder_uid).in_(list(lookup_uids))
                 ).order_by(Scan.id.asc()).all()
                 for s in all_scans:
                     u_key = s.cylinder_uid.strip().upper()
@@ -10576,15 +10587,21 @@ def api_admin_scan_verify():
             last_cyl_type = 'Standard'
             if hist_scan:
                 last_date = hist_scan.scan_date
-                last_gas = hist_scan.gas_type or ''
+                last_gas = (hist_scan.gas_type or '').strip().upper()
                 last_cyl_type = hist_scan.cylinder_type or 'Standard'
                 if hist_scan.action == 'Delivery':
                     last_customer = hist_scan.customer
                 elif hist_scan.action in ('Collection', 'Filling'):
                     last_customer = 'Depot'
 
+            latest_scan_gas = recent_gas_by_uid.get(master_id) or recent_gas_by_uid.get(entered_id) or last_gas or ''
             reg_gas = (getattr(c, 'gas_type', '') or '').strip() if c else ''
-            resolved_gas = reg_gas or recent_gas_by_uid.get(master_id) or recent_gas_by_uid.get(entered_id) or last_gas or ''
+
+            if action == 'Collection':
+                # Collection relates directly from latest previous scan record
+                resolved_gas = latest_scan_gas or reg_gas or ''
+            else:
+                resolved_gas = reg_gas or latest_scan_gas or ''
 
             if c:
                 registry_gas = reg_gas or last_gas or ''
@@ -10662,6 +10679,14 @@ def api_admin_scan_verify():
                     last_date = status_info.get('date')
                 if not last_customer and owner and owner != 'Depot':
                     last_customer = owner
+                status_gas = (status_info.get('gas_type') or '').strip().upper()
+                if not latest_scan_gas and status_gas:
+                    latest_scan_gas = status_gas
+                    last_gas = status_gas
+                    if action == 'Collection':
+                        resolved_gas = latest_scan_gas or reg_gas or ''
+                    else:
+                        resolved_gas = reg_gas or latest_scan_gas or ''
 
                 recent_today = None
                 try:

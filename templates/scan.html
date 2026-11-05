@@ -2931,6 +2931,20 @@ function manualSelectAction(act) {
   if (act === 'Collection') {
     if (gasOpt) gasOpt.textContent = 'Auto from cylinder records';
     if (gasStar) gasStar.style.display = 'none';
+    const batchGas = document.getElementById('manual-batch-gas');
+    if (batchGas) batchGas.value = '';
+    const custInput = document.getElementById('manual-customer');
+    if (custInput) {
+      custInput.value = '';
+      custInput.dataset.autoFilled = 'true';
+    }
+    const display = document.getElementById('cust-picker-display');
+    if (display) {
+      display.textContent = 'Select Customer...';
+      display.style.color = '#9ca3af';
+    }
+    const autoBadge = document.getElementById('manual-cust-autodetect-badge');
+    if (autoBadge) { autoBadge.style.display = 'none'; autoBadge.innerHTML = ''; }
   } else {
     if (gasOpt) gasOpt.textContent = '-- Select Gas Type (Required) --';
     if (gasStar) gasStar.style.display = 'inline';
@@ -3042,11 +3056,17 @@ function filterCustomerBottomSheet() {
 function selectCustomerFromSheet(custName) {
   const custInput = document.getElementById('manual-customer');
   const display = document.getElementById('cust-picker-display');
-  if (custInput) custInput.value = custName;
+  if (custInput) {
+    custInput.value = custName;
+    custInput.dataset.autoFilled = 'false';
+  }
   if (display) {
     display.textContent = custName;
     display.style.color = '#111827';
   }
+  const autoBadge = document.getElementById('manual-cust-autodetect-badge');
+  if (autoBadge) autoBadge.style.display = 'none';
+
   addRecentCustomer(custName);
   closeCustomerBottomSheet();
 
@@ -3054,6 +3074,10 @@ function selectCustomerFromSheet(custName) {
   if (inlineMsg) inlineMsg.style.display = 'none';
 
   if (manualItems.length > 0) {
+    manualItems.forEach(i => {
+      if (i.state !== 'duplicate') i.state = 'checking';
+    });
+    manualRenderChips();
     scheduleAutoVerification();
   }
 }
