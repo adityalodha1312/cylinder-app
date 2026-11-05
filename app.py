@@ -10655,14 +10655,14 @@ def api_admin_scan_verify():
                         cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot' or (hist_scan and hist_scan.action == 'Collection')):
                     results.append({
                         'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
+                        'status': 'Warning', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
                         'cylinder_type': cyl_type,
                         'cyl_status': cyl_status, 'cyl_location': cyl_location or 'Depot',
                         'last_customer': last_customer or '',
                         'last_delivery_date': last_date or '',
                         'customer_mismatch': False,
                         'result_msg': f'Already at Depot (status: {cyl_status or "Collected"}).',
-                        'error': True, 'is_duplicate': False,
+                        'error': False, 'is_warning': True, 'is_duplicate': False,
                     })
                 elif action == 'Delivery' and cyl_status == 'Delivered':
                     cust_target = delivered_cust or 'customer'
@@ -10771,14 +10771,14 @@ def api_admin_scan_verify():
                         (current_status in ('Empty', 'Filled') and (not owner or owner == 'Depot') and not last_customer)):
                     results.append({
                         'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
+                        'status': 'Warning', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
                         'cylinder_type': last_cyl_type or 'Standard',
                         'cyl_status': current_status, 'cyl_location': 'Depot',
                         'last_customer': '',
                         'last_delivery_date': last_date or '',
                         'customer_mismatch': False,
                         'result_msg': f'Already at Depot (status: {current_status}) in scan logs.',
-                        'error': True, 'is_duplicate': False,
+                        'error': False, 'is_warning': True, 'is_duplicate': False,
                     })
                 else:
                     results.append({

@@ -1720,6 +1720,158 @@
   animation: fadeInDown 0.2s ease-out;
   pointer-events: none;
 }
+
+/* Collection One-Screen Styles */
+.chip-unverified {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ffffff;
+  border: 1.5px solid #d1d5db;
+  border-radius: 9999px;
+  padding: 6px 12px;
+  font-family: monospace;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #1f2937;
+  box-sizing: border-box;
+}
+.chip-unverified-del {
+  background: none;
+  border: none;
+  color: #6b7280;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.chip-unverified-del:hover, .chip-unverified-del:active {
+  color: #ef4444;
+}
+.collection-group-card {
+  background: #ffffff;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.03);
+}
+.collection-group-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.collection-group-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #111827;
+}
+.collection-group-count {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 500;
+  margin-left: 6px;
+}
+.collection-group-del-btn {
+  background: #ffffff;
+  border: 1px solid #f87171;
+  color: #dc2626;
+  border-radius: 8px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 32px;
+}
+.collection-group-del-btn:hover {
+  background: #fef2f2;
+}
+.collection-group-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.chip-verified-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 9999px;
+  padding: 5px 12px;
+  font-size: 13.5px;
+  font-weight: 600;
+  box-sizing: border-box;
+  background: #f0fdf4;
+  border: 1.5px solid #bbf7d0;
+  color: #166534;
+}
+.chip-verified-item.is-unreg {
+  background: #fefce8;
+  border-color: #fef08a;
+  color: #854d0e;
+}
+.chip-verified-item.is-warning {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #92400e;
+}
+.chip-verified-item.is-error {
+  background: #fef2f2;
+  border-color: #fca5a5;
+  color: #991b1b;
+}
+.chip-inline-gas-select {
+  background: transparent;
+  border: none;
+  font-size: 13px;
+  font-weight: 700;
+  color: inherit;
+  cursor: pointer;
+  outline: none;
+  padding: 0;
+  margin: 0;
+}
+.chip-group-item-del {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.65;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 0 0 2px;
+  line-height: 1;
+}
+.chip-group-item-del:hover {
+  opacity: 1;
+}
+.collection-undo-toast {
+  background: #1f2937;
+  color: #f9fafb;
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.collection-undo-btn {
+  background: none;
+  border: none;
+  color: #34d399;
+  font-weight: 700;
+  font-size: 13.5px;
+  cursor: pointer;
+  padding: 2px 6px;
+  text-decoration: underline;
+}
 @keyframes fadeInDown {
   from { opacity: 0; transform: translate(-50%, -10px); }
   to { opacity: 1; transform: translate(-50%, 0); }
@@ -1885,12 +2037,15 @@
         <span id="cust-picker-display" style="color:#9ca3af; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">Select Customer...</span>
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" style="flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
       </div>
+      <div id="manual-cust-collection-box" style="display:none; padding:10px 14px; background:#f9fafb; border:1.5px solid #e5e7eb; border-radius:10px; color:#6b7280; font-size:14.5px; font-weight:500;">
+        Auto after Verify
+      </div>
       <div id="manual-cust-autodetect-badge" style="display:none; font-size:12px; font-weight:600; color:#065f46; margin-top:4px;"></div>
       <input type="hidden" id="manual-customer" value="">
     </div>
 
     <!-- 3. Gas Type Selector (Directly after Customer) -->
-    <div style="margin-bottom: 14px;">
+    <div id="manual-gas-wrap" style="margin-bottom: 14px;">
       <span class="f-label">Gas Type <span id="manual-gas-req-star" style="color:#dc2626;">*</span></span>
       <select id="manual-batch-gas" class="styled-select" onchange="manualOnBatchGasChange()" style="font-size:16px !important;">
         <option value="" id="manual-gas-default-opt">-- Select Gas Type (Required) --</option>
@@ -1933,8 +2088,9 @@
 
   <!-- Sticky Bottom Submit Bar -->
   <div class="manual-sticky-bar" id="manual-sticky-bar">
+    <div id="collection-undo-container" class="collection-undo-toast" style="display:none;"></div>
     <div id="manual-inline-msg" class="manual-inline-msg" style="display:none;"></div>
-    <button type="button" id="btn-manual-submit" class="btn-submit-main" onclick="manualSubmitBatch()">
+    <button type="button" id="btn-manual-submit" class="btn-submit-main" onclick="manualOnMainSubmitClick()">
       Submit 0 cylinders
     </button>
   </div>
@@ -2854,9 +3010,11 @@ html5QrcodeScanner.render(onScanSuccess);
 var ALL_CUSTOMERS = {{ (customers or []) | tojson }};
 var GAS_LABELS = {{ (gas_types or []) | tojson }};
 
-let manualItems = []; // Array of { entered_id, master_id, state: 'checking'|'registered'|'unregistered'|'duplicate'|'error', registry_gas, cylinder_type, result_msg, details_expanded }
+let manualItems = []; // Array of { entered_id, master_id, state: 'unverified'|'checking'|'registered'|'unregistered'|'duplicate'|'error', registry_gas, resolved_gas, custom_gas, last_customer, cylinder_type, result_msg, is_warning, details_expanded }
 let verifyDebounceTimer = null;
 let isSubmitting = false;
+let collectionState = 'unverified'; // 'unverified' | 'verifying' | 'verified'
+let collectionUndoTimer = null;
 
 // ─── Mode toggle ───────────────────────────────────────────────────────────
 function setEntryMode(mode) {
@@ -2922,45 +3080,53 @@ function manualSelectAction(act) {
   });
 
   const cw = document.getElementById('manual-cust-wrap');
-  if (cw) {
-    cw.style.display = (act === 'Delivery' || act === 'Collection') ? 'block' : 'none';
-  }
+  const custTrigger = document.getElementById('cust-picker-trigger');
+  const custCollBox = document.getElementById('manual-cust-collection-box');
+  const custStar = document.getElementById('manual-cust-req-star');
+  const gasWrap = document.getElementById('manual-gas-wrap');
+  const idInput = document.getElementById('manual-id-input');
+  const conflictBanner = document.getElementById('man-conflict-banner');
+  if (conflictBanner) { conflictBanner.innerHTML = ''; conflictBanner.style.display = 'none'; }
 
-  const gasOpt = document.getElementById('manual-gas-default-opt');
-  const gasStar = document.getElementById('manual-gas-req-star');
   if (act === 'Collection') {
-    if (gasOpt) gasOpt.textContent = 'Auto from cylinder records';
-    if (gasStar) gasStar.style.display = 'none';
-    const batchGas = document.getElementById('manual-batch-gas');
-    if (batchGas) batchGas.value = '';
-    const custInput = document.getElementById('manual-customer');
-    if (custInput) {
-      custInput.value = '';
-      custInput.dataset.autoFilled = 'true';
-    }
-    const display = document.getElementById('cust-picker-display');
-    if (display) {
-      display.textContent = 'Select Customer...';
-      display.style.color = '#9ca3af';
-    }
-    const autoBadge = document.getElementById('manual-cust-autodetect-badge');
-    if (autoBadge) { autoBadge.style.display = 'none'; autoBadge.innerHTML = ''; }
-  } else {
-    if (gasOpt) gasOpt.textContent = '-- Select Gas Type (Required) --';
-    if (gasStar) gasStar.style.display = 'inline';
-    const conflictBanner = document.getElementById('man-conflict-banner');
-    if (conflictBanner) { conflictBanner.innerHTML = ''; conflictBanner.style.display = 'none'; }
-    const autoBadge = document.getElementById('manual-cust-autodetect-badge');
-    if (autoBadge) autoBadge.style.display = 'none';
-  }
-
-  // Re-verify existing items if any
-  if (manualItems.length > 0) {
-    manualItems.forEach(i => {
-      if (i.state !== 'duplicate') i.state = 'checking';
-    });
+    if (cw) cw.style.display = 'block';
+    if (custTrigger) custTrigger.style.display = 'none';
+    if (custCollBox) custCollBox.style.display = 'block';
+    if (custStar) custStar.style.display = 'none';
+    if (gasWrap) gasWrap.style.display = 'none';
+    if (idInput) idInput.placeholder = 'Enter or paste IDs';
+    collectionState = 'unverified';
+    manualItems.forEach(i => { i.state = 'unverified'; });
     manualRenderChips();
-    scheduleAutoVerification();
+  } else if (act === 'Delivery') {
+    if (cw) cw.style.display = 'block';
+    if (custTrigger) custTrigger.style.display = 'flex';
+    if (custCollBox) custCollBox.style.display = 'none';
+    if (custStar) custStar.style.display = 'inline';
+    if (gasWrap) gasWrap.style.display = 'block';
+    if (idInput) idInput.placeholder = 'Enter Cylinder ID...';
+    const gasOpt = document.getElementById('manual-gas-default-opt');
+    if (gasOpt) gasOpt.textContent = '-- Select Gas Type (Required) --';
+    if (manualItems.length > 0) {
+      manualItems.forEach(i => { if (i.state !== 'duplicate') i.state = 'checking'; });
+      manualRenderChips();
+      scheduleAutoVerification();
+    } else {
+      manualRenderChips();
+    }
+  } else { // Filling
+    if (cw) cw.style.display = 'none';
+    if (gasWrap) gasWrap.style.display = 'block';
+    if (idInput) idInput.placeholder = 'Enter Cylinder ID...';
+    const gasOpt = document.getElementById('manual-gas-default-opt');
+    if (gasOpt) gasOpt.textContent = '-- Select Gas Type (Required) --';
+    if (manualItems.length > 0) {
+      manualItems.forEach(i => { if (i.state !== 'duplicate') i.state = 'checking'; });
+      manualRenderChips();
+      scheduleAutoVerification();
+    } else {
+      manualRenderChips();
+    }
   }
 }
 
@@ -3104,6 +3270,40 @@ function manualAddTokens(rawText) {
   const tokens = rawText.split(/[\s,]+/).map(t => t.trim().toUpperCase()).filter(t => t.length > 0);
   if (!tokens.length) return;
 
+  const action = document.getElementById('manual-action').value || 'Delivery';
+
+  if (action === 'Collection') {
+    let hadDuplicate = false;
+    tokens.forEach(tok => {
+      const isDup = manualItems.some(item => item.entered_id.toUpperCase() === tok);
+      if (isDup) {
+        hadDuplicate = true;
+      } else {
+        manualItems.push({
+          entered_id: tok,
+          master_id: tok,
+          state: 'unverified',
+          registry_gas: '',
+          resolved_gas: '',
+          custom_gas: '',
+          last_customer: '',
+          cylinder_type: 'Standard',
+          is_warning: false,
+          result_msg: ''
+        });
+      }
+    });
+
+    // Rule 6: Adding an ID turns button back to Verify
+    collectionState = 'unverified';
+    if (hadDuplicate && navigator.vibrate) {
+      navigator.vibrate(80);
+    }
+    manualRenderChips();
+    return;
+  }
+
+  // Delivery & Plant Filling (unchanged)
   let hadDuplicate = false;
   const addedIds = [];
 
@@ -3299,6 +3499,15 @@ function manualRenderChips() {
   const container = document.getElementById('manual-chips-container');
   if (!container) return;
 
+  const action = document.getElementById('manual-action').value || 'Delivery';
+  if (action === 'Collection') {
+    renderCollectionChips(container);
+    manualUpdateCountLine();
+    manualUpdateSubmitButton();
+    return;
+  }
+
+  // Delivery & Plant Filling (unchanged)
   const selectedGas = (document.getElementById('manual-batch-gas').value || '').trim();
 
   let html = '';
@@ -3309,26 +3518,9 @@ function manualRenderChips() {
     const isDup = item.state === 'duplicate';
     const isErr = item.state === 'error';
 
-    const action = document.getElementById('manual-action').value || 'Delivery';
     let gasPillHtml = '';
-
-    if (action === 'Collection') {
-      if (selectedGas) {
-        const stored = item.registry_gas || item.resolved_gas;
-        if (stored && stored.toUpperCase() !== selectedGas.toUpperCase()) {
-          gasPillHtml = `<span class="chip-mismatch-pill">stored as ${escapeHtml(stored)}</span>`;
-        }
-      } else {
-        if (item.resolved_gas) {
-          gasPillHtml = `<span class="chip-badge" style="background:#e0f2fe; color:#0369a1; border-color:#bae6fd; font-weight:600;">${escapeHtml(item.resolved_gas)} (auto)</span>`;
-        } else if (!isChecking) {
-          gasPillHtml = `<span class="chip-mismatch-pill" style="background:#fef3c7; color:#92400e; border-color:#fde68a;">gas type needed</span>`;
-        }
-      }
-    } else {
-      if (selectedGas && item.registry_gas && item.registry_gas.toUpperCase() !== selectedGas.toUpperCase()) {
-        gasPillHtml = `<span class="chip-mismatch-pill">stored as ${escapeHtml(item.registry_gas)}</span>`;
-      }
+    if (selectedGas && item.registry_gas && item.registry_gas.toUpperCase() !== selectedGas.toUpperCase()) {
+      gasPillHtml = `<span class="chip-mismatch-pill">stored as ${escapeHtml(item.registry_gas)}</span>`;
     }
 
     const hasMismatch = Boolean(gasPillHtml && gasPillHtml.includes('chip-mismatch-pill'));
@@ -3364,6 +3556,253 @@ function manualRenderChips() {
   manualUpdateSubmitButton();
 }
 
+function renderCollectionChips(container) {
+  const cw = document.getElementById('manual-cust-wrap');
+
+  if (collectionState === 'unverified') {
+    if (cw) cw.style.display = 'block';
+    if (manualItems.length === 0) {
+      container.innerHTML = '';
+      return;
+    }
+    let html = '<div style="display:flex; flex-wrap:wrap; gap:8px;">';
+    manualItems.forEach((item, idx) => {
+      html += `
+        <div class="chip-unverified">
+          <span>${escapeHtml(item.entered_id)}</span>
+          <button type="button" class="chip-unverified-del" onclick="collectionRemoveUnverified(${idx})" aria-label="Remove">&times;</button>
+        </div>
+      `;
+    });
+    html += '</div>';
+    container.innerHTML = html;
+    return;
+  }
+
+  // Verified state: grouped by customer
+  if (cw) cw.style.display = 'none';
+
+  const activeItems = manualItems.filter(i => i.state !== 'duplicate');
+  if (activeItems.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const groups = {};
+  activeItems.forEach(item => {
+    const cust = (item.last_customer || '').trim() || 'Unassigned Customer';
+    if (!groups[cust]) groups[cust] = [];
+    groups[cust].push(item);
+  });
+
+  let html = '';
+  for (const [custName, items] of Object.entries(groups)) {
+    html += `
+      <div class="collection-group-card">
+        <div class="collection-group-header">
+          <div>
+            <span class="collection-group-title">${escapeHtml(custName)}</span>
+            <span class="collection-group-count">${items.length} cylinder${items.length !== 1 ? 's' : ''}</span>
+          </div>
+          <button type="button" class="collection-group-del-btn" onclick="collectionDeleteGroup('${escapeJsString(custName)}')">Delete</button>
+        </div>
+        <div class="collection-group-chips">
+    `;
+
+    items.forEach(item => {
+      const isErr = item.state === 'error';
+      const isWarn = item.is_warning;
+      const isUnreg = item.state === 'unregistered';
+      const itemClass = isErr ? 'is-error' : (isWarn ? 'is-warning' : (isUnreg ? 'is-unreg' : ''));
+
+      let gasDisplay = '';
+      const chosenGas = item.custom_gas || item.resolved_gas || item.registry_gas;
+      if (chosenGas) {
+        gasDisplay = ` · ${escapeHtml(chosenGas)}`;
+      } else {
+        let gasOpts = '<option value="">gas ▾</option>';
+        GAS_LABELS.forEach(g => {
+          gasOpts += `<option value="${escapeHtml(g.value)}">${escapeHtml(g.value)}</option>`;
+        });
+        gasDisplay = ` · <select class="chip-inline-gas-select" onchange="collectionSetItemGas('${escapeJsString(item.entered_id)}', this.value)">${gasOpts}</select>`;
+      }
+
+      html += `
+        <div class="chip-verified-item ${itemClass}">
+          ${isErr ? '<span title="Error: ' + escapeHtml(item.result_msg || '') + '" style="font-size:12px;">⛔</span>' : (isWarn ? '<span title="Warning: cylinder already at depot" style="font-size:12px;">⚠️</span>' : '')}
+          <span>${escapeHtml(item.entered_id)}${gasDisplay}</span>
+          <button type="button" class="chip-group-item-del" onclick="collectionRemoveItem('${escapeJsString(item.entered_id)}')" aria-label="Remove">&times;</button>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+  }
+
+  container.innerHTML = html;
+}
+
+async function collectionVerifyAll() {
+  if (manualItems.length === 0) return;
+
+  const uids = manualItems.map(i => i.entered_id).join(',');
+  collectionState = 'verifying';
+  manualUpdateSubmitButton();
+
+  try {
+    const res = await fetch('/api/admin/scan/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ uids, action: 'Collection' })
+    });
+
+    if (!res.ok) {
+      throw new Error('HTTP ' + res.status);
+    }
+
+    const data = await res.json();
+    const results = data.results || [];
+    const resultMap = {};
+    results.forEach(r => {
+      resultMap[(r.entered_id || '').toUpperCase()] = r;
+    });
+
+    manualItems.forEach(item => {
+      const match = resultMap[item.entered_id.toUpperCase()];
+      if (match) {
+        item.master_id = match.master_id || item.entered_id;
+        item.registry_gas = match.registry_gas || '';
+        item.resolved_gas = match.resolved_gas || '';
+        item.last_customer = match.last_customer || '';
+        item.cylinder_type = match.cylinder_type || 'Standard';
+        item.result_msg = match.result_msg || '';
+        item.is_warning = Boolean(match.is_warning);
+
+        if (match.is_duplicate) {
+          item.state = 'duplicate';
+        } else if (match.error) {
+          item.state = 'error';
+        } else if (match.status === 'Unregistered') {
+          item.state = 'unregistered';
+        } else {
+          item.state = 'registered';
+        }
+      } else {
+        item.state = 'registered';
+        item.result_msg = 'Ready to submit.';
+      }
+    });
+
+    // Detect primary customer if some cylinders have unknown customer
+    const detectedCusts = Object.keys(data.customer_groups || {});
+    const primaryCust = data.suggested_customer || (detectedCusts.length > 0 ? detectedCusts[0] : '');
+
+    manualItems.forEach(item => {
+      let c = (item.last_customer || '').trim();
+      if (!c || c.toLowerCase() === 'depot' || c.toLowerCase() === 'unknown' || c === '—') {
+        if (primaryCust) {
+          item.last_customer = primaryCust;
+        } else {
+          item.last_customer = 'Unassigned Customer';
+        }
+      }
+    });
+
+    collectionState = 'verified';
+    if (navigator.vibrate) navigator.vibrate(50);
+  } catch (err) {
+    collectionState = 'unverified';
+    showManualInlineMsg('Verification failed: ' + (err.message || 'Network error') + '. Please try again.', 'error');
+  }
+
+  manualRenderChips();
+}
+
+function collectionSetItemGas(uid, gasVal) {
+  const item = manualItems.find(i => i.entered_id.toUpperCase() === uid.toUpperCase());
+  if (item) {
+    item.custom_gas = gasVal;
+    manualRenderChips();
+  }
+}
+
+function collectionRemoveUnverified(idx) {
+  if (idx >= 0 && idx < manualItems.length) {
+    manualItems.splice(idx, 1);
+    manualRenderChips();
+  }
+}
+
+function showCollectionUndoToast(msg, undoFn) {
+  const container = document.getElementById('collection-undo-container');
+  if (!container) return;
+
+  if (collectionUndoTimer) clearTimeout(collectionUndoTimer);
+  container.innerHTML = `
+    <span>${escapeHtml(msg)}</span>
+    <button type="button" class="collection-undo-btn" id="btn-collection-undo">Undo</button>
+  `;
+  container.style.display = 'flex';
+
+  const btn = document.getElementById('btn-collection-undo');
+  if (btn) {
+    btn.onclick = function() {
+      undoFn();
+      container.style.display = 'none';
+      if (collectionUndoTimer) clearTimeout(collectionUndoTimer);
+    };
+  }
+
+  collectionUndoTimer = setTimeout(() => {
+    container.style.display = 'none';
+  }, 5000);
+}
+
+function collectionRemoveItem(uid) {
+  const idx = manualItems.findIndex(i => i.entered_id.toUpperCase() === uid.toUpperCase());
+  if (idx === -1) return;
+
+  const item = manualItems[idx];
+  manualItems.splice(idx, 1);
+
+  showCollectionUndoToast(`Cylinder ${uid} removed`, () => {
+    manualItems.splice(idx, 0, item);
+    manualRenderChips();
+  });
+
+  if (manualItems.length === 0) {
+    collectionState = 'unverified';
+  }
+
+  manualRenderChips();
+}
+
+function collectionDeleteGroup(custName) {
+  const removed = [];
+  manualItems = manualItems.filter(item => {
+    const itemCust = (item.last_customer || '').trim() || 'Unassigned Customer';
+    if (itemCust.toLowerCase() === custName.toLowerCase()) {
+      removed.push(item);
+      return false;
+    }
+    return true;
+  });
+
+  showCollectionUndoToast(`${custName} batch deleted`, () => {
+    manualItems.push(...removed);
+    manualRenderChips();
+  });
+
+  if (manualItems.length === 0) {
+    collectionState = 'unverified';
+  }
+
+  manualRenderChips();
+}
+
 function manualRemoveItem(event, idx) {
   if (event) event.stopPropagation();
   if (idx >= 0 && idx < manualItems.length) {
@@ -3392,6 +3831,12 @@ function manualUpdateCountLine() {
   const line = document.getElementById('manual-count-line');
   if (!line) return;
 
+  const action = document.getElementById('manual-action').value || 'Delivery';
+  if (action === 'Collection' && collectionState === 'unverified') {
+    line.textContent = `${manualItems.length} IDs entered · not verified`;
+    return;
+  }
+
   const regCount = manualItems.filter(i => i.state === 'registered').length;
   const unregCount = manualItems.filter(i => i.state === 'unregistered').length;
   const dupCount = manualItems.filter(i => i.state === 'duplicate').length;
@@ -3410,18 +3855,193 @@ function manualUpdateSubmitButton() {
   if (!btn || isSubmitting) return;
 
   const action = document.getElementById('manual-action').value || 'Delivery';
-  const hasMismatch = (action === 'Collection') && Boolean(
-    (lastVerifyData && lastVerifyData.has_customer_conflict) ||
-    manualItems.some(i => i.customer_mismatch && i.state !== 'duplicate' && i.state !== 'error')
-  );
 
-  if (hasMismatch) {
-    btn.textContent = 'Resolve Customer Mismatches to Submit';
-    btn.disabled = true;
-  } else {
+  if (action === 'Collection') {
+    if (collectionState === 'unverified') {
+      btn.disabled = manualItems.length === 0;
+      btn.textContent = `Verify ${manualItems.length} IDs`;
+      return;
+    }
+
+    if (collectionState === 'verifying') {
+      btn.disabled = true;
+      btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="margin-right:8px;"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg> Verifying ${manualItems.length} IDs...`;
+      return;
+    }
+
+    // Verified state
+    const errItems = manualItems.filter(i => i.state === 'error');
+    if (errItems.length > 0) {
+      btn.disabled = true;
+      btn.textContent = `Remove error cylinder (${errItems[0].entered_id}) to submit`;
+      return;
+    }
+
+    const activeItems = manualItems.filter(i => i.state !== 'duplicate');
+    if (activeItems.length === 0) {
+      btn.disabled = true;
+      btn.textContent = 'Submit 0 cylinders';
+      return;
+    }
+
+    const groups = new Set();
+    activeItems.forEach(item => {
+      groups.add((item.last_customer || '').trim() || 'Unassigned Customer');
+    });
+
+    const groupCount = groups.size;
     btn.disabled = false;
-    const validCount = manualItems.filter(i => i.state === 'registered' || i.state === 'unregistered').length;
-    btn.textContent = `Submit ${validCount} cylinder${validCount === 1 ? '' : 's'}`;
+    if (groupCount <= 1) {
+      btn.textContent = `Submit 1 batch (${activeItems.length} cylinders)`;
+    } else {
+      btn.textContent = `Submit ${groupCount} batches (${activeItems.length} cylinders)`;
+    }
+    return;
+  }
+
+  // Delivery & Plant Filling (unchanged)
+  btn.disabled = false;
+  const validCount = manualItems.filter(i => i.state === 'registered' || i.state === 'unregistered').length;
+  btn.textContent = `Submit ${validCount} cylinder${validCount === 1 ? '' : 's'}`;
+}
+
+function manualOnMainSubmitClick() {
+  const action = document.getElementById('manual-action').value || 'Delivery';
+  if (action === 'Collection') {
+    if (collectionState === 'unverified') {
+      collectionVerifyAll();
+    } else if (collectionState === 'verified') {
+      collectionSubmitAll();
+    }
+  } else {
+    manualSubmitBatch();
+  }
+}
+
+async function collectionSubmitAll() {
+  if (isSubmitting) return;
+
+  const inlineMsg = document.getElementById('manual-inline-msg');
+  if (inlineMsg) { inlineMsg.style.display = 'none'; inlineMsg.innerHTML = ''; }
+
+  const activeItems = manualItems.filter(i => i.state !== 'duplicate');
+  if (activeItems.length === 0) {
+    showManualInlineMsg('Add at least one ID first.', 'warn');
+    return;
+  }
+
+  // Check if any error cylinder
+  const errItem = activeItems.find(i => i.state === 'error');
+  if (errItem) {
+    showManualInlineMsg(`Cannot submit: cylinder ${errItem.entered_id} has error: ${errItem.result_msg || 'Must resolve or remove.'}`, 'error');
+    if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+    return;
+  }
+
+  // Check if any cylinder is missing gas
+  const missingGasItem = activeItems.find(i => !i.custom_gas && !i.resolved_gas && !i.registry_gas);
+  if (missingGasItem) {
+    showManualInlineMsg(`Please select gas type for cylinder ${missingGasItem.entered_id}`, 'warn');
+    if (navigator.vibrate) navigator.vibrate([80]);
+    return;
+  }
+
+  // Group items by customer
+  const groups = {};
+  activeItems.forEach(item => {
+    const cust = (item.last_customer || '').trim() || 'Unassigned Customer';
+    if (!groups[cust]) groups[cust] = [];
+    groups[cust].push(item);
+  });
+
+  const custNames = Object.keys(groups);
+  if (custNames.length === 0) return;
+
+  const btn = document.getElementById('btn-manual-submit');
+  isSubmitting = true;
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" class="spin" style="margin-right:8px;"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 10 10"/></svg> Saving...`;
+  }
+
+  let completedBatches = 0;
+  let failedCust = null;
+  let failedError = null;
+
+  for (let idx = 0; idx < custNames.length; idx++) {
+    const custName = custNames[idx];
+    const itemsForCust = groups[custName];
+
+    const payloadItems = itemsForCust.map(item => ({
+      entered_id: item.entered_id,
+      master_id: item.master_id || item.entered_id,
+      transaction_gas: item.custom_gas || item.resolved_gas || item.registry_gas || '',
+      cylinder_type: item.cylinder_type || 'Standard',
+      registry_status: item.state === 'unregistered' ? 'unregistered' : 'registered',
+      save_alias: false
+    }));
+
+    try {
+      const res = await fetch('/api/admin/scan/submit_manual', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'Collection', customer: custName, items: payloadItems })
+      });
+
+      if (!res.ok) {
+        let errTxt = await res.text();
+        let msg = 'Failed (HTTP ' + res.status + ')';
+        try { msg = JSON.parse(errTxt).error || msg; } catch (_) {}
+        throw new Error(msg);
+      }
+
+      const resJson = await res.json();
+      if (resJson.error) throw new Error(resJson.error);
+
+      completedBatches++;
+      // Remove successfully submitted items immediately so they are never saved twice (Rule 8)
+      const submittedUids = new Set(itemsForCust.map(i => i.entered_id.toUpperCase()));
+      manualItems = manualItems.filter(item => !submittedUids.has(item.entered_id.toUpperCase()));
+      manualRenderChips();
+    } catch (e) {
+      failedCust = custName;
+      failedError = e.message || 'Submission error';
+      break;
+    }
+  }
+
+  isSubmitting = false;
+  if (btn) btn.disabled = false;
+
+  if (failedCust) {
+    showManualInlineMsg(
+      `<span>Batch for ${escapeHtml(failedCust)} failed: ${escapeHtml(failedError)}. Remaining batches kept on screen.</span> <button type="button" onclick="collectionSubmitAll()" style="margin-left:8px; padding:4px 10px; background:#b91c1c; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Retry</button>`,
+      'error',
+      true
+    );
+    manualRenderChips();
+  } else {
+    if (navigator.vibrate) navigator.vibrate(60);
+    showManualToast(`✓ Successfully submitted ${completedBatches} batch${completedBatches !== 1 ? 'es' : ''}!`);
+    manualItems = [];
+    collectionState = 'unverified';
+    manualRenderChips();
+    const idInput = document.getElementById('manual-id-input');
+    if (idInput) {
+      idInput.value = '';
+      idInput.focus();
+    }
+  }
+}
+
+function manualClear() {
+  manualItems = [];
+  collectionState = 'unverified';
+  manualRenderChips();
+  const idInput = document.getElementById('manual-id-input');
+  if (idInput) {
+    idInput.value = '';
+    idInput.focus();
   }
 }
 
