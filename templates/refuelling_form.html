@@ -270,6 +270,54 @@
       initCalc();
     }
   })();
+
+  // Double-submit protection
+  (function() {
+    const form = document.querySelector('form');
+    if (!form) return;
+    const submitBtn = form.querySelector('button[type="submit"], input[type="submit"]');
+    if (!submitBtn) return;
+
+    let isSubmitting = false;
+    const originalHtml = submitBtn.innerHTML;
+    let resetTimer = null;
+
+    function resetSubmitState() {
+      isSubmitting = false;
+      submitBtn.innerHTML = originalHtml;
+      submitBtn.removeAttribute('aria-busy');
+      submitBtn.removeAttribute('disabled');
+      submitBtn.style.pointerEvents = '';
+      if (resetTimer) {
+        clearTimeout(resetTimer);
+        resetTimer = null;
+      }
+    }
+
+    form.addEventListener('submit', function(e) {
+      if (typeof form.checkValidity === 'function' && !form.checkValidity()) {
+        return;
+      }
+      if (isSubmitting) {
+        e.preventDefault();
+        return;
+      }
+      isSubmitting = true;
+      submitBtn.setAttribute('aria-busy', 'true');
+      submitBtn.style.pointerEvents = 'none';
+      submitBtn.textContent = 'Saving...';
+
+      setTimeout(function() {
+        submitBtn.setAttribute('disabled', 'true');
+      }, 0);
+
+      resetTimer = setTimeout(resetSubmitState, 15000);
+    });
+
+    window.addEventListener('pageshow', function() {
+      resetSubmitState();
+    });
+  })();
 </script>
 {% endblock %}
 

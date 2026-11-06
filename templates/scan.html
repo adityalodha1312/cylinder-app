@@ -691,8 +691,10 @@
     position: fixed;
     top: 0;
     left: 0;
-    bottom: 0;
     width: 260px;
+    height: 100%;
+    height: 100dvh;
+    max-height: 100dvh;
     background: #0F6E56;
     display: flex;
     flex-direction: column;
@@ -702,6 +704,7 @@
     box-shadow: 4px 0 24px rgba(0,0,0,0.25);
     overscroll-behavior: contain;
     -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
   }
   .sidebar.open {
     transform: translateX(0);
@@ -729,9 +732,11 @@
   .brand-text .b-sub  { font-size: 11px; opacity: 0.75; font-weight: 400; margin-top: 2px; }
 
   .sidebar-nav {
-    flex: 1;
-    padding: 14px 10px;
+    flex: 1 1 auto;
+    min-height: 0;
+    padding: 14px 10px calc(80px + env(safe-area-inset-bottom, 24px));
     overflow-y: auto;
+    overflow-x: hidden;
     scrollbar-width: thin;
     scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
     overscroll-behavior: contain;
@@ -1381,7 +1386,8 @@
   bottom: 0;
   left: 0;
   right: 0;
-  max-height: 82vh;
+  max-height: 85%;
+  max-height: 85dvh;
   background: #ffffff;
   border-top-left-radius: 18px;
   border-top-right-radius: 18px;
@@ -1391,12 +1397,16 @@
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.2);
   animation: sheetSlideUp 0.22s ease-out;
   box-sizing: border-box;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 @keyframes sheetSlideUp {
   from { transform: translateY(100%); }
   to { transform: translateY(0); }
 }
 .cust-sheet-header {
+  flex-shrink: 0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -1418,6 +1428,7 @@
   justify-content: center;
 }
 .cust-sheet-search-wrap {
+  flex-shrink: 0;
   padding: 10px 16px;
   border-bottom: 1px solid #f3f4f6;
 }
@@ -1432,10 +1443,13 @@
 }
 .cust-sheet-body {
   overflow-y: auto;
-  flex: 1;
-  padding: 10px 16px 24px;
+  overflow-x: hidden;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 10px 16px calc(60px + env(safe-area-inset-bottom, 24px));
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
 }
 .cust-sheet-item {
   min-height: 44px;
@@ -1884,9 +1898,13 @@
   html.sidebar-open,
   body.sidebar-open {
     overflow: hidden !important;
+    height: 100% !important;
     touch-action: none;
   }
-  body.sidebar-open .sidebar {
+  body.sidebar-open .sidebar,
+  body.sidebar-open .sidebar *,
+  body.sidebar-open .cust-sheet,
+  body.sidebar-open .cust-sheet * {
     touch-action: pan-y;
   }
 
@@ -3139,11 +3157,12 @@ function openCustomerBottomSheet() {
   overlay.style.display = 'block';
   sheet.style.display = 'flex';
   document.body.classList.add('sidebar-open');
+  document.documentElement.classList.add('sidebar-open');
 
   const searchInput = document.getElementById('cust-sheet-search');
   if (searchInput) {
     searchInput.value = '';
-    setTimeout(() => searchInput.focus(), 60);
+    // Do not auto-focus virtual keyboard so customers list remains fully visible and scrollable
   }
 
   renderCustomerBottomSheetList('');
@@ -3152,9 +3171,12 @@ function openCustomerBottomSheet() {
 function closeCustomerBottomSheet() {
   const overlay = document.getElementById('cust-sheet-overlay');
   const sheet = document.getElementById('cust-sheet');
+  const searchInput = document.getElementById('cust-sheet-search');
+  if (searchInput) searchInput.blur();
   if (overlay) overlay.style.display = 'none';
   if (sheet) sheet.style.display = 'none';
   document.body.classList.remove('sidebar-open');
+  document.documentElement.classList.remove('sidebar-open');
 }
 
 function getRecentCustomers() {
@@ -4388,7 +4410,15 @@ function closeSidebar() {
 document.addEventListener('DOMContentLoaded', function() {
   const o = document.getElementById('sidebarOverlay');
   if (o) {
-    o.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
+    o.addEventListener('touchmove', function(e) {
+      if (e.target === o) e.preventDefault();
+    }, { passive: false });
+  }
+  const custOverlay = document.getElementById('cust-sheet-overlay');
+  if (custOverlay) {
+    custOverlay.addEventListener('touchmove', function(e) {
+      if (e.target === custOverlay) e.preventDefault();
+    }, { passive: false });
   }
 });
 function toggleAvatarMenu(e) {
