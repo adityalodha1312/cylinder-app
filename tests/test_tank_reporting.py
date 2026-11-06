@@ -171,3 +171,22 @@ def test_api_tank_calculate_endpoint():
     assert data['status'] == 'ok'
     assert data['kg_display'] == 4418
     assert data['sm3_display'] == 3402
+
+
+def test_admin_create_tank_endpoint():
+    """Verify that posting to /admin/storage_tanks/create does not raise 500 error."""
+    from app import app
+    client = app.test_client()
+    with client.session_transaction() as sess:
+        sess['user'] = {'username': 'admin', 'role': 'manager', 'id': 1}
+
+    resp = client.post('/admin/storage_tanks/create', data={
+        'name': 'Test Oxygen Tank',
+        'gas': 'Oxygen',
+        'location_notes': 'Yard A',
+        'display_order': 1
+    }, follow_redirects=False)
+    # Redirects to /admin/tanks?tab=manage with 302
+    assert resp.status_code == 302
+    assert '/admin/tanks' in resp.headers['Location']
+

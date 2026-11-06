@@ -11,6 +11,7 @@ import threading
 from dotenv import load_dotenv
 import os
 import re
+import sqlalchemy as sa
 from db import db
 from models import User, Customer, Cylinder, CylinderMaintenance, Scan, CustomerMap, BulkTank, Product, DuraGasHistory, SystemSetting, AdminScanLog, AccountsBatch, AccountsBatchItem, DriverJob, CommercialOffer, SpareItem, SpareTransaction, Vehicle, VehicleRefuelling, CylinderAlias, GasTypeHistory, PendingCylinderReview
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -12216,7 +12217,7 @@ def admin_storage_tank_create():
         flash("Gas must be Oxygen, Nitrogen or Argon.", "danger")
         return redirect('/admin/tanks?tab=manage')
 
-    existing = StorageTank.query.filter(sa.func.lower(StorageTank.name) == name.lower()).first()
+    existing = StorageTank.query.filter(db.func.lower(StorageTank.name) == name.lower()).first()
     if existing:
         flash(f"A tank named '{name}' already exists.", "danger")
         return redirect('/admin/tanks?tab=manage')
@@ -12269,7 +12270,7 @@ def admin_storage_tank_edit():
         return redirect('/admin/tanks?tab=manage')
 
     # Duplicate name check
-    existing = StorageTank.query.filter(sa.func.lower(StorageTank.name) == name.lower(), StorageTank.id != tank.id).first()
+    existing = StorageTank.query.filter(db.func.lower(StorageTank.name) == name.lower(), StorageTank.id != tank.id).first()
     if existing:
         flash(f"Another tank named '{name}' already exists.", "danger")
         return redirect('/admin/tanks?tab=manage')
