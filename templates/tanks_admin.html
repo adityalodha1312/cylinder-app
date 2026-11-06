@@ -1,0 +1,973 @@
+{% extends "admin_base.html" %}
+
+{% block title %}Tanks & Level Reporting — Noble Air Gases{% endblock %}
+
+{% block head %}
+<!-- Chart.js for Trend Graph -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  .tanks-tabs {
+    display: flex;
+    gap: 8px;
+    border-bottom: 2px solid #e5e7eb;
+    margin-bottom: 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .tab-btn {
+    padding: 10px 18px;
+    font-size: 14px;
+    font-weight: 700;
+    color: #4b5563;
+    border: none;
+    background: none;
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    text-decoration: none;
+    transition: all 0.15s ease;
+  }
+  .tab-btn:hover {
+    color: #0F6E56;
+  }
+  .tab-btn.active {
+    color: #0F6E56;
+    border-bottom-color: #0F6E56;
+  }
+
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .kpi-card {
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .kpi-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b7280;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+  .kpi-val {
+    font-size: 24px;
+    font-weight: 800;
+    color: #111827;
+    margin-top: 4px;
+  }
+
+  /* Table styling */
+  .tanks-table-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    background: #ffffff;
+    margin-bottom: 24px;
+  }
+  .tanks-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13.5px;
+    text-align: left;
+  }
+  .tanks-table th {
+    background: #f9fafb;
+    padding: 12px 14px;
+    font-weight: 700;
+    color: #374151;
+    border-bottom: 1px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  .tanks-table td {
+    padding: 12px 14px;
+    border-bottom: 1px solid #f3f4f6;
+    color: #1f2937;
+    vertical-align: middle;
+  }
+  .tanks-table tr:last-child td {
+    border-bottom: none;
+  }
+  .tanks-table tr:hover td {
+    background: #fbfbfa;
+  }
+
+  .status-pill {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .status-ok { background: #dcfce7; color: #15803d; }
+  .status-below { background: #fee2e2; color: #b91c1c; }
+  .status-above { background: #fef3c7; color: #b45309; }
+
+  /* Mobile card adaptations */
+  @media (max-width: 768px) {
+    .mobile-cards-only {
+      display: block !important;
+    }
+    .desktop-table-only {
+      display: none !important;
+    }
+  }
+  @media (min-width: 769px) {
+    .mobile-cards-only {
+      display: none !important;
+    }
+    .desktop-table-only {
+      display: block !important;
+    }
+  }
+
+  .mobile-reading-card {
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 14px;
+    margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-container" style="max-width: 1200px; margin: 0 auto; padding: 20px 16px;">
+
+  <!-- Header -->
+  <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px;">
+    <div>
+      <h1 class="page-title" style="margin: 0; font-size: 22px; font-weight: 800; color: #0F6E56; display: flex; align-items: center; gap: 10px;">
+        <span>🎛️ Storage Tanks &amp; Level Reporting</span>
+      </h1>
+      <p style="margin: 4px 0 0; font-size: 13px; color: #6b7280;">Cryogenic bulk storage tanks (Plate model 13K17VEN) — daily gauge readings, contents &amp; consumption history</p>
+    </div>
+    <div>
+      <a href="/admin/tanks?tab=manage" class="btn" style="background: #0F6E56; color: #fff; border-radius: 8px; font-weight: 700; font-size: 13px; padding: 8px 14px; display: inline-flex; align-items: center; gap: 6px; text-decoration: none;">
+        <span>⚙️ Manage Tanks</span>
+      </a>
+    </div>
+  </div>
+
+  <!-- Tabs Navigation -->
+  <div class="tanks-tabs">
+    <a href="/admin/tanks?tab=entry" class="tab-btn {{ 'active' if active_tab == 'entry' else '' }}">
+      <span>📝 Daily Tank Entry</span>
+      <span style="font-size: 11px; padding: 1px 7px; border-radius: 10px; background: {{ '#dcfce7' if completed_tanks == total_tanks and total_tanks > 0 else '#e5e7eb' }}; color: {{ '#15803d' if completed_tanks == total_tanks and total_tanks > 0 else '#4b5563' }};">
+        {{ completed_tanks }}/{{ total_tanks }}
+      </span>
+    </a>
+    <a href="/admin/tanks?tab=report" class="tab-btn {{ 'active' if active_tab == 'report' else '' }}">
+      <span>📊 History &amp; Reports</span>
+    </a>
+    <a href="/admin/tanks?tab=manage" class="tab-btn {{ 'active' if active_tab == 'manage' else '' }}">
+      <span>⚙️ Tanks &amp; Factors Setup</span>
+    </a>
+  </div>
+
+  <!-- ============================================================== -->
+  <!-- TAB 1: DAILY TANK ENTRY (PC BATCH TABLE / MOBILE CARDS)        -->
+  <!-- ============================================================== -->
+  {% if active_tab == 'entry' %}
+  <div>
+    <!-- Top Filter Bar -->
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <div style="display: flex; align-items: center; gap: 10px;">
+        <label style="font-size: 13px; font-weight: 700; color: #374151;">Reading Date:</label>
+        <input type="date" id="entry-date-picker" value="{{ target_date_str }}" style="padding: 6px 10px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 14px; font-weight: 600; color: #111827;" onchange="changeEntryDate(this.value)">
+      </div>
+      <div>
+        <span style="font-size: 13px; font-weight: 700; color: {{ '#15803d' if completed_tanks == total_tanks and total_tanks > 0 else '#b45309' }};">
+          {{ 'All tanks recorded for today ✓' if completed_tanks == total_tanks and total_tanks > 0 else (total_tanks - completed_tanks) ~ ' tank(s) still pending today' }}
+        </span>
+      </div>
+    </div>
+
+    {% if daily_rows|length == 0 %}
+    <div style="text-align: center; padding: 48px 20px; background: #fff; border: 1px dashed #d1d5db; border-radius: 12px; color: #6b7280;">
+      <div style="font-size: 32px; margin-bottom: 8px;">🎛️</div>
+      <h3 style="font-size: 16px; font-weight: 700; color: #374151; margin-bottom: 6px;">No storage tanks configured yet</h3>
+      <p style="font-size: 13px; margin-bottom: 16px;">Add your cryogenic storage tanks in the setup tab to start recording daily levels.</p>
+      <a href="/admin/tanks?tab=manage" class="btn" style="background: #0F6E56; color: #fff; border-radius: 8px; font-weight: 700; padding: 8px 16px; text-decoration: none;">
+        Add First Tank
+      </a>
+    </div>
+    {% else %}
+
+    <!-- Desktop Batch Table -->
+    <div class="desktop-table-only tanks-table-wrap">
+      <table class="tanks-table" id="pc-batch-table">
+        <thead>
+          <tr>
+            <th>Tank Name</th>
+            <th>Gas</th>
+            <th>Gauge (mmWC)</th>
+            <th>Pressure</th>
+            <th>Unit</th>
+            <th>Liquid (kg)</th>
+            <th>Volume (SM³)</th>
+            <th>Net Change</th>
+            <th>Status / Message</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in daily_rows %}
+          {% set t = item.tank %}
+          {% set r = item.reading %}
+          <tr data-tank-id="{{ t.id }}" data-gas="{{ t.gas }}" data-model="{{ item.model_name }}">
+            <td style="font-weight: 700;">
+              <div>{{ t.name }}</div>
+              <div style="font-size: 11px; color: #6b7280; font-weight: 400;">{{ item.model_name }}</div>
+            </td>
+            <td>
+              <span style="font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: #e5e7eb; color: #374151;">
+                {{ t.gas }}
+              </span>
+            </td>
+            <td style="width: 140px;">
+              <input type="number" class="row-mmwc" inputmode="decimal" placeholder="mmWC" value="{{ r.mmwc if r and r.mmwc is not none else '' }}" style="width: 110px; padding: 7px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 15px; font-weight: 700; box-sizing: border-box;" oninput="onPcRowInput(this)">
+            </td>
+            <td style="width: 110px;">
+              <input type="number" class="row-pressure" inputmode="decimal" step="0.1" placeholder="e.g. 8.5" value="{{ r.pressure if r and r.pressure is not none else '' }}" style="width: 90px; padding: 7px 8px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600;" oninput="onPcRowInput(this)">
+            </td>
+            <td style="width: 100px;">
+              <select class="row-unit" style="padding: 7px 4px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 12px; font-weight: 600; background: #fff;" onchange="onPcRowInput(this)">
+                <option value="kg/cm²" {{ 'selected' if not r or r.pressure_unit == 'kg/cm²' else '' }}>kg/cm²</option>
+                <option value="psi" {{ 'selected' if r and r.pressure_unit == 'psi' else '' }}>psi</option>
+                <option value="bar" {{ 'selected' if r and r.pressure_unit == 'bar' else '' }}>bar</option>
+              </select>
+            </td>
+            <td class="row-kg" style="font-weight: 800; font-size: 15px; color: #064e3b;">
+              {{ "{:,}".format(r.kg|round|int) ~ " kg" if r and r.kg is not none else "--" }}
+            </td>
+            <td class="row-sm3" style="font-weight: 800; font-size: 15px; color: #064e3b;">
+              {{ "{:,}".format(r.sm3|round|int) ~ " SM³" if r and r.sm3 is not none else "--" }}
+            </td>
+            <td class="row-change" style="font-size: 12.5px; font-weight: 700; color: #047857;">
+              {{ item.change_label }}
+            </td>
+            <td class="row-status">
+              {% if r %}
+                <span class="status-pill status-{{ 'ok' if r.status == 'ok' else ('below' if r.status == 'below_chart' else 'above') }}">
+                  {{ r.status }}
+                </span>
+              {% else %}
+                <span style="font-size: 12px; color: #9ca3af;">Pending</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Mobile Stack Cards -->
+    <div class="mobile-cards-only">
+      {% for item in daily_rows %}
+      {% set t = item.tank %}
+      {% set r = item.reading %}
+      <div class="mobile-reading-card mobile-card-row" data-tank-id="{{ t.id }}" data-gas="{{ t.gas }}" data-model="{{ item.model_name }}">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+          <div style="font-size: 15px; font-weight: 700; color: #111827;">{{ t.name }}</div>
+          <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: #e5e7eb; color: #374151;">{{ t.gas }}</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; margin-bottom: 10px;">
+          <div>
+            <label style="font-size: 11px; color: #6b7280; font-weight: 600;">Gauge (mmWC)</label>
+            <input type="number" class="row-mmwc" inputmode="decimal" placeholder="mmWC" value="{{ r.mmwc if r and r.mmwc is not none else '' }}" style="width: 100%; min-height: 44px; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 16px; font-weight: 700;" oninput="onMobileCardInput(this)">
+          </div>
+          <div>
+            <label style="font-size: 11px; color: #6b7280; font-weight: 600;">Pressure &amp; Unit</label>
+            <div style="display: flex;">
+              <input type="number" class="row-pressure" inputmode="decimal" step="0.1" placeholder="Pres" value="{{ r.pressure if r and r.pressure is not none else '' }}" style="width: 55%; min-height: 44px; padding: 8px 6px; border: 1.5px solid #d1d5db; border-right: none; border-top-left-radius: 6px; border-bottom-left-radius: 6px; font-size: 16px; font-weight: 600;" oninput="onMobileCardInput(this)">
+              <select class="row-unit" style="width: 45%; min-height: 44px; padding: 6px 2px; border: 1.5px solid #d1d5db; border-top-right-radius: 6px; border-bottom-right-radius: 6px; font-size: 11.5px; font-weight: 600; background: #fff;" onchange="onMobileCardInput(this)">
+                <option value="kg/cm²" {{ 'selected' if not r or r.pressure_unit == 'kg/cm²' else '' }}>kg/cm²</option>
+                <option value="psi" {{ 'selected' if r and r.pressure_unit == 'psi' else '' }}>psi</option>
+                <option value="bar" {{ 'selected' if r and r.pressure_unit == 'bar' else '' }}>bar</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="display: flex; justify-content: space-between; align-items: center; background: #f0fdf4; padding: 8px 12px; border-radius: 8px; font-size: 13px;">
+          <div>
+            <span style="font-size: 11px; color: #6b7280;">Quantity:</span>
+            <span class="row-kg" style="font-weight: 800; color: #064e3b; margin-left: 4px;">{{ "{:,}".format(r.kg|round|int) ~ " kg" if r and r.kg is not none else "--" }}</span>
+            <span class="row-sm3" style="font-size: 11.5px; color: #047857; margin-left: 6px;">{{ "• " ~ "{:,}".format(r.sm3|round|int) ~ " SM³" if r and r.sm3 is not none else "" }}</span>
+          </div>
+          <div class="row-change" style="font-size: 11.5px; font-weight: 700; color: #047857;">{{ item.change_label }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- Floating Batch Save Bar -->
+    <div style="position: sticky; bottom: 20px; background: #ffffff; border: 2px solid #0F6E56; border-radius: 12px; padding: 14px 20px; box-shadow: 0 4px 20px rgba(15, 110, 86, 0.2); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; z-index: 100;">
+      <div>
+        <div style="font-size: 14px; font-weight: 700; color: #111827;">Ready to commit daily levels?</div>
+        <div style="font-size: 12px; color: #6b7280;">Saves all entered readings for {{ target_date_str }}. Bad rows won't block good rows.</div>
+      </div>
+      <button type="button" id="save-all-btn" onclick="saveAllReadings()" style="background: #0F6E56; color: #ffffff; border: none; border-radius: 8px; font-size: 15px; font-weight: 700; padding: 10px 24px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+        💾 Save All Readings
+      </button>
+    </div>
+
+    {% endif %}
+  </div>
+  {% endif %}
+
+  <!-- ============================================================== -->
+  <!-- TAB 2: HISTORY & REPORTS                                       -->
+  <!-- ============================================================== -->
+  {% if active_tab == 'report' %}
+  <div>
+    <!-- KPI Summary Row -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Liquid Consumed</div>
+        <div class="kpi-val" style="color: #b91c1c;">{{ "{:,}".format(total_used_kg) }} kg</div>
+        <div style="font-size: 11.5px; color: #6b7280; margin-top: 4px;">Sum of net daily usage in period</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Refills Received</div>
+        <div class="kpi-val" style="color: #15803d;">+{{ "{:,}".format(total_filled_kg) }} kg</div>
+        <div style="font-size: 11.5px; color: #6b7280; margin-top: 4px;">Sum of net tank fillings in period</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Readings Recorded</div>
+        <div class="kpi-val" style="color: #0F6E56;">{{ report_readings|length }}</div>
+        <div style="font-size: 11.5px; color: #6b7280; margin-top: 4px;">Between {{ from_date_str }} and {{ to_date_str }}</div>
+      </div>
+    </div>
+
+    <!-- Filters & Export Bar -->
+    <form method="GET" action="/admin/tanks" style="background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 16px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px;">
+      <input type="hidden" name="tab" value="report">
+      <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+        <div>
+          <label style="font-size: 11.5px; font-weight: 700; color: #6b7280;">From:</label>
+          <input type="date" name="from_date" value="{{ from_date_str }}" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+        </div>
+        <div>
+          <label style="font-size: 11.5px; font-weight: 700; color: #6b7280;">To:</label>
+          <input type="date" name="to_date" value="{{ to_date_str }}" style="padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+        </div>
+        <div>
+          <label style="font-size: 11.5px; font-weight: 700; color: #6b7280;">Tank:</label>
+          <select name="tank_id" style="padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px;">
+            <option value="">All Storage Tanks</option>
+            {% for t in all_tanks %}
+            <option value="{{ t.id }}" {{ 'selected' if filter_tank_id == (t.id|string) else '' }}>{{ t.name }} ({{ t.gas }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" style="padding: 7px 14px; background: #0F6E56; color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;">
+          Apply Filters
+        </button>
+      </div>
+      <div>
+        <a href="/admin/tanks/export?from_date={{ from_date_str }}&to_date={{ to_date_str }}&tank_id={{ filter_tank_id }}" style="padding: 7px 14px; background: #166534; color: #fff; border-radius: 6px; font-weight: 700; font-size: 13px; text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+          <span>📥 Export to Excel</span>
+        </a>
+      </div>
+    </form>
+
+    <!-- Chart Container -->
+    <div style="background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+      <h3 style="margin: 0 0 14px; font-size: 15px; font-weight: 700; color: #111827;">Liquid Contents Trend (kg over time)</h3>
+      <div style="height: 280px; position: relative;">
+        <canvas id="tankTrendChart"></canvas>
+      </div>
+    </div>
+
+    <!-- Data Table -->
+    <div class="tanks-table-wrap">
+      <table class="tanks-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Tank Name</th>
+            <th>Gas</th>
+            <th>Gauge (mmWC)</th>
+            <th>Pressure</th>
+            <th>Liquid (kg)</th>
+            <th>Volume (SM³)</th>
+            <th>Net Change</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% if report_readings|length == 0 %}
+          <tr>
+            <td colspan="9" style="text-align: center; padding: 32px; color: #6b7280;">No readings found for the selected date range.</td>
+          </tr>
+          {% else %}
+          {% for r in report_readings %}
+          {% set t = tanks_by_id.get(r.tank_id) %}
+          <tr>
+            <td style="font-weight: 600;">{{ r.reading_date.strftime('%d-%m-%Y') }}</td>
+            <td style="font-weight: 700;">{{ t.name if t else ('Tank #' ~ r.tank_id) }}</td>
+            <td>
+              <span style="font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 8px; background: #e5e7eb; color: #374151;">
+                {{ t.gas if t else '' }}
+              </span>
+            </td>
+            <td style="font-weight: 700;">{{ "{:,.0f}".format(r.mmwc) }}</td>
+            <td>
+              {{ r.pressure if r.pressure is not none else '--' }} {{ r.pressure_unit or '' }}
+            </td>
+            <td style="font-weight: 800; color: #064e3b;">
+              {{ "{:,}".format(r.kg|round|int) ~ " kg" if r.kg is not none else "--" }}
+            </td>
+            <td style="font-weight: 700; color: #047857;">
+              {{ "{:,}".format(r.sm3|round|int) ~ " SM³" if r.sm3 is not none else "--" }}
+            </td>
+            <td style="font-weight: 700; color: {{ '#b91c1c' if r.net_change_kg and r.net_change_kg < 0 else ('#15803d' if r.net_change_kg and r.net_change_kg > 0 else '#6b7280') }};">
+              {% if r.net_change_kg is not none and r.status in ('ok', 'above_full') %}
+                {{ "{:+,} kg".format(r.net_change_kg|round|int) }}
+              {% else %}
+                <span style="color: #9ca3af; font-size: 12px;">--</span>
+              {% endif %}
+            </td>
+            <td>
+              <span class="status-pill status-{{ 'ok' if r.status == 'ok' else ('below' if r.status == 'below_chart' else 'above') }}">
+                {{ r.status }}
+              </span>
+            </td>
+          </tr>
+          {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+  {% endif %}
+
+  <!-- ============================================================== -->
+  <!-- TAB 3: MANAGE TANKS, FACTORS & CHARTS (ADMIN ONLY)             -->
+  <!-- ============================================================== -->
+  {% if active_tab == 'manage' %}
+  <div>
+    <!-- Section 1: Storage Tanks -->
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+        <div>
+          <h3 style="margin: 0; font-size: 16px; font-weight: 800; color: #111827;">Storage Tanks</h3>
+          <p style="margin: 2px 0 0; font-size: 12px; color: #6b7280;">Add and configure bulk tanks. Once a tank has readings, its gas and chart model lock permanently.</p>
+        </div>
+        <button type="button" onclick="openAddTankModal()" style="padding: 8px 14px; background: #0F6E56; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer;">
+          + Add Tank
+        </button>
+      </div>
+
+      <div class="tanks-table-wrap" style="margin-bottom: 0;">
+        <table class="tanks-table">
+          <thead>
+            <tr>
+              <th>Order</th>
+              <th>Tank Name</th>
+              <th>Gas</th>
+              <th>Plate Model</th>
+              <th>Readings</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in tanks_manage_info %}
+            {% set t = item.tank %}
+            <tr>
+              <td style="width: 60px; font-weight: 700; color: #6b7280;">#{{ t.display_order }}</td>
+              <td style="font-weight: 700;">
+                {{ t.name }}
+                {% if t.location_notes %}
+                <div style="font-size: 11px; color: #6b7280; font-weight: 400;">{{ t.location_notes }}</div>
+                {% endif %}
+              </td>
+              <td><span style="font-weight: 700; font-size: 11.5px; padding: 2px 8px; border-radius: 8px; background: #e5e7eb;">{{ t.gas }}</span></td>
+              <td>{{ item.model_name }}</td>
+              <td>{{ item.readings_count }} recorded</td>
+              <td>
+                <span class="status-pill status-{{ 'ok' if t.is_active else 'below' }}">
+                  {{ 'Active' if t.is_active else 'Deactivated' }}
+                </span>
+              </td>
+              <td>
+                <div style="display: flex; gap: 8px;">
+                  <button type="button" onclick='openEditTankModal({{ t.to_dict()|tojson }}, {{ item.readings_count }})' style="padding: 4px 10px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer;">
+                    Edit
+                  </button>
+                  <form action="/admin/storage_tanks/toggle_status" method="POST" style="display: inline;">
+                    <input type="hidden" name="tank_id" value="{{ t.id }}">
+                    <button type="submit" style="padding: 4px 10px; background: #fff; border: 1px solid #d1d5db; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: {{ '#b91c1c' if t.is_active else '#15803d' }};">
+                      {{ 'Deactivate' if t.is_active else 'Activate' }}
+                    </button>
+                  </form>
+                  {% if item.readings_count == 0 %}
+                  <form action="/admin/storage_tanks/delete" method="POST" style="display: inline;" onsubmit="return confirm('Delete this tank permanently?');">
+                    <input type="hidden" name="tank_id" value="{{ t.id }}">
+                    <button type="submit" style="padding: 4px 8px; background: #fee2e2; border: 1px solid #fca5a5; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; color: #b91c1c;">
+                      Delete
+                    </button>
+                  </form>
+                  {% endif %}
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 2: Gas Conversion Factors -->
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px; margin-bottom: 24px;">
+      <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #111827;">Gas Conversion Factors</h3>
+      <p style="margin: 0 0 14px; font-size: 12px; color: #6b7280;">Density (kg/L) and Volume factor (SM³/kg). Changes only apply to future readings; old readings preserve their historical snapshot.</p>
+
+      <div class="tanks-table-wrap" style="margin-bottom: 0;">
+        <table class="tanks-table">
+          <thead>
+            <tr>
+              <th>Gas</th>
+              <th>kg per Litre (Density)</th>
+              <th>SM³ per kg (Gas factor)</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for f in factors_rows %}
+            <tr>
+              <form action="/admin/tank_factors/update" method="POST">
+                <input type="hidden" name="gas" value="{{ f.gas }}">
+                <td style="font-weight: 700; width: 140px;">{{ f.gas }}</td>
+                <td style="width: 180px;">
+                  <input type="number" step="0.0001" name="kg_per_litre" value="{{ f.kg_per_litre }}" style="padding: 6px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 13.5px; font-weight: 600; width: 120px;">
+                </td>
+                <td style="width: 180px;">
+                  <input type="number" step="0.0001" name="sm3_per_kg" value="{{ f.sm3_per_kg }}" style="padding: 6px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 13.5px; font-weight: 600; width: 120px;">
+                </td>
+                <td>
+                  <button type="submit" style="padding: 6px 14px; background: #0F6E56; color: #fff; border: none; border-radius: 6px; font-size: 12.5px; font-weight: 700; cursor: pointer;">
+                    Update Factor
+                  </button>
+                </td>
+              </form>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Section 3: Plate Chart Models -->
+    <div style="background: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 18px 20px;">
+      <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 800; color: #111827;">Plate Chart Models</h3>
+      <p style="margin: 0 0 14px; font-size: 12px; color: #6b7280;">Calibration models loaded in system. Paste new model charts in CSV format (gas,mmwc,litres).</p>
+
+      <div style="margin-bottom: 14px;">
+        {% for m in models_info %}
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 8px;">
+          <div>
+            <span style="font-weight: 800; color: #0F6E56;">{{ m.model.model_name }}</span>
+            <span style="font-size: 12px; color: #6b7280; margin-left: 8px;">{{ m.model.description or 'Cryogenic plate calibration' }}</span>
+          </div>
+          <span style="font-size: 12px; font-weight: 700; color: #374151;">{{ m.row_count }} points</span>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- Add New Chart Form -->
+      <details style="background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;">
+        <summary style="font-size: 13.5px; font-weight: 700; color: #0F6E56; cursor: pointer;">+ Paste &amp; Upload New Tank Model Chart (CSV)</summary>
+        <form action="/admin/tank_charts/upload" method="POST" style="margin-top: 14px;">
+          <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 12px; margin-bottom: 12px;">
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Model Name</label>
+              <input type="text" name="model_name" placeholder="e.g. 15K20VEN" required style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600;">
+            </div>
+            <div>
+              <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Description</label>
+              <input type="text" name="description" placeholder="Manufacturer &amp; capacity details" style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px;">
+            </div>
+          </div>
+          <div style="margin-bottom: 12px;">
+            <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">CSV Data (gas,mmwc,litres)</label>
+            <textarea name="csv_text" rows="6" placeholder="gas,mmwc,litres&#10;Nitrogen,400,767&#10;Nitrogen,800,1838&#10;..." required style="width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; font-family: monospace; font-size: 12.5px;"></textarea>
+          </div>
+          <button type="submit" style="padding: 8px 18px; background: #0F6E56; color: #fff; border: none; border-radius: 6px; font-weight: 700; font-size: 13px; cursor: pointer;">
+            Verify &amp; Save Model Chart
+          </button>
+        </form>
+      </details>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+
+<!-- Modal: Add Tank -->
+<div id="addTankModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
+  <div style="background: #fff; width: 100%; max-width: 480px; border-radius: 14px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #111827;">Add New Storage Tank</h3>
+      <button type="button" onclick="closeAddTankModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;">&times;</button>
+    </div>
+    <form action="/admin/storage_tanks/create" method="POST">
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Tank Name *</label>
+        <input type="text" name="name" placeholder="e.g. Oxygen Tank 1" required style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px;">
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Gas *</label>
+          <select name="gas" required style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+            <option value="Oxygen">Oxygen (LOX)</option>
+            <option value="Nitrogen">Nitrogen (LIN)</option>
+            <option value="Argon">Argon (LAR)</option>
+          </select>
+        </div>
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Chart Model</label>
+          <select name="model_id" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+            {% for m in models_info %}
+            <option value="{{ m.model.id if m.model.id else 1 }}">{{ m.model.model_name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Location / Notes</label>
+        <input type="text" name="location_notes" placeholder="e.g. Depot Bay 2" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+      </div>
+      <div style="margin-bottom: 18px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Display Order</label>
+        <input type="number" name="display_order" value="1" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" onclick="closeAddTankModal()" style="padding: 8px 14px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Cancel</button>
+        <button type="submit" style="padding: 8px 18px; background: #0F6E56; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer;">Add Tank</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Edit Tank -->
+<div id="editTankModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 1000; align-items: center; justify-content: center; padding: 16px;">
+  <div style="background: #fff; width: 100%; max-width: 480px; border-radius: 14px; padding: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.2);">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+      <h3 style="margin: 0; font-size: 17px; font-weight: 800; color: #111827;">Edit Storage Tank</h3>
+      <button type="button" onclick="closeEditTankModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #6b7280;">&times;</button>
+    </div>
+    <form action="/admin/storage_tanks/edit" method="POST">
+      <input type="hidden" name="tank_id" id="edit-tank-id">
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Tank Name *</label>
+        <input type="text" name="name" id="edit-tank-name" required style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Gas</label>
+        <select name="gas" id="edit-tank-gas" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+          <option value="Oxygen">Oxygen</option>
+          <option value="Nitrogen">Nitrogen</option>
+          <option value="Argon">Argon</option>
+        </select>
+        <div id="edit-gas-locked-hint" style="display: none; font-size: 11px; color: #b45309; margin-top: 3px;">
+          🔒 Gas locked because this tank has recorded readings.
+        </div>
+      </div>
+      <div style="margin-bottom: 12px;">
+        <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Location / Notes</label>
+        <input type="text" name="location_notes" id="edit-tank-location" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px;">
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Display Order</label>
+          <input type="number" name="display_order" id="edit-tank-order" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; box-sizing: border-box;">
+        </div>
+        <div>
+          <label style="display: block; font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 4px;">Active Status</label>
+          <select name="is_active" id="edit-tank-active" style="width: 100%; padding: 8px 10px; border: 1.5px solid #d1d5db; border-radius: 6px; font-size: 14px; font-weight: 600; box-sizing: border-box;">
+            <option value="1">Active</option>
+            <option value="0">Deactivated</option>
+          </select>
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button type="button" onclick="closeEditTankModal()" style="padding: 8px 14px; background: #f3f4f6; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer;">Cancel</button>
+        <button type="submit" style="padding: 8px 18px; background: #0F6E56; color: #fff; border: none; border-radius: 6px; font-size: 13px; font-weight: 700; cursor: pointer;">Save Changes</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+  function changeEntryDate(dateStr) {
+    window.location.href = `/admin/tanks?tab=entry&date=${encodeURIComponent(dateStr)}`;
+  }
+
+  function openAddTankModal() {
+    const m = document.getElementById('addTankModal');
+    if (m) m.style.display = 'flex';
+  }
+  function closeAddTankModal() {
+    const m = document.getElementById('addTankModal');
+    if (m) m.style.display = 'none';
+  }
+
+  function openEditTankModal(tank, readingsCount) {
+    document.getElementById('edit-tank-id').value = tank.id;
+    document.getElementById('edit-tank-name').value = tank.name;
+    document.getElementById('edit-tank-gas').value = tank.gas;
+    document.getElementById('edit-tank-location').value = tank.location_notes || '';
+    document.getElementById('edit-tank-order').value = tank.display_order || 0;
+    document.getElementById('edit-tank-active').value = tank.is_active ? '1' : '0';
+
+    const gasSelect = document.getElementById('edit-tank-gas');
+    const hint = document.getElementById('edit-gas-locked-hint');
+    if (readingsCount > 0) {
+      gasSelect.disabled = true;
+      hint.style.display = 'block';
+    } else {
+      gasSelect.disabled = false;
+      hint.style.display = 'none';
+    }
+
+    const m = document.getElementById('editTankModal');
+    if (m) m.style.display = 'flex';
+  }
+  function closeEditTankModal() {
+    const m = document.getElementById('editTankModal');
+    if (m) m.style.display = 'none';
+  }
+
+  // Live row calculation on PC table
+  let pcCalcTimers = {};
+  function onPcRowInput(elem) {
+    const row = elem.closest('tr');
+    if (!row) return;
+    const tankId = row.dataset.tankId;
+    if (pcCalcTimers[tankId]) clearTimeout(pcCalcTimers[tankId]);
+    pcCalcTimers[tankId] = setTimeout(() => doPcRowCalc(row), 120);
+  }
+
+  async function doPcRowCalc(row) {
+    const gas = row.dataset.gas;
+    const model = row.dataset.model || '13K17VEN';
+    const mmwcInput = row.querySelector('.row-mmwc');
+    const pInput = row.querySelector('.row-pressure');
+    const uSelect = row.querySelector('.row-unit');
+    const kgCell = row.querySelector('.row-kg');
+    const sm3Cell = row.querySelector('.row-sm3');
+    const statusCell = row.querySelector('.row-status');
+
+    if (!mmwcInput || !mmwcInput.value.trim()) {
+      if (kgCell) kgCell.textContent = '--';
+      if (sm3Cell) sm3Cell.textContent = '--';
+      return;
+    }
+
+    const mmwcVal = parseFloat(mmwcInput.value);
+    if (isNaN(mmwcVal)) return;
+
+    try {
+      const res = await fetch('/api/tanks/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          gas: gas,
+          mmwc: mmwcVal,
+          pressure: pInput ? pInput.value : null,
+          pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
+          model_name: model
+        })
+      });
+      const data = await res.json();
+
+      if (data.status === 'error') {
+        if (kgCell) kgCell.textContent = '--';
+        if (sm3Cell) sm3Cell.textContent = '--';
+        if (statusCell) statusCell.innerHTML = `<span style="color:#b91c1c; font-size:11px; font-weight:700;">Error: ${data.error}</span>`;
+        return;
+      }
+      if (data.status === 'below_chart') {
+        if (kgCell) kgCell.textContent = 'None';
+        if (sm3Cell) sm3Cell.textContent = 'None';
+        if (statusCell) statusCell.innerHTML = `<span class="status-pill status-below" title="Below chart range (< 400 mmWC)">below_chart</span>`;
+        return;
+      }
+
+      if (kgCell) kgCell.textContent = data.kg_display != null ? `${data.kg_display.toLocaleString()} kg` : '--';
+      if (sm3Cell) sm3Cell.textContent = data.sm3_display != null ? `${data.sm3_display.toLocaleString()} SM³` : '--';
+
+      if (statusCell) {
+        if (data.status === 'above_full') {
+          statusCell.innerHTML = `<span class="status-pill status-above" title="Above full capacity">above_full</span>`;
+        } else {
+          statusCell.innerHTML = `<span class="status-pill status-ok">Ready</span>`;
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
+  function onMobileCardInput(elem) {
+    const card = elem.closest('.mobile-card-row');
+    if (!card) return;
+    doPcRowCalc(card);
+  }
+
+  // Batch Save all readings
+  async function saveAllReadings() {
+    const btn = document.getElementById('save-all-btn');
+    const datePicker = document.getElementById('entry-date-picker');
+    const targetDate = datePicker ? datePicker.value : '';
+
+    const rows = document.querySelectorAll('#pc-batch-table tbody tr');
+    const readings = [];
+
+    rows.forEach(r => {
+      const tankId = r.dataset.tankId;
+      const mmwcInput = r.querySelector('.row-mmwc');
+      const pInput = r.querySelector('.row-pressure');
+      const uSelect = r.querySelector('.row-unit');
+
+      if (mmwcInput && mmwcInput.value.trim()) {
+        readings.push({
+          tank_id: parseInt(tankId),
+          mmwc: parseFloat(mmwcInput.value),
+          pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
+          pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
+          allow_update: true
+        });
+      }
+    });
+
+    if (readings.length === 0) {
+      alert("Please enter a mmWC gauge reading for at least one tank.");
+      return;
+    }
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Saving All...';
+
+    try {
+      const res = await fetch('/api/tanks/readings/batch-save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reading_date: targetDate,
+          readings: readings,
+          allow_update: true
+        })
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        alert(`Error saving readings: ${data.error || 'Server error'}`);
+        return;
+      }
+
+      alert(`✓ Successfully saved ${data.saved_count} tank reading(s)!`);
+      window.location.reload();
+    } catch (e) {
+      alert(`Network error saving readings: ${e.message}`);
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = '💾 Save All Readings';
+    }
+  }
+
+  // Initialize Trend Chart if on Report Tab
+  document.addEventListener('DOMContentLoaded', function() {
+    const canvas = document.getElementById('tankTrendChart');
+    if (!canvas) return;
+
+    {% if active_tab == 'report' and report_readings|length > 0 %}
+    // Build dataset by tank
+    const readingsData = {{ report_readings|map(attribute='to_dict')|list|tojson }};
+    const tanksById = {{ tanks_by_id.values()|map(attribute='to_dict')|list|tojson }}.reduce((acc, t) => {
+      acc[t.id] = t;
+      return acc;
+    }, {});
+
+    // Sort ascending by date for chart
+    readingsData.sort((a, b) => a.reading_date.localeCompare(b.reading_date));
+
+    const dates = Array.from(new Set(readingsData.map(r => r.reading_date)));
+    const datasetsByTank = {};
+
+    const colors = ['#0F6E56', '#2563eb', '#d97706', '#dc2626', '#7c3aed', '#059669'];
+    let cIdx = 0;
+
+    readingsData.forEach(r => {
+      if (r.kg == null) return;
+      const t = tanksById[r.tank_id];
+      const name = t ? `${t.name} (${t.gas})` : `Tank #${r.tank_id}`;
+      if (!datasetsByTank[r.tank_id]) {
+        datasetsByTank[r.tank_id] = {
+          label: name,
+          data: {},
+          borderColor: colors[cIdx % colors.length],
+          backgroundColor: colors[cIdx % colors.length],
+          tension: 0.2,
+          fill: false,
+          spanGaps: true
+        };
+        cIdx++;
+      }
+      datasetsByTank[r.tank_id].data[r.reading_date] = r.kg;
+    });
+
+    const datasets = Object.values(datasetsByTank).map(ds => {
+      return {
+        ...ds,
+        data: dates.map(d => ds.data[d] !== undefined ? ds.data[d] : null)
+      };
+    });
+
+    new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: dates.map(d => {
+          const parts = d.split('-');
+          return `${parts[2]}/${parts[1]}`;
+        }),
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { position: 'top' },
+          tooltip: {
+            callbacks: {
+              label: ctx => `${ctx.dataset.label}: ${ctx.raw ? ctx.raw.toLocaleString() + ' kg' : 'No data'}`
+            }
+          }
+        },
+        scales: {
+          y: {
+            title: { display: true, text: 'Quantity (kg)' },
+            ticks: { callback: v => v.toLocaleString() + ' kg' }
+          }
+        }
+      }
+    });
+    {% endif %}
+  });
+</script>
+{% endblock %}

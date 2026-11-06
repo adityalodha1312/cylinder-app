@@ -550,3 +550,148 @@ class PendingCylinderReview(db.Model):
             'created_at': self.created_at.strftime('%d-%m-%Y %H:%M') if self.created_at else '',
         }
 
+
+
+# ─── Daily Tank Level Reporting Models (Isolated MetaData) ─────────────────────
+# Note: Using isolated MetaData so db.create_all() at app startup does NOT auto-create
+# these tables, leaving table creation strictly to manual SQL migrations.
+
+from sqlalchemy.orm import declarative_base
+
+tank_meta = db.MetaData()
+TankBase = declarative_base(metadata=tank_meta)
+
+
+class TankModel(TankBase):
+    __tablename__ = 'tank_models'
+    id          = db.Column(db.Integer, primary_key=True)
+    model_name  = db.Column(db.String(100), unique=True, nullable=False)
+    description = db.Column(db.Text)
+    created_at  = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'model_name': self.model_name,
+            'description': self.description or '',
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else ''
+        }
+
+
+class TankChartRow(TankBase):
+    __tablename__ = 'tank_chart_rows'
+    id         = db.Column(db.Integer, primary_key=True)
+    model_id   = db.Column(db.Integer, db.ForeignKey('tank_models.id'), nullable=False)
+    gas        = db.Column(db.String(50), nullable=False)
+    mmwc       = db.Column(db.Numeric(10, 2), nullable=False)
+    litres     = db.Column(db.Numeric(12, 2), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'model_id': self.model_id,
+            'gas': self.gas,
+            'mmwc': float(self.mmwc),
+            'litres': float(self.litres)
+        }
+
+
+class TankGasFactor(TankBase):
+    __tablename__ = 'tank_gas_factors'
+    id           = db.Column(db.Integer, primary_key=True)
+    gas          = db.Column(db.String(50), unique=True, nullable=False)
+    kg_per_litre = db.Column(db.Numeric(10, 4), nullable=False)
+    sm3_per_kg   = db.Column(db.Numeric(10, 4), nullable=False)
+    updated_at   = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'gas': self.gas,
+            'kg_per_litre': float(self.kg_per_litre),
+            'sm3_per_kg': float(self.sm3_per_kg),
+            'updated_at': self.updated_at.strftime('%Y-%m-%d %H:%M') if self.updated_at else ''
+        }
+
+
+class StorageTank(TankBase):
+    __tablename__ = 'storage_tanks'
+    id             = db.Column(db.Integer, primary_key=True)
+    name           = db.Column(db.String(100), unique=True, nullable=False)
+    gas            = db.Column(db.String(50), nullable=False)
+    model_id       = db.Column(db.Integer, db.ForeignKey('tank_models.id'), nullable=False)
+    location_notes = db.Column(db.Text)
+    display_order  = db.Column(db.Integer, default=0)
+    is_active      = db.Column(db.Boolean, default=True)
+    created_at     = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'gas': self.gas,
+            'model_id': self.model_id,
+            'location_notes': self.location_notes or '',
+            'display_order': self.display_order or 0,
+            'is_active': bool(self.is_active),
+            'created_at': self.created_at.strftime('%Y-%m-%d %H:%M') if self.created_at else ''
+        }
+
+
+class TankReading(TankBase):
+    __tablename__ = 'tank_readings'
+    id                 = db.Column(db.Integer, primary_key=True)
+    tank_id            = db.Column(db.Integer, db.ForeignKey('storage_tanks.id'), nullable=False)
+    reading_date       = db.Column(db.Date, nullable=False)
+    reading_time       = db.Column(db.Time)
+    mmwc               = db.Column(db.Numeric(10, 2), nullable=False)
+    pressure           = db.Column(db.Numeric(10, 2))
+    pressure_unit      = db.Column(db.String(20), default='kg/cm²')
+    pressure_bar       = db.Column(db.Numeric(10, 4))
+    litres             = db.Column(db.Numeric(14, 4))
+    kg                 = db.Column(db.Numeric(14, 4))
+    sm3                = db.Column(db.Numeric(14, 4))
+    chart_model_used   = db.Column(db.String(100), nullable=False)
+    kg_per_litre_used  = db.Column(db.Numeric(10, 4), nullable=False)
+    sm3_per_kg_used    = db.Column(db.Numeric(10, 4), nullable=False)
+    net_change_kg      = db.Column(db.Numeric(14, 4))
+    status             = db.Column(db.String(50), default='ok') # 'ok', 'below_chart', 'above_full'
+    recorded_by_id     = db.Column(db.Integer, db.ForeignKey('users.id'))
+    notes              = db.Column(db.Text)
+    created_at         = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at         = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'tank_id': self.tank_id,
+            'reading_date': self.reading_date.strftime('%Y-%m-%d') if self.reading_date else '',
+            'reading_time': self.reading_time.strftime('%H:%M') if self.reading_time else '',
+            'mmwc': float(self.mmwc) if self.mmwc is not None else None,
+            'pressure': float(self.pressure) if self.pressure is not None else None,
+            'pressure_unit': self.pressure_unit or 'kg/cm²',
+            'pressure_bar': float(self.pressure_bar) if self.pressure_bar is not None else None,
+            'litres': float(self.litres) if self.litres is not None else None,
+            'kg': round(float(self.kg)) if self.kg is not None else None,
+            'kg_raw': float(self.kg) if self.kg is not None else None,
+            'sm3': round(float(self.sm3)) if self.sm3 is not None else None,
+            'sm3_raw': float(self.sm3) if self.sm3 is not None else None,
+            'chart_model_used': self.chart_model_used,
+            'kg_per_litre_used': float(self.kg_per_litre_used),
+            'sm3_per_kg_used': float(self.sm3_per_kg_used),
+            'net_change_kg': round(float(self.net_change_kg)) if self.net_change_kg is not None else None,
+            'net_change_raw': float(self.net_change_kg) if self.net_change_kg is not None else None,
+            'status': self.status,
+            'recorded_by_id': self.recorded_by_id,
+            'notes': self.notes or ''
+        }
+
+
+# Attach standard query properties
+TankModel.query = db.session.query_property()
+TankChartRow.query = db.session.query_property()
+TankGasFactor.query = db.session.query_property()
+StorageTank.query = db.session.query_property()
+TankReading.query = db.session.query_property()

@@ -1106,6 +1106,97 @@
     <div id="jobs-list-container" style="display: flex; flex-direction: column; gap: 14px; margin-bottom: 20px;">
       <!-- Populated dynamically via JavaScript -->
     </div>
+
+    <!-- DAILY TANK LEVEL REPORTING CARD (WORKER ENTRY) -->
+    <div id="worker-tank-card" style="margin-top: 24px; padding: 18px 16px; background: #ffffff; border: 1.5px solid #d1fae5; border-radius: 16px; box-shadow: 0 2px 12px rgba(15, 110, 86, 0.08);">
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">🎛️</span>
+          <div>
+            <div style="font-size: 14.5px; font-weight: 700; color: #064e3b; line-height: 1.2;">Daily Tank Gauge Reading</div>
+            <div style="font-size: 11px; color: #6b7280; margin-top: 1px;">Plate 13K17VEN (LOX / LIN / LAR)</div>
+          </div>
+        </div>
+        <span id="wt-progress-badge" style="background: #ecfdf5; color: #047857; font-size: 11px; font-weight: 700; padding: 3px 8px; border-radius: 20px; border: 1px solid #a7f3d0;">
+          Checking...
+        </span>
+      </div>
+
+      <!-- Date selector -->
+      <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; background: #f9fafb; padding: 6px 10px; border-radius: 8px;">
+        <span style="font-size: 12px; font-weight: 600; color: #374151;">Reading Date:</span>
+        <input type="date" id="wt-date" style="border: 1px solid #d1d5db; border-radius: 6px; padding: 4px 8px; font-size: 13px; font-weight: 600; color: #111827; background: #fff;" onchange="wtOnDateChange()">
+      </div>
+
+      <!-- No tanks container -->
+      <div id="wt-no-tanks" style="display: none; padding: 16px; text-align: center; color: #6b7280; font-size: 13px; background: #f9fafb; border-radius: 8px;">
+        No tanks set up yet. Ask an admin to add tanks.
+      </div>
+
+      <!-- Main entry form container -->
+      <div id="wt-form-container">
+        <!-- Tank selector pills -->
+        <div style="margin-bottom: 12px;">
+          <label style="display: block; font-size: 11.5px; font-weight: 600; color: #4b5563; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.3px;">Select Tank</label>
+          <div id="wt-tank-pills" style="display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; -webkit-overflow-scrolling: touch;">
+            <!-- Populated via JS -->
+          </div>
+        </div>
+
+        <!-- Input row: mmWC and Pressure -->
+        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 12px;">
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 600; color: #4b5563; margin-bottom: 4px;">
+              Gauge (mmWC) <span style="color:#dc2626;">*</span>
+            </label>
+            <input type="number" id="wt-mmwc" inputmode="decimal" placeholder="e.g. 2200" style="width: 100%; min-height: 44px; padding: 10px 12px; border: 1.5px solid #d1d5db; border-radius: 8px; font-size: 16px; font-weight: 600; box-sizing: border-box;" oninput="wtOnInputChange()">
+          </div>
+          <div>
+            <label style="display: block; font-size: 11.5px; font-weight: 600; color: #4b5563; margin-bottom: 4px;">
+              Pressure
+            </label>
+            <div style="display: flex;">
+              <input type="number" id="wt-pressure" inputmode="decimal" step="0.1" placeholder="e.g. 8.5" style="width: 60%; min-height: 44px; padding: 10px 8px; border: 1.5px solid #d1d5db; border-right: none; border-top-left-radius: 8px; border-bottom-left-radius: 8px; font-size: 16px; font-weight: 600; box-sizing: border-box;" oninput="wtOnInputChange()">
+              <select id="wt-pressure-unit" style="width: 40%; min-height: 44px; padding: 8px 4px; border: 1.5px solid #d1d5db; border-top-right-radius: 8px; border-bottom-right-radius: 8px; font-size: 12px; font-weight: 600; background: #f9fafb;" onchange="wtOnInputChange()">
+                <option value="kg/cm²" selected>kg/cm²</option>
+                <option value="psi">psi</option>
+                <option value="bar">bar</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Calculated Live Display -->
+        <div id="wt-calc-box" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 12px; margin-bottom: 12px;">
+          <div style="font-size: 11px; font-weight: 700; color: #166534; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.4px;">Calculated Contents</div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div style="background: #fff; padding: 8px 10px; border-radius: 8px; border: 1px solid #dcfce7; text-align: center;">
+              <div style="font-size: 10.5px; color: #6b7280; font-weight: 600;">Liquid Weight</div>
+              <div id="wt-disp-kg" style="font-size: 19px; font-weight: 800; color: #064e3b; margin-top: 2px;">--</div>
+            </div>
+            <div style="background: #fff; padding: 8px 10px; border-radius: 8px; border: 1px solid #dcfce7; text-align: center;">
+              <div style="font-size: 10.5px; color: #6b7280; font-weight: 600;">Gas Volume</div>
+              <div id="wt-disp-sm3" style="font-size: 19px; font-weight: 800; color: #064e3b; margin-top: 2px;">--</div>
+            </div>
+          </div>
+          <!-- Warning banner inside calc box -->
+          <div id="wt-calc-warning" style="display: none; margin-top: 8px; padding: 6px 10px; border-radius: 6px; font-size: 11.5px; font-weight: 600; line-height: 1.3;"></div>
+        </div>
+
+        <!-- Existing reading notification / update prompt -->
+        <div id="wt-existing-prompt" style="display: none; background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; font-size: 12px; color: #92400e;">
+          ⚠️ A reading for this tank on this date already exists. Tapping save will update it.
+        </div>
+
+        <!-- Net change banner (after save) -->
+        <div id="wt-result-banner" style="display: none; padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight: 700; text-align: center; margin-bottom: 12px;"></div>
+
+        <!-- Submit Button -->
+        <button type="button" id="wt-submit-btn" onclick="wtSubmitReading()" style="width: 100%; min-height: 46px; background: #0F6E56; color: #ffffff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 2px 6px rgba(15, 110, 86, 0.25);">
+          💾 Save Tank Reading
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- STEP 1: SETUP -->
@@ -4584,6 +4675,326 @@ async function manualAutoSplitBatches() {
     manualClear();
   }
 }
+
+// ─── Worker Daily Tank Reporting Logic ─────────────────────────────────────────
+const wtState = {
+  tanks: [],
+  selectedTankId: null,
+  calcTimer: null
+};
+
+function getTodayIso() {
+  const d = new Date();
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+async function wtInit() {
+  const dateInput = document.getElementById('wt-date');
+  if (!dateInput) return;
+  const today = getTodayIso();
+  dateInput.value = today;
+  dateInput.max = today;
+  await wtFetchTanks(today);
+}
+
+async function wtFetchTanks(dateStr) {
+  const badge = document.getElementById('wt-progress-badge');
+  const noTanks = document.getElementById('wt-no-tanks');
+  const formBox = document.getElementById('wt-form-container');
+  if (badge) badge.textContent = 'Loading...';
+
+  try {
+    const res = await fetch(`/api/tanks/active_list?date=${encodeURIComponent(dateStr)}`);
+    const data = await res.json();
+    wtState.tanks = data.tanks || [];
+
+    if (badge) {
+      badge.textContent = `${data.completed || 0} of ${data.total || 0} reported`;
+      if (data.total > 0 && data.completed === data.total) {
+        badge.style.background = '#dcfce7';
+        badge.style.color = '#15803d';
+        badge.textContent = `All ${data.total} reported today ✓`;
+      } else {
+        badge.style.background = '#ecfdf5';
+        badge.style.color = '#047857';
+      }
+    }
+
+    if (wtState.tanks.length === 0) {
+      if (noTanks) noTanks.style.display = 'block';
+      if (formBox) formBox.style.display = 'none';
+      return;
+    }
+
+    if (noTanks) noTanks.style.display = 'none';
+    if (formBox) formBox.style.display = 'block';
+
+    wtRenderPills();
+
+    // Auto-select first pending tank, or keep current selection if still valid
+    let pick = wtState.tanks.find(t => t.id === wtState.selectedTankId);
+    if (!pick) {
+      pick = wtState.tanks.find(t => !t.reported_today) || wtState.tanks[0];
+    }
+    if (pick) {
+      wtSelectTank(pick.id);
+    }
+  } catch (e) {
+    if (badge) badge.textContent = 'Tanks offline';
+  }
+}
+
+function wtRenderPills() {
+  const container = document.getElementById('wt-tank-pills');
+  if (!container) return;
+  container.innerHTML = '';
+
+  wtState.tanks.forEach(t => {
+    const isSelected = (t.id === wtState.selectedTankId);
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.style.cssText = `
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      font-weight: 700;
+      white-space: nowrap;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+      border: 1.5px solid ${isSelected ? '#0F6E56' : '#d1d5db'};
+      background: ${isSelected ? '#0F6E56' : (t.reported_today ? '#f0fdf4' : '#ffffff')};
+      color: ${isSelected ? '#ffffff' : (t.reported_today ? '#166534' : '#374151')};
+    `;
+    pill.innerHTML = `
+      <span>${escapeHtml(t.name)}</span>
+      <span style="font-size: 10px; opacity: 0.85; padding: 1px 5px; border-radius: 10px; background: ${isSelected ? 'rgba(255,255,255,0.25)' : '#e5e7eb'}; color: ${isSelected ? '#fff' : '#4b5563'};">${escapeHtml(t.gas)}</span>
+      ${t.reported_today ? `<span style="color: ${isSelected ? '#fff' : '#16a34a'}; font-size: 12px;">✓</span>` : ''}
+    `;
+    pill.onclick = () => wtSelectTank(t.id);
+    container.appendChild(pill);
+  });
+}
+
+function wtSelectTank(tankId) {
+  wtState.selectedTankId = tankId;
+  wtRenderPills();
+
+  const tank = wtState.tanks.find(t => t.id === tankId);
+  if (!tank) return;
+
+  const mmwcInput = document.getElementById('wt-mmwc');
+  const pressureInput = document.getElementById('wt-pressure');
+  const unitSelect = document.getElementById('wt-pressure-unit');
+  const existingPrompt = document.getElementById('wt-existing-prompt');
+  const resultBanner = document.getElementById('wt-result-banner');
+
+  if (resultBanner) resultBanner.style.display = 'none';
+
+  if (tank.reported_today && tank.reading) {
+    if (mmwcInput) mmwcInput.value = tank.reading.mmwc != null ? tank.reading.mmwc : '';
+    if (pressureInput) pressureInput.value = tank.reading.pressure != null ? tank.reading.pressure : '';
+    if (unitSelect && tank.reading.pressure_unit) unitSelect.value = tank.reading.pressure_unit;
+    if (existingPrompt) {
+      existingPrompt.style.display = 'block';
+      existingPrompt.innerHTML = `ℹ️ Already recorded today (${tank.reading.kg ? tank.reading.kg.toLocaleString() + ' kg' : 'No kg'}). Tapping save will update it.`;
+    }
+  } else {
+    if (mmwcInput) mmwcInput.value = '';
+    if (pressureInput) pressureInput.value = '';
+    if (existingPrompt) existingPrompt.style.display = 'none';
+  }
+
+  wtCalculate();
+}
+
+function wtOnDateChange() {
+  const dateInput = document.getElementById('wt-date');
+  if (!dateInput) return;
+  const today = getTodayIso();
+  if (dateInput.value > today) {
+    alert("Reading date cannot be in the future.");
+    dateInput.value = today;
+  }
+  wtFetchTanks(dateInput.value);
+}
+
+function wtOnInputChange() {
+  if (wtState.calcTimer) clearTimeout(wtState.calcTimer);
+  wtState.calcTimer = setTimeout(wtCalculate, 120);
+}
+
+async function wtCalculate() {
+  const tank = wtState.tanks.find(t => t.id === wtState.selectedTankId);
+  const mmwcInput = document.getElementById('wt-mmwc');
+  const pressureInput = document.getElementById('wt-pressure');
+  const unitSelect = document.getElementById('wt-pressure-unit');
+  const dispKg = document.getElementById('wt-disp-kg');
+  const dispSm3 = document.getElementById('wt-disp-sm3');
+  const warnDiv = document.getElementById('wt-calc-warning');
+
+  if (!tank || !mmwcInput || !mmwcInput.value.trim()) {
+    if (dispKg) dispKg.textContent = '--';
+    if (dispSm3) dispSm3.textContent = '--';
+    if (warnDiv) warnDiv.style.display = 'none';
+    return;
+  }
+
+  const mmwcVal = parseFloat(mmwcInput.value);
+  if (isNaN(mmwcVal)) {
+    if (dispKg) dispKg.textContent = '--';
+    if (dispSm3) dispSm3.textContent = '--';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/tanks/calculate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        gas: tank.gas,
+        mmwc: mmwcVal,
+        pressure: pressureInput ? pressureInput.value : null,
+        pressure_unit: unitSelect ? unitSelect.value : 'kg/cm²',
+        model_name: tank.model_name || '13K17VEN'
+      })
+    });
+    const data = await res.json();
+
+    if (data.status === 'error') {
+      if (dispKg) dispKg.textContent = '--';
+      if (dispSm3) dispSm3.textContent = '--';
+      if (warnDiv) {
+        warnDiv.style.display = 'block';
+        warnDiv.style.background = '#fef2f2';
+        warnDiv.style.color = '#991b1b';
+        warnDiv.textContent = `⚠️ ${data.error || 'Invalid reading'}`;
+      }
+      return;
+    }
+
+    if (data.status === 'below_chart') {
+      if (dispKg) dispKg.textContent = 'None';
+      if (dispSm3) dispSm3.textContent = 'None';
+      if (warnDiv) {
+        warnDiv.style.display = 'block';
+        warnDiv.style.background = '#fef2f2';
+        warnDiv.style.color = '#991b1b';
+        warnDiv.textContent = '⚠️ Below chart range (< 400 mmWC), tank very low. No values calculated.';
+      }
+      return;
+    }
+
+    if (dispKg) dispKg.textContent = (data.kg_display != null) ? `${data.kg_display.toLocaleString()} kg` : '--';
+    if (dispSm3) dispSm3.textContent = (data.sm3_display != null) ? `${data.sm3_display.toLocaleString()} SM³` : '--';
+
+    if (data.warnings && data.warnings.length > 0) {
+      if (warnDiv) {
+        warnDiv.style.display = 'block';
+        warnDiv.style.background = '#fffbeb';
+        warnDiv.style.color = '#92400e';
+        warnDiv.innerHTML = `⚠️ ${data.warnings.map(escapeHtml).join('<br>')}`;
+      }
+    } else {
+      if (warnDiv) warnDiv.style.display = 'none';
+    }
+  } catch (e) {
+    console.error("Tank calculation error:", e);
+  }
+}
+
+async function wtSubmitReading() {
+  const tank = wtState.tanks.find(t => t.id === wtState.selectedTankId);
+  const dateInput = document.getElementById('wt-date');
+  const mmwcInput = document.getElementById('wt-mmwc');
+  const pressureInput = document.getElementById('wt-pressure');
+  const unitSelect = document.getElementById('wt-pressure-unit');
+  const submitBtn = document.getElementById('wt-submit-btn');
+  const resultBanner = document.getElementById('wt-result-banner');
+
+  if (!tank) {
+    alert("Please select a tank first.");
+    return;
+  }
+  if (!mmwcInput || !mmwcInput.value.trim()) {
+    alert("Please enter the mmWC gauge reading.");
+    if (mmwcInput) mmwcInput.focus();
+    return;
+  }
+
+  const mmwcVal = parseFloat(mmwcInput.value);
+  if (isNaN(mmwcVal) || mmwcVal < 0) {
+    alert("Please enter a valid positive number for mmWC.");
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.innerHTML = '⏳ Saving...';
+
+  try {
+    const res = await fetch('/api/tanks/reading/save', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tank_id: tank.id,
+        reading_date: dateInput ? dateInput.value : getTodayIso(),
+        mmwc: mmwcVal,
+        pressure: pressureInput ? pressureInput.value : null,
+        pressure_unit: unitSelect ? unitSelect.value : 'kg/cm²',
+        allow_update: true
+      })
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      alert(`Error saving reading: ${data.error || 'Server error'}`);
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '💾 Save Tank Reading';
+      return;
+    }
+
+    // Success banner
+    if (resultBanner) {
+      resultBanner.style.display = 'block';
+      resultBanner.style.background = '#f0fdf4';
+      resultBanner.style.color = '#166534';
+      resultBanner.style.border = '1.5px solid #86efac';
+      resultBanner.innerHTML = `
+        <div style="font-size: 14px; font-weight: 800;">✓ Reading Saved for ${escapeHtml(tank.name)}!</div>
+        <div style="font-size: 12.5px; font-weight: 600; margin-top: 3px; color: #047857;">${escapeHtml(data.net_change_label || 'Saved')}</div>
+      `;
+    }
+
+    if (navigator.vibrate) navigator.vibrate(40);
+
+    // Refresh tanks list
+    await wtFetchTanks(dateInput ? dateInput.value : getTodayIso());
+
+    // Auto-advance to next pending tank if any
+    const nextPending = wtState.tanks.find(t => !t.reported_today && t.id !== tank.id);
+    if (nextPending) {
+      setTimeout(() => {
+        wtSelectTank(nextPending.id);
+      }, 1400);
+    }
+  } catch (e) {
+    alert(`Network error saving reading: ${e.message}`);
+  } finally {
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '💾 Save Tank Reading';
+  }
+}
+
+// Auto-initialize when scan page loads
+document.addEventListener('DOMContentLoaded', function() {
+  wtInit();
+});
+
 
 </script>
 

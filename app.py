@@ -11566,3 +11566,827 @@ def admin_api_pending_cylinder_batch_register():
 
 
 
+
+
+# ====================================================================
+#  DAILY TANK LEVEL REPORTING ROUTES (Additive Feature)
+# ====================================================================
+
+from models import StorageTank, TankModel, TankChartRow, TankGasFactor, TankReading
+from services.tank_service import (
+    calculate_tank_values,
+    get_previous_good_reading,
+    compute_net_change,
+    get_gas_factors,
+    get_chart_rows,
+    normalize_pressure,
+    check_pressure_warning,
+    DEFAULT_FACTORS,
+    CHART_13K17VEN
+)
+
+
+@app.route('/api/tanks/calculate', methods=['POST'])
+@login_required
+def api_tank_calculate():
+    """Live calculation endpoint for mmWC to kg and SM³ conversion."""
+    data = request.get_json() or {}
+    gas = data.get('gas', 'Oxygen')
+    mmwc = data.get('mmwc')
+    pressure = data.get('pressure')
+    pressure_unit = data.get('pressure_unit', 'kg/cm²')
+    model_name = data.get('model_name', '13K17VEN')
+
+    res = calculate_tank_values(gas, mmwc, pressure, pressure_unit, model_name=model_name)
+    return jsonify(res)
+
+
+@app.route('/api/tanks/active_list', methods=['GET'])
+@login_required
+def api_tanks_active_list():
+    """Returns active storage tanks for dropdowns and mobile views."""
+    target_date_str = request.args.get('date', date.today().strftime('%Y-%m-%d'))
+    try:
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    except Exception:
+        target_date = date.today()
+
+    tanks = StorageTank.query.filter_by(is_active=True).order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
+    tank_list = []
+    completed_count = 0
+
+    for t in tanks:
+        reading = TankReading.query.filter_by(tank_id=t.id, reading_date=target_date).first()
+        is_done = reading is not None
+        if is_done:
+            completed_count += 1
+        model_name = '13K17VEN'
+        try:
+            m = TankModel.query.get(t.model_id)
+            if m:
+                model_name = m.model_name
+        except Exception:
+            pass
+
+        tank_list.append({
+            'id': t.id,
+            'name': t.name,
+            'gas': t.gas,
+            'model_name': model_name,
+            'location_notes': t.location_notes or '',
+            'display_order': t.display_order or 0,
+            'reported_today': is_done,
+            'reading': reading.to_dict() if reading else None
+        })
+
+    return jsonify({
+        'tanks': tank_list,
+        'total': len(tank_list),
+        'completed': completed_count,
+        'date': target_date.strftime('%Y-%m-%d')
+    })
+
+
+@app.route('/api/tanks/reading/save', methods=['POST'])
+@login_required
+def api_tank_reading_save():
+    """Save or update a single daily tank reading."""
+    data = request.get_json() or {}
+    tank_id = data.get('tank_id')
+    reading_date_str = data.get('reading_date', date.today().strftime('%Y-%m-%d'))
+    mmwc = data.get('mmwc')
+    pressure = data.get('pressure')
+    pressure_unit = data.get('pressure_unit', 'kg/cm²')
+    notes = data.get('notes', '')
+    allow_update = bool(data.get('allow_update', False))
+
+    if not tank_id:
+        return jsonify({'error': 'Tank selection is required'}), 400
+
+    tank = StorageTank.query.get(tank_id)
+    if not tank or not tank.is_active:
+        return jsonify({'error': 'Selected tank is not found or inactive'}), 404
+
+    try:
+        reading_date = datetime.strptime(reading_date_str, '%Y-%m-%d').date()
+    except Exception:
+        return jsonify({'error': 'Invalid date format (must be YYYY-MM-DD)'}), 400
+
+    if reading_date > date.today():
+        return jsonify({'error': 'Reading date cannot be in the future'}), 400
+
+    if mmwc is None or str(mmwc).strip() == '':
+        return jsonify({'error': 'mmWC gauge reading is required'}), 400
+
+    try:
+        mmwc_float = float(mmwc)
+        if mmwc_float < 0:
+            return jsonify({'error': 'Negative mmWC readings are not allowed'}), 400
+    except (ValueError, TypeError):
+        return jsonify({'error': 'mmWC reading must be a valid number'}), 400
+
+    model_name = '13K17VEN'
+    try:
+        m = TankModel.query.get(tank.model_id)
+        if m:
+            model_name = m.model_name
+    except Exception:
+        pass
+
+    calc = calculate_tank_values(tank.gas, mmwc_float, pressure, pressure_unit, model_name=model_name)
+    if calc.get('status') == 'error':
+        return jsonify({'error': calc.get('error', 'Calculation error')}), 400
+
+    # Duplicate check
+    existing = TankReading.query.filter_by(tank_id=tank.id, reading_date=reading_date).first()
+    if existing and not allow_update:
+        return jsonify({
+            'requires_update_confirmation': True,
+            'message': f"A reading for {tank.name} on {reading_date.strftime('%d-%m-%Y')} already exists ({round(existing.kg) if existing.kg else 'No kg'} kg).",
+            'existing': existing.to_dict()
+        }), 200
+
+    # Net change calculation against previous good reading
+    prev_reading = get_previous_good_reading(tank.id, reading_date)
+    net_change_val, change_label = compute_net_change(calc['kg'], prev_reading)
+
+    user_id = session.get('user', {}).get('id')
+    now_time = datetime.now().time()
+
+    if existing and allow_update:
+        row = existing
+        row.reading_time = now_time
+        row.mmwc = mmwc_float
+        row.pressure = float(pressure) if pressure not in (None, '') else None
+        row.pressure_unit = pressure_unit
+        row.pressure_bar = calc['pressure_bar']
+        row.litres = calc['litres']
+        row.kg = calc['kg']
+        row.sm3 = calc['sm3']
+        row.chart_model_used = calc['chart_model_used']
+        row.kg_per_litre_used = calc['kg_per_litre_used']
+        row.sm3_per_kg_used = calc['sm3_per_kg_used']
+        row.net_change_kg = net_change_val
+        row.status = calc['status']
+        row.recorded_by_id = user_id or row.recorded_by_id
+        if notes:
+            row.notes = notes
+        row.updated_at = datetime.utcnow()
+    else:
+        row = TankReading(
+            tank_id=tank.id,
+            reading_date=reading_date,
+            reading_time=now_time,
+            mmwc=mmwc_float,
+            pressure=float(pressure) if pressure not in (None, '') else None,
+            pressure_unit=pressure_unit,
+            pressure_bar=calc['pressure_bar'],
+            litres=calc['litres'],
+            kg=calc['kg'],
+            sm3=calc['sm3'],
+            chart_model_used=calc['chart_model_used'],
+            kg_per_litre_used=calc['kg_per_litre_used'],
+            sm3_per_kg_used=calc['sm3_per_kg_used'],
+            net_change_kg=net_change_val,
+            status=calc['status'],
+            recorded_by_id=user_id,
+            notes=notes or None
+        )
+        db.session.add(row)
+
+    try:
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Database save error: {str(e)}'}), 500
+
+    return jsonify({
+        'success': True,
+        'reading': row.to_dict(),
+        'net_change_label': change_label,
+        'warnings': calc['warnings']
+    })
+
+
+@app.route('/api/tanks/readings/batch-save', methods=['POST'])
+@login_required
+def api_tank_readings_batch_save():
+    """Batch save endpoint for PC table view with independent row validation."""
+    data = request.get_json() or {}
+    readings_list = data.get('readings', [])
+    reading_date_str = data.get('reading_date', date.today().strftime('%Y-%m-%d'))
+    allow_update = bool(data.get('allow_update', True))
+
+    try:
+        reading_date = datetime.strptime(reading_date_str, '%Y-%m-%d').date()
+    except Exception:
+        return jsonify({'error': 'Invalid date format'}), 400
+
+    if reading_date > date.today():
+        return jsonify({'error': 'Reading date cannot be in the future'}), 400
+
+    results = []
+    saved_count = 0
+    user_id = session.get('user', {}).get('id')
+
+    for item in readings_list:
+        tank_id = item.get('tank_id')
+        mmwc = item.get('mmwc')
+        pressure = item.get('pressure')
+        pressure_unit = item.get('pressure_unit', 'kg/cm²')
+        notes = item.get('notes', '')
+
+        # Skip rows where mmwc is blank
+        if mmwc is None or str(mmwc).strip() == '':
+            continue
+
+        tank = StorageTank.query.get(tank_id)
+        if not tank or not tank.is_active:
+            results.append({'tank_id': tank_id, 'success': False, 'error': 'Tank not found or inactive'})
+            continue
+
+        try:
+            mmwc_float = float(mmwc)
+            if mmwc_float < 0:
+                results.append({'tank_id': tank_id, 'success': False, 'error': 'Negative mmWC rejected'})
+                continue
+        except (ValueError, TypeError):
+            results.append({'tank_id': tank_id, 'success': False, 'error': 'Invalid number'})
+            continue
+
+        model_name = '13K17VEN'
+        try:
+            m = TankModel.query.get(tank.model_id)
+            if m:
+                model_name = m.model_name
+        except Exception:
+            pass
+
+        calc = calculate_tank_values(tank.gas, mmwc_float, pressure, pressure_unit, model_name=model_name)
+        if calc.get('status') == 'error':
+            results.append({'tank_id': tank_id, 'success': False, 'error': calc.get('error')})
+            continue
+
+        prev_reading = get_previous_good_reading(tank.id, reading_date)
+        net_change_val, change_label = compute_net_change(calc['kg'], prev_reading)
+
+        existing = TankReading.query.filter_by(tank_id=tank.id, reading_date=reading_date).first()
+        now_time = datetime.now().time()
+
+        try:
+            if existing and allow_update:
+                existing.reading_time = now_time
+                existing.mmwc = mmwc_float
+                existing.pressure = float(pressure) if pressure not in (None, '') else None
+                existing.pressure_unit = pressure_unit
+                existing.pressure_bar = calc['pressure_bar']
+                existing.litres = calc['litres']
+                existing.kg = calc['kg']
+                existing.sm3 = calc['sm3']
+                existing.chart_model_used = calc['chart_model_used']
+                existing.kg_per_litre_used = calc['kg_per_litre_used']
+                existing.sm3_per_kg_used = calc['sm3_per_kg_used']
+                existing.net_change_kg = net_change_val
+                existing.status = calc['status']
+                existing.recorded_by_id = user_id or existing.recorded_by_id
+                if notes:
+                    existing.notes = notes
+                existing.updated_at = datetime.utcnow()
+                row = existing
+            else:
+                row = TankReading(
+                    tank_id=tank.id,
+                    reading_date=reading_date,
+                    reading_time=now_time,
+                    mmwc=mmwc_float,
+                    pressure=float(pressure) if pressure not in (None, '') else None,
+                    pressure_unit=pressure_unit,
+                    pressure_bar=calc['pressure_bar'],
+                    litres=calc['litres'],
+                    kg=calc['kg'],
+                    sm3=calc['sm3'],
+                    chart_model_used=calc['chart_model_used'],
+                    kg_per_litre_used=calc['kg_per_litre_used'],
+                    sm3_per_kg_used=calc['sm3_per_kg_used'],
+                    net_change_kg=net_change_val,
+                    status=calc['status'],
+                    recorded_by_id=user_id,
+                    notes=notes or None
+                )
+                db.session.add(row)
+
+            db.session.commit()
+            saved_count += 1
+            results.append({
+                'tank_id': tank.id,
+                'tank_name': tank.name,
+                'success': True,
+                'reading': row.to_dict(),
+                'net_change_label': change_label,
+                'warnings': calc['warnings']
+            })
+        except Exception as e:
+            db.session.rollback()
+            results.append({'tank_id': tank.id, 'tank_name': tank.name, 'success': False, 'error': str(e)})
+
+    return jsonify({'success': True, 'saved_count': saved_count, 'results': results})
+
+
+# ─── Unified Admin Tanks Page ──────────────────────────────────────────────────
+
+@app.route('/admin/tanks', methods=['GET'])
+@admin_required
+def admin_tanks_hub():
+    """Unified Admin portal page for Tanks: Daily Entry, Reports, and Manage Tanks."""
+    active_tab = request.args.get('tab', 'entry')
+    target_date_str = request.args.get('date', date.today().strftime('%Y-%m-%d'))
+    try:
+        target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
+    except Exception:
+        target_date = date.today()
+
+    # Active tanks for daily entry
+    active_tanks = StorageTank.query.filter_by(is_active=True).order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
+    daily_rows = []
+    completed_count = 0
+
+    for t in active_tanks:
+        r = TankReading.query.filter_by(tank_id=t.id, reading_date=target_date).first()
+        prev = get_previous_good_reading(t.id, target_date)
+        _, change_lbl = compute_net_change(r.kg if r else None, prev)
+
+        if r:
+            completed_count += 1
+
+        m_name = '13K17VEN'
+        try:
+            m = TankModel.query.get(t.model_id)
+            if m:
+                m_name = m.model_name
+        except Exception:
+            pass
+
+        daily_rows.append({
+            'tank': t,
+            'model_name': m_name,
+            'reading': r,
+            'prev_reading': prev,
+            'change_label': change_lbl
+        })
+
+    # Data for Reports tab
+    from_date_str = request.args.get('from_date', (date.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
+    to_date_str = request.args.get('to_date', date.today().strftime('%Y-%m-%d'))
+    filter_tank_id = request.args.get('tank_id', '')
+
+    try:
+        from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+    except Exception:
+        from_date = date.today() - timedelta(days=30)
+    try:
+        to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+    except Exception:
+        to_date = date.today()
+
+    query = TankReading.query.filter(TankReading.reading_date >= from_date, TankReading.reading_date <= to_date)
+    if filter_tank_id and filter_tank_id.isdigit():
+        query = query.filter(TankReading.tank_id == int(filter_tank_id))
+
+    report_readings = query.order_by(TankReading.reading_date.desc(), TankReading.id.desc()).all()
+    tanks_by_id = {t.id: t for t in StorageTank.query.all()}
+
+    # Compute KPI totals
+    total_used_kg = 0.0
+    total_filled_kg = 0.0
+    for r in report_readings:
+        if r.net_change_kg is not None and r.status in ('ok', 'above_full'):
+            chg = float(r.net_change_kg)
+            if chg < 0:
+                total_used_kg += abs(chg)
+            elif chg > 0:
+                total_filled_kg += chg
+
+    # Data for Manage tab
+    all_tanks = StorageTank.query.order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
+    tanks_manage_info = []
+    for t in all_tanks:
+        readings_count = TankReading.query.filter_by(tank_id=t.id).count()
+        m_name = '13K17VEN'
+        try:
+            m = TankModel.query.get(t.model_id)
+            if m:
+                m_name = m.model_name
+        except Exception:
+            pass
+        tanks_manage_info.append({
+            'tank': t,
+            'model_name': m_name,
+            'readings_count': readings_count
+        })
+
+    factors_rows = TankGasFactor.query.order_by(TankGasFactor.gas.asc()).all()
+    if not factors_rows:
+        # Fallback view rows
+        factors_rows = [
+            {'gas': g, 'kg_per_litre': f['kg_per_litre'], 'sm3_per_kg': f['sm3_per_kg']}
+            for g, f in DEFAULT_FACTORS.items()
+        ]
+
+    models_list = TankModel.query.order_by(TankModel.id.asc()).all()
+    models_info = []
+    for m in models_list:
+        rc = TankChartRow.query.filter_by(model_id=m.id).count()
+        models_info.append({'model': m, 'row_count': rc})
+
+    if not models_info:
+        models_info = [{'model': {'id': 1, 'model_name': '13K17VEN', 'description': 'Cryogenic tank 11,623L'}, 'row_count': 44}]
+
+    return render_template('tanks_admin.html',
+        user=session.get('user'),
+        active_tab=active_tab,
+        target_date_str=target_date.strftime('%Y-%m-%d'),
+        daily_rows=daily_rows,
+        total_tanks=len(active_tanks),
+        completed_tanks=completed_count,
+        from_date_str=from_date.strftime('%Y-%m-%d'),
+        to_date_str=to_date.strftime('%Y-%m-%d'),
+        filter_tank_id=filter_tank_id,
+        report_readings=report_readings,
+        tanks_by_id=tanks_by_id,
+        total_used_kg=round(total_used_kg),
+        total_filled_kg=round(total_filled_kg),
+        all_tanks=all_tanks,
+        tanks_manage_info=tanks_manage_info,
+        factors_rows=factors_rows,
+        models_info=models_info
+    )
+
+
+# Clean Aliases
+@app.route('/admin/tanks/daily')
+@admin_required
+def admin_tanks_daily_alias():
+    return redirect('/admin/tanks?tab=entry')
+
+@app.route('/admin/tanks/report')
+@admin_required
+def admin_tanks_report_alias():
+    return redirect('/admin/tanks?tab=report')
+
+@app.route('/admin/tanks/manage')
+@admin_required
+def admin_tanks_manage_alias():
+    return redirect('/admin/tanks?tab=manage')
+
+
+# ─── Admin Tank Management Endpoints ───────────────────────────────────────────
+
+@app.route('/admin/storage_tanks/create', methods=['POST'])
+@admin_required
+def admin_storage_tank_create():
+    name = (request.form.get('name') or '').strip()
+    gas = (request.form.get('gas') or '').strip()
+    model_id = request.form.get('model_id')
+    location_notes = (request.form.get('location_notes') or '').strip()
+    display_order = request.form.get('display_order', 0)
+
+    if not name:
+        flash("Tank name is required.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    if gas not in ('Oxygen', 'Nitrogen', 'Argon'):
+        flash("Gas must be Oxygen, Nitrogen or Argon.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    existing = StorageTank.query.filter(sa.func.lower(StorageTank.name) == name.lower()).first()
+    if existing:
+        flash(f"A tank named '{name}' already exists.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    m = None
+    if model_id and model_id.isdigit():
+        m = TankModel.query.get(int(model_id))
+    if not m:
+        m = TankModel.query.filter_by(model_name='13K17VEN').first()
+
+    if not m:
+        # Create default 13K17VEN model if not in DB yet
+        m = TankModel(model_name='13K17VEN', description='Standard 11,623L cryogenic plate chart')
+        db.session.add(m)
+        db.session.flush()
+
+    new_tank = StorageTank(
+        name=name,
+        gas=gas,
+        model_id=m.id,
+        location_notes=location_notes or None,
+        display_order=int(display_order or 0),
+        is_active=True
+    )
+    db.session.add(new_tank)
+    db.session.commit()
+    flash(f"Tank '{name}' added successfully.", "success")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/storage_tanks/edit', methods=['POST'])
+@admin_required
+def admin_storage_tank_edit():
+    tank_id = request.form.get('tank_id')
+    name = (request.form.get('name') or '').strip()
+    gas = (request.form.get('gas') or '').strip()
+    location_notes = (request.form.get('location_notes') or '').strip()
+    display_order = request.form.get('display_order', 0)
+    is_active = request.form.get('is_active') == '1'
+
+    tank = StorageTank.query.get(tank_id)
+    if not tank:
+        flash("Tank not found.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    readings_count = TankReading.query.filter_by(tank_id=tank.id).count()
+
+    if not name:
+        flash("Tank name cannot be blank.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    # Duplicate name check
+    existing = StorageTank.query.filter(sa.func.lower(StorageTank.name) == name.lower(), StorageTank.id != tank.id).first()
+    if existing:
+        flash(f"Another tank named '{name}' already exists.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    tank.name = name
+    tank.location_notes = location_notes or None
+    tank.display_order = int(display_order or 0)
+    tank.is_active = is_active
+
+    # Gas locking rule: only allow gas change if ZERO readings exist
+    if readings_count == 0 and gas in ('Oxygen', 'Nitrogen', 'Argon'):
+        tank.gas = gas
+
+    db.session.commit()
+    flash(f"Tank '{tank.name}' updated successfully.", "success")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/storage_tanks/toggle_status', methods=['POST'])
+@admin_required
+def admin_storage_tank_toggle_status():
+    tank_id = request.form.get('tank_id')
+    tank = StorageTank.query.get(tank_id)
+    if tank:
+        tank.is_active = not tank.is_active
+        db.session.commit()
+        status_str = "activated" if tank.is_active else "deactivated"
+        flash(f"Tank '{tank.name}' has been {status_str}.", "info")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/storage_tanks/delete', methods=['POST'])
+@admin_required
+def admin_storage_tank_delete():
+    tank_id = request.form.get('tank_id')
+    tank = StorageTank.query.get(tank_id)
+    if not tank:
+        flash("Tank not found.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    readings_count = TankReading.query.filter_by(tank_id=tank.id).count()
+    if readings_count > 0:
+        flash(f"Cannot delete '{tank.name}' because it has {readings_count} recorded reading(s). You may deactivate it instead.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    db.session.delete(tank)
+    db.session.commit()
+    flash(f"Tank '{tank.name}' was permanently deleted.", "success")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/tank_factors/update', methods=['POST'])
+@admin_required
+def admin_tank_factors_update():
+    gas = request.form.get('gas')
+    kg_per_litre = request.form.get('kg_per_litre')
+    sm3_per_kg = request.form.get('sm3_per_kg')
+
+    try:
+        kg_val = float(kg_per_litre)
+        sm3_val = float(sm3_per_kg)
+        if kg_val <= 0 or sm3_val <= 0:
+            raise ValueError()
+    except Exception:
+        flash("Factors must be positive numbers.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    row = TankGasFactor.query.filter_by(gas=gas).first()
+    if row:
+        row.kg_per_litre = kg_val
+        row.sm3_per_kg = sm3_val
+        row.updated_at = datetime.utcnow()
+    else:
+        row = TankGasFactor(gas=gas, kg_per_litre=kg_val, sm3_per_kg=sm3_val)
+        db.session.add(row)
+
+    db.session.commit()
+    flash(f"Conversion factors for {gas} updated successfully (future readings will use these values).", "success")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/tank_charts/upload', methods=['POST'])
+@admin_required
+def admin_tank_charts_upload():
+    model_name = (request.form.get('model_name') or '').strip().upper()
+    description = (request.form.get('description') or '').strip()
+    csv_text = (request.form.get('csv_text') or '').strip()
+
+    if not model_name or not csv_text:
+        flash("Model name and CSV data are required.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    existing_model = TankModel.query.filter_by(model_name=model_name).first()
+    if existing_model:
+        # Check if used by any readings
+        used_count = (TankReading.query
+                      .join(StorageTank, TankReading.tank_id == StorageTank.id)
+                      .filter(StorageTank.model_id == existing_model.id)
+                      .count())
+        if used_count > 0:
+            flash(f"Model '{model_name}' is already used by {used_count} reading(s) and cannot be edited. Please specify a new model name.", "danger")
+            return redirect('/admin/tanks?tab=manage')
+
+    # Parse and validate CSV
+    lines = csv_text.splitlines()
+    parsed_rows_by_gas = {}
+
+    for idx, line in enumerate(lines, 1):
+        clean_line = line.strip()
+        if not clean_line or clean_line.startswith('#'):
+            continue
+        parts = [p.strip() for p in clean_line.split(',')]
+        if len(parts) < 3:
+            continue
+        # header skip
+        if parts[0].lower() == 'gas' and parts[1].lower() == 'mmwc':
+            continue
+
+        gas_val = parts[0].capitalize()
+        try:
+            mmwc_val = float(parts[1])
+            litres_val = float(parts[2])
+        except ValueError:
+            flash(f"Row {idx} has invalid numeric values: '{line}'", "danger")
+            return redirect('/admin/tanks?tab=manage')
+
+        if gas_val not in parsed_rows_by_gas:
+            parsed_rows_by_gas[gas_val] = []
+        parsed_rows_by_gas[gas_val].append((mmwc_val, litres_val))
+
+    if not parsed_rows_by_gas:
+        flash("No valid rows found in CSV text.", "danger")
+        return redirect('/admin/tanks?tab=manage')
+
+    # Validate strictly increasing mmwc and litres, at least 2 rows per gas
+    for g, rows in parsed_rows_by_gas.items():
+        if len(rows) < 2:
+            flash(f"Gas '{g}' must have at least 2 calibration rows.", "danger")
+            return redirect('/admin/tanks?tab=manage')
+        rows.sort(key=lambda x: x[0])
+        for i in range(len(rows) - 1):
+            if rows[i+1][0] <= rows[i][0]:
+                flash(f"mmWC values for {g} must be strictly increasing ({rows[i][0]} >= {rows[i+1][0]}).", "danger")
+                return redirect('/admin/tanks?tab=manage')
+            if rows[i+1][1] <= rows[i][1]:
+                flash(f"Litres values for {g} must be strictly increasing ({rows[i][1]} >= {rows[i+1][1]}).", "danger")
+                return redirect('/admin/tanks?tab=manage')
+
+    # Save model and rows
+    if not existing_model:
+        model_obj = TankModel(model_name=model_name, description=description or None)
+        db.session.add(model_obj)
+        db.session.flush()
+    else:
+        model_obj = existing_model
+        model_obj.description = description or model_obj.description
+        TankChartRow.query.filter_by(model_id=model_obj.id).delete()
+
+    for g, rows in parsed_rows_by_gas.items():
+        for mmwc_val, litres_val in rows:
+            cr = TankChartRow(model_id=model_obj.id, gas=g, mmwc=mmwc_val, litres=litres_val)
+            db.session.add(cr)
+
+    db.session.commit()
+    flash(f"Chart model '{model_name}' saved successfully with {sum(len(r) for r in parsed_rows_by_gas.values())} points.", "success")
+    return redirect('/admin/tanks?tab=manage')
+
+
+@app.route('/admin/tanks/export')
+@admin_required
+def admin_tanks_export_excel():
+    """Generates formatted Excel export of tank level history."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    from io import BytesIO
+
+    from_date_str = request.args.get('from_date', '')
+    to_date_str = request.args.get('to_date', '')
+    filter_tank_id = request.args.get('tank_id', '')
+
+    query = TankReading.query
+    if from_date_str:
+        try:
+            d1 = datetime.strptime(from_date_str, '%Y-%m-%d').date()
+            query = query.filter(TankReading.reading_date >= d1)
+        except Exception:
+            pass
+    if to_date_str:
+        try:
+            d2 = datetime.strptime(to_date_str, '%Y-%m-%d').date()
+            query = query.filter(TankReading.reading_date <= d2)
+        except Exception:
+            pass
+    if filter_tank_id and filter_tank_id.isdigit():
+        query = query.filter(TankReading.tank_id == int(filter_tank_id))
+
+    readings = query.order_by(TankReading.reading_date.desc(), TankReading.id.desc()).all()
+    tanks_by_id = {t.id: t for t in StorageTank.query.all()}
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Tank Levels"
+
+    # Header styling
+    header_fill = PatternFill(start_color="0F6E56", end_color="0F6E56", fill_type="solid")
+    header_font = Font(name="Segoe UI", size=11, bold=True, color="FFFFFF")
+    data_font = Font(name="Segoe UI", size=10)
+    center_align = Alignment(horizontal="center", vertical="center")
+    right_align = Alignment(horizontal="right", vertical="center")
+    left_align = Alignment(horizontal="left", vertical="center")
+    thin_border = Border(
+        left=Side(style='thin', color='E5E7EB'),
+        right=Side(style='thin', color='E5E7EB'),
+        top=Side(style='thin', color='E5E7EB'),
+        bottom=Side(style='thin', color='E5E7EB')
+    )
+
+    headers = [
+        "Date", "Tank Name", "Gas", "Gauge (mmWC)",
+        "Pressure", "Unit", "Pressure (bar)",
+        "Quantity (kg)", "Quantity (SM³)", "Net Change (kg)", "Status", "Notes"
+    ]
+    ws.append(headers)
+
+    for col_num in range(1, len(headers) + 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.fill = header_fill
+        cell.font = header_font
+        cell.alignment = center_align
+
+    for r in readings:
+        t = tanks_by_id.get(r.tank_id)
+        tank_name = t.name if t else f"Tank #{r.tank_id}"
+        gas_name = t.gas if t else ""
+
+        chg_str = ""
+        if r.net_change_kg is not None:
+            c_val = round(float(r.net_change_kg))
+            chg_str = f"+{c_val:,}" if c_val > 0 else f"{c_val:,}"
+
+        row_data = [
+            r.reading_date.strftime('%d-%m-%Y'),
+            tank_name,
+            gas_name,
+            float(r.mmwc),
+            float(r.pressure) if r.pressure is not None else "",
+            r.pressure_unit or "",
+            float(r.pressure_bar) if r.pressure_bar is not None else "",
+            round(float(r.kg)) if r.kg is not None else "",
+            round(float(r.sm3)) if r.sm3 is not None else "",
+            chg_str,
+            r.status or "ok",
+            r.notes or ""
+        ]
+        ws.append(row_data)
+        current_row = ws.max_row
+        for col_idx in range(1, len(row_data) + 1):
+            c = ws.cell(row=current_row, column=col_idx)
+            c.font = data_font
+            c.border = thin_border
+            if col_idx in (1, 3, 6, 11):
+                c.alignment = center_align
+            elif col_idx in (4, 5, 7, 8, 9, 10):
+                c.alignment = right_align
+            else:
+                c.alignment = left_align
+
+    # Auto-adjust column widths
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = col[0].column_letter
+        ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"Tank_Level_Report_{date.today().strftime('%Y%m%d')}.xlsx"
+    return send_file(buf, download_name=filename, as_attachment=True, mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
