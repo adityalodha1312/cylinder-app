@@ -10747,217 +10747,115 @@ def api_admin_scan_verify():
                     master_id = (getattr(c, 'uid', '') or '').strip().upper() or entered_id
                     via_alias = True
 
-            # Check historical scan for this UID (critical for unregistered cylinders)
+            # Check historical scan for this UID (critical for unregistered and registered cylinders)
             hist_scan = recent_scans_by_uid.get(master_id) or recent_scans_by_uid.get(entered_id)
             last_customer = None
             last_date = None
             last_gas = ''
             last_cyl_type = 'Standard'
+            cyl_status = ''
+            cyl_location = ''
+
             if hist_scan:
                 last_date = hist_scan.scan_date
                 last_gas = (hist_scan.gas_type or '').strip().upper()
                 last_cyl_type = hist_scan.cylinder_type or 'Standard'
                 if hist_scan.action == 'Delivery':
-                    last_customer = hist_scan.customer
-                elif hist_scan.action in ('Collection', 'Filling'):
-                    last_customer = 'Depot'
+                    last_customer = (hist_scan.customer or '').strip()
+                    cyl_status = 'Delivered'
+                    cyl_location = last_customer
+                elif hist_scan.action == 'Collection':
+                    last_customer = ''
+                    cyl_status = 'Empty'
+                    cyl_location = 'Depot'
+                elif hist_scan.action == 'Filling':
+                    last_customer = ''
+                    cyl_status = 'Filled'
+                    cyl_location = 'Depot'
+            elif c:
+                cyl_status = getattr(c, 'status', '') or ''
+                cyl_location = getattr(c, 'location', '') or ''
+                last_cyl_type = getattr(c, 'cylinder_type', '') or 'Standard'
+                if cyl_status == 'Delivered' and cyl_location and cyl_location != 'Depot':
+                    last_customer = cyl_location
+            else:
+                status_info = get_cylinder_status(entered_id)
+                cyl_status = status_info.get('status', 'Empty')
+                owner = status_info.get('owner')
+                if status_info.get('date'):
+                    last_date = status_info.get('date')
+                if cyl_status == 'Delivered' and owner and owner != 'Depot':
+                    last_customer = owner
+                    cyl_location = owner
+                else:
+                    cyl_location = 'Depot'
+                status_gas = (status_info.get('gas_type') or '').strip().upper()
+                if status_gas and not last_gas:
+                    last_gas = status_gas
 
             latest_scan_gas = recent_gas_by_uid.get(master_id) or recent_gas_by_uid.get(entered_id) or last_gas or ''
             reg_gas = (getattr(c, 'gas_type', '') or '').strip() if c else ''
+            resolved_gas = (latest_scan_gas or reg_gas or '') if action == 'Collection' else (reg_gas or latest_scan_gas or '')
+            registry_gas = reg_gas or last_gas or ''
+
+            error = False
+            is_warning = False
+            status_label = ('Registered (via alias)' if via_alias else 'Registered') if c else 'Unregistered'
+            result_msg = ''
 
             if action == 'Collection':
-                # Collection relates directly from latest previous scan record
-                resolved_gas = latest_scan_gas or reg_gas or ''
-            else:
-                resolved_gas = reg_gas or latest_scan_gas or ''
-
-            if c:
-                registry_gas = reg_gas or last_gas or ''
-                cyl_status   = getattr(c, 'status', '') or ''
-                cyl_location = getattr(c, 'location', '') or ''
-                cyl_type     = getattr(c, 'cylinder_type', '') or last_cyl_type or 'Standard'
-                if not last_customer and cyl_location and cyl_location != 'Depot':
-                    last_customer = cyl_location
-
-                # Action validity checks
-                recent = None
-                try:
-                    recent = Scan.query.filter_by(
-                        cylinder_uid=master_id, action=action, scan_date=today_str).first()
-                except Exception as e_scan:
-                    print("[verify] Warning checking recent Scan:", e_scan)
-
-                delivered_cust = ''
-                for cand in [
-                    recent.customer if recent else None,
-                    last_customer,
-                    cyl_location,
-                    getattr(c, 'owner', ''),
-                    getattr(hist_scan, 'customer', '') if hist_scan else None,
-                ]:
-                    c_str = (cand or '').strip()
-                    if c_str and c_str.lower() not in ('depot', 'customer', 'unknown', 'unknown customer', '—', '-'):
-                        delivered_cust = c_str
-                        break
-
-                act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
-                if recent:
-                    cust_info = f" to {delivered_cust}" if (delivered_cust and action == 'Delivery') else ""
-                    results.append({
-                        'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
-                        'cylinder_type': cyl_type,
-                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'last_customer': delivered_cust or last_customer or '',
-                        'last_delivery_date': last_date or today_str,
-                        'customer_mismatch': False,
-                        'result_msg': f"Already {act_past}{cust_info} today. Must collect first." if action == 'Delivery' else f"Already {act_past} today.",
-                        'error': True, 'is_duplicate': False,
-                    })
-                elif action == 'Collection' and (
-                        cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot' or (hist_scan and hist_scan.action == 'Collection')):
-                    results.append({
-                        'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Warning', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
-                        'cylinder_type': cyl_type,
-                        'cyl_status': cyl_status, 'cyl_location': cyl_location or 'Depot',
-                        'last_customer': last_customer or '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': f'Already at Depot (status: {cyl_status or "Collected"}).',
-                        'error': False, 'is_warning': True, 'is_duplicate': False,
-                    })
-                elif action == 'Delivery' and cyl_status == 'Delivered':
-                    cust_target = delivered_cust or 'customer'
-                    results.append({
-                        'entered_id': entered_id, 'master_id': master_id,
-                        'status': 'Error', 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
-                        'cylinder_type': cyl_type,
-                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'last_customer': delivered_cust or last_customer or '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': f"Already delivered to {cust_target}. Must collect first.",
-                        'error': True, 'is_duplicate': False,
-                    })
-                else:
-                    label = 'Registered (via alias)' if via_alias else 'Registered'
-                    results.append({
-                        'entered_id': entered_id, 'master_id': master_id,
-                        'status': label, 'registry_gas': registry_gas, 'resolved_gas': resolved_gas,
-                        'cylinder_type': cyl_type,
-                        'cyl_status': cyl_status, 'cyl_location': cyl_location,
-                        'last_customer': last_customer or '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': 'Ready to submit.',
-                        'error': False, 'is_duplicate': False,
-                    })
-            else:
-                # Not in registry — check scan logs
-                if hist_scan:
-                    current_status = 'Delivered' if hist_scan.action == 'Delivery' else ('Filled' if hist_scan.action == 'Filling' else 'Empty')
-                    owner = hist_scan.customer if hist_scan.action == 'Delivery' else 'Depot'
-                    if not last_date:
-                        last_date = hist_scan.scan_date
-                    if not last_customer and owner and owner != 'Depot':
-                        last_customer = owner
-                    status_gas = (hist_scan.gas_type or '').strip().upper()
-                else:
-                    status_info = get_cylinder_status(entered_id)
-                    current_status = status_info.get('status', 'Empty')
-                    owner = status_info.get('owner')
-                    if not last_date:
-                        last_date = status_info.get('date')
-                    if not last_customer and owner and owner != 'Depot':
-                        last_customer = owner
-                    status_gas = (status_info.get('gas_type') or '').strip().upper()
-
-                if not latest_scan_gas and status_gas:
-                    latest_scan_gas = status_gas
-                    last_gas = status_gas
-                    if action == 'Collection':
-                        resolved_gas = latest_scan_gas or reg_gas or ''
+                if (hist_scan and hist_scan.action == 'Delivery') or (cyl_status == 'Delivered' and last_customer):
+                    # Currently delivered to customer — valid collection!
+                    result_msg = f"Ready to collect from {last_customer}."
+                elif hist_scan and hist_scan.action == 'Collection':
+                    is_warning = True
+                    status_label = 'Warning'
+                    if hist_scan.scan_date == today_str:
+                        prev_info = f" from {hist_scan.customer}" if hist_scan.customer else ""
+                        result_msg = f"Already collected today{prev_info}. (Currently at Depot)"
                     else:
-                        resolved_gas = reg_gas or latest_scan_gas or ''
-
-                recent_today = None
-                try:
-                    if os.environ.get('DATABASE_URL'):
-                        recent_today = Scan.query.filter_by(
-                            cylinder_uid=entered_id, action=action, scan_date=today_str).first()
-                except Exception as e_scan:
-                    pass
-
-                unreg_delivered_cust = ''
-                for cand in [
-                    recent_today.customer if recent_today else None,
-                    last_customer,
-                    owner,
-                    getattr(hist_scan, 'customer', '') if hist_scan else None
-                ]:
-                    c_str = (cand or '').strip()
-                    if c_str and c_str.lower() not in ('depot', 'customer', 'unknown', 'unknown customer', '—', '-'):
-                        unreg_delivered_cust = c_str
-                        break
-
-                act_past = 'delivered' if action == 'Delivery' else ('collected' if action == 'Collection' else f'{action.lower()}ed')
-                if recent_today:
-                    cust_info = f" to {unreg_delivered_cust}" if (unreg_delivered_cust and action == 'Delivery') else ""
-                    results.append({
-                        'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
-                        'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': current_status, 'cyl_location': unreg_delivered_cust or owner or '',
-                        'last_customer': unreg_delivered_cust or last_customer or '',
-                        'last_delivery_date': last_date or today_str,
-                        'customer_mismatch': False,
-                        'result_msg': f"Already {act_past}{cust_info} today. Must collect first." if action == 'Delivery' else f"Already {act_past} today in scan logs.",
-                        'error': True, 'is_duplicate': False,
-                    })
-                elif action == 'Delivery' and current_status == 'Delivered':
-                    cust_msg = f" to {unreg_delivered_cust}" if unreg_delivered_cust else ""
-                    date_msg = f" on {last_date}" if last_date else ""
-                    results.append({
-                        'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Error', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
-                        'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': 'Delivered', 'cyl_location': unreg_delivered_cust or owner or '',
-                        'last_customer': unreg_delivered_cust or last_customer or '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': f'Already delivered{cust_msg}{date_msg} according to scan logs. Must collect first.',
-                        'error': True, 'is_duplicate': False,
-                    })
-                elif action == 'Collection' and (
-                        (hist_scan and hist_scan.action in ('Collection', 'Filling')) or 
-                        (current_status in ('Empty', 'Filled') and (not owner or owner == 'Depot') and not last_customer)):
-                    results.append({
-                        'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Warning', 'registry_gas': last_gas or '', 'resolved_gas': resolved_gas,
-                        'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': current_status, 'cyl_location': 'Depot',
-                        'last_customer': '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': f'Already at Depot (status: {current_status}) in scan logs.',
-                        'error': False, 'is_warning': True, 'is_duplicate': False,
-                    })
+                        prev_info = f" from {hist_scan.customer} on {hist_scan.scan_date}" if hist_scan.customer else ""
+                        result_msg = f"Already at Depot (collected{prev_info})."
+                elif (hist_scan and hist_scan.action == 'Filling') or cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot':
+                    is_warning = True
+                    status_label = 'Warning'
+                    result_msg = f"Already at Depot (status: {cyl_status or 'Empty'})."
                 else:
-                    results.append({
-                        'entered_id': entered_id, 'master_id': entered_id,
-                        'status': 'Unregistered',
-                        'registry_gas': last_gas or '',
-                        'resolved_gas': resolved_gas,
-                        'cylinder_type': last_cyl_type or 'Standard',
-                        'cyl_status': current_status if not hist_scan else ('Delivered' if hist_scan.action == 'Delivery' else 'Empty'),
-                        'cyl_location': last_customer or owner or '',
-                        'last_customer': last_customer or '',
-                        'last_delivery_date': last_date or '',
-                        'customer_mismatch': False,
-                        'result_msg': f'Unregistered cylinder{f" (Last with {last_customer})" if last_customer else ""}. Will be logged & queued for review.',
-                        'error': False, 'is_duplicate': False,
-                    })
+                    # Unregistered cylinder with no history
+                    status_label = 'Unregistered'
+                    result_msg = "Unregistered cylinder (No delivery history)."
+
+            elif action == 'Delivery':
+                if (hist_scan and hist_scan.action == 'Delivery') or (cyl_status == 'Delivered' and last_customer):
+                    error = True
+                    status_label = 'Error'
+                    target_cust = last_customer or (cyl_location if cyl_location != 'Depot' else 'customer')
+                    date_info = f" on {last_date}" if last_date else ""
+                    result_msg = f"Already delivered to {target_cust}{date_info}. Must collect first."
+                else:
+                    result_msg = "Ready to submit."
+
+            else:
+                # Other actions (Filling, Party Refill, etc.)
+                result_msg = "Ready to submit."
+
+            results.append({
+                'entered_id': entered_id,
+                'master_id': master_id,
+                'status': status_label,
+                'registry_gas': registry_gas,
+                'resolved_gas': resolved_gas,
+                'cylinder_type': last_cyl_type,
+                'cyl_status': cyl_status,
+                'cyl_location': cyl_location,
+                'last_customer': last_customer or '',
+                'last_delivery_date': last_date or '',
+                'customer_mismatch': False,
+                'result_msg': result_msg,
+                'error': error,
+                'is_warning': is_warning,
+                'is_duplicate': False,
+            })
 
         # Add duplicate entries at the end
         for dup_id in duplicate_ids:
