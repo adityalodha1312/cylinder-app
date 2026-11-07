@@ -10831,20 +10831,20 @@ def api_admin_scan_verify():
                     # Currently delivered to customer — valid collection!
                     result_msg = f"Ready to collect from {last_customer}."
                 elif hist_scan and hist_scan.action == 'Collection':
-                    is_warning = True
-                    status_label = 'Warning'
+                    error = True
+                    status_label = 'Error'
                     if hist_scan.scan_date == today_str:
                         prev_info = f" from {hist_scan.customer}" if hist_scan.customer else ""
-                        result_msg = f"Already collected today{prev_info}. (Currently at Depot)"
+                        result_msg = f"Already collected today{prev_info}. Cannot collect twice."
                     else:
                         prev_info = f" from {hist_scan.customer} on {hist_scan.scan_date}" if hist_scan.customer else ""
-                        result_msg = f"Already at Depot (collected{prev_info})."
-                elif (hist_scan and hist_scan.action == 'Filling') or cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot':
-                    is_warning = True
-                    status_label = 'Warning'
-                    result_msg = f"Already at Depot (status: {cyl_status or 'Empty'})."
+                        result_msg = f"Already at Depot (collected{prev_info}). Cannot collect twice."
+                elif (hist_scan and hist_scan.action == 'Filling') or (c and (cyl_status in ('Empty', 'Filled') or cyl_location == 'Depot')):
+                    error = True
+                    status_label = 'Error'
+                    result_msg = f"Already at Depot (status: {cyl_status or 'Empty'}). Cannot collect twice."
                 else:
-                    # Unregistered cylinder with no history
+                    # Unregistered cylinder with 0 past record
                     status_label = 'Unregistered'
                     result_msg = "Unregistered cylinder (No delivery history)."
 

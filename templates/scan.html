@@ -3712,12 +3712,17 @@ function renderCollectionChips(container) {
     return;
   }
 
+  const errorItems = [];
   const customerGroups = {};
   const unassignedItems = [];
 
   activeItems.forEach(item => {
+    if (item.state === 'error' || item.error === true) {
+      errorItems.push(item);
+      return;
+    }
     const cust = (item.last_customer || '').trim();
-    if (!cust || cust === 'Unassigned (no history)' || cust.toLowerCase() === 'unassigned customer') {
+    if (!cust || cust.toLowerCase() === 'unassigned cust' || cust.toLowerCase() === 'unassigned customer' || cust === 'Unassigned (no history)') {
       unassignedItems.push(item);
     } else {
       if (!customerGroups[cust]) customerGroups[cust] = [];
@@ -3726,7 +3731,50 @@ function renderCollectionChips(container) {
   });
 
   let html = '';
-  // 1. Render Customer Groups first
+
+  // 1. Render Error Group (Already at Depot / Issues) with direct visible text (no hover)
+  if (errorItems.length > 0) {
+    html += `
+      <div class="collection-group-card is-error-group" style="background:#fef2f2; border:1.5px solid #ef4444; border-radius:12px; padding:12px; margin-bottom:12px;">
+        <div class="collection-group-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px;">
+          <div style="flex:1; min-width:0;">
+            <div class="collection-group-title" style="font-size:14px; font-weight:700; color:#b91c1c; display:flex; align-items:center; gap:6px;">
+              <span>⛔ Cannot Collect (${errorItems.length} cylinder${errorItems.length !== 1 ? 's' : ''})</span>
+            </div>
+            <div class="collection-group-count" style="font-size:12px; font-weight:500; color:#991b1b; margin-top:3px;">
+              Already at Depot or invalid. Remove with &times; to proceed.
+            </div>
+          </div>
+          <button type="button" class="collection-group-del-btn" onclick="collectionDeleteErrorGroup()" style="background:#fee2e2; color:#b91c1c; border:1px solid #fca5a5; border-radius:6px; padding:4px 10px; font-size:12px; font-weight:600; cursor:pointer;">Remove All</button>
+        </div>
+        <div class="collection-error-list" style="display:flex; flex-direction:column; gap:8px;">
+    `;
+
+    errorItems.forEach(item => {
+      const errMsg = item.result_msg || 'Already at Depot. Cannot collect twice.';
+      html += `
+        <div class="collection-error-row" style="display:flex; align-items:center; justify-content:space-between; gap:10px; background:#ffffff; border:1px solid #fecaca; border-radius:8px; padding:8px 12px;">
+          <div style="flex:1; min-width:0;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-weight:700; font-size:13px; color:#111827;">${escapeHtml(item.entered_id)}</span>
+              <span style="background:#fee2e2; color:#b91c1c; font-size:11px; font-weight:600; padding:1px 6px; border-radius:4px;">Error</span>
+            </div>
+            <div style="font-size:12px; color:#b91c1c; margin-top:3px; font-weight:500; word-break:break-word; line-height:1.35;">
+              ${escapeHtml(errMsg)}
+            </div>
+          </div>
+          <button type="button" class="chip-group-item-del" onclick="collectionRemoveItem('${escapeJsString(item.entered_id)}')" aria-label="Remove" style="flex-shrink:0; width:26px; height:26px; border-radius:50%; background:#fef2f2; border:1px solid #fca5a5; color:#b91c1c; font-size:16px; line-height:1; cursor:pointer; display:flex; align-items:center; justify-content:center;">&times;</button>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+  }
+
+  // 2. Render Customer Groups
   for (const [custName, items] of Object.entries(customerGroups)) {
     html += `
       <div class="collection-group-card">
@@ -3781,10 +3829,10 @@ function renderCollectionChips(container) {
         <div class="collection-group-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
           <div style="flex:1; min-width:160px;">
             <div class="collection-group-title" style="font-size:14px; font-weight:700; color:#92400e; display:flex; align-items:center; gap:6px;">
-              <span>⚠️ Unassigned (no history)</span>
+              <span>Unassigned Cust</span>
             </div>
-            <div class="collection-group-count" style="font-size:12px; font-weight:600; color:#b45309; margin-top:3px;">
-              ${unassignedItems.length} cylinder${unassignedItems.length !== 1 ? 's' : ''} · Action required
+            <div class="collection-group-count" style="font-size:12px; font-weight:500; color:#b45309; margin-top:3px;">
+              ${unassignedItems.length} cylinder${unassignedItems.length !== 1 ? 's' : ''} (No delivery history)
             </div>
           </div>
           <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
@@ -3885,11 +3933,12 @@ async function collectionVerifyAll() {
       }
     });
 
-    // Unassigned cylinders with no past delivery history strictly go to 'Unassigned (no history)'
+    // Unassigned cylinders with no past delivery history strictly go to 'Unassigned Cust' (skip error items)
     manualItems.forEach(item => {
+      if (item.state === 'error' || item.error === true) return;
       let c = (item.last_customer || '').trim();
-      if (!c || c.toLowerCase() === 'depot' || c.toLowerCase() === 'unknown' || c === '—' || c.toLowerCase() === 'unassigned customer') {
-        item.last_customer = 'Unassigned (no history)';
+      if (!c || c.toLowerCase() === 'depot' || c.toLowerCase() === 'unknown' || c === '—' || c.toLowerCase() === 'unassigned customer' || c.toLowerCase() === 'unassigned (no history)' || c.toLowerCase() === 'unassigned cust') {
+        item.last_customer = 'Unassigned Cust';
       }
     });
 
@@ -3988,11 +4037,35 @@ function collectionDeleteGroup(custName) {
   manualUpdateSubmitButton();
 }
 
+function collectionDeleteErrorGroup() {
+  const removed = [];
+  manualItems = manualItems.filter(item => {
+    if (item.state === 'error' || item.error === true) {
+      removed.push(item);
+      return false;
+    }
+    return true;
+  });
+
+  if (manualItems.length === 0) {
+    collectionState = 'unverified';
+  }
+
+  showCollectionUndoToast(`Removed ${removed.length} error cylinder${removed.length !== 1 ? 's' : ''}`, () => {
+    manualItems.push(...removed);
+    manualRenderChips();
+    manualUpdateSubmitButton();
+  });
+
+  manualRenderChips();
+  manualUpdateSubmitButton();
+}
+
 function collectionAssignUnassigned(targetCustomer) {
   if (!targetCustomer) return;
   manualItems.forEach(item => {
     const cust = (item.last_customer || '').trim();
-    if (!cust || cust === 'Unassigned (no history)' || cust.toLowerCase() === 'unassigned customer') {
+    if (!cust || cust.toLowerCase() === 'unassigned cust' || cust.toLowerCase() === 'unassigned customer' || cust === 'Unassigned (no history)') {
       item.last_customer = targetCustomer;
     }
   });
@@ -4005,7 +4078,7 @@ function collectionDeleteUnassigned() {
   const removed = [];
   manualItems = manualItems.filter(item => {
     const cust = (item.last_customer || '').trim();
-    if (!cust || cust === 'Unassigned (no history)' || cust.toLowerCase() === 'unassigned customer') {
+    if (!cust || cust.toLowerCase() === 'unassigned cust' || cust.toLowerCase() === 'unassigned customer' || cust === 'Unassigned (no history)') {
       removed.push(item);
       return false;
     }
@@ -4108,47 +4181,32 @@ function manualUpdateSubmitButton() {
       return;
     }
 
-    // Check if any unassigned items remain
-    const unassignedCount = activeItems.filter(i => {
-      const c = (i.last_customer || '').trim();
-      return !c || c === 'Unassigned (no history)' || c.toLowerCase() === 'unassigned customer';
-    }).length;
-
-    const inlineMsg = document.getElementById('manual-inline-msg');
-
-    if (unassignedCount > 0) {
+    // Check if error items exist
+    const errorCount = activeItems.filter(i => i.state === 'error' || i.error === true).length;
+    if (errorCount > 0) {
       btn.disabled = true;
-      btn.textContent = `Assign a customer to the ${unassignedCount} unassigned cylinder${unassignedCount !== 1 ? 's' : ''}, or delete them`;
-      if (inlineMsg) {
-        inlineMsg.style.display = 'block';
-        inlineMsg.className = 'manual-inline-msg is-warn';
-        inlineMsg.textContent = `Assign a customer to the ${unassignedCount} unassigned cylinder${unassignedCount !== 1 ? 's' : ''}, or delete them.`;
-      }
+      btn.textContent = `Remove ${errorCount} error cylinder${errorCount !== 1 ? 's' : ''} to submit`;
       return;
-    } else {
-      if (inlineMsg && inlineMsg.textContent && inlineMsg.textContent.includes('unassigned cylinder')) {
-        inlineMsg.style.display = 'none';
-        inlineMsg.textContent = '';
-      }
     }
 
-    // Count only genuine customer groups and assigned cylinders
-    const customerGroups = new Set();
-    let assignedCylinderCount = 0;
-    activeItems.forEach(item => {
+    // Count customer groups + Unassigned Cust (valid items only)
+    const validItems = activeItems.filter(i => i.state !== 'error' && !i.error);
+    const groups = new Set();
+    validItems.forEach(item => {
       const cust = (item.last_customer || '').trim();
-      if (cust && cust !== 'Unassigned (no history)' && cust.toLowerCase() !== 'unassigned customer') {
-        customerGroups.add(cust);
-        assignedCylinderCount++;
+      if (!cust || cust.toLowerCase() === 'unassigned cust' || cust.toLowerCase() === 'unassigned customer' || cust === 'Unassigned (no history)') {
+        groups.add('Unassigned Cust');
+      } else {
+        groups.add(cust);
       }
     });
 
-    const groupCount = customerGroups.size;
-    btn.disabled = groupCount === 0 || assignedCylinderCount === 0;
+    const groupCount = groups.size;
+    btn.disabled = groupCount === 0 || validItems.length === 0;
     if (groupCount <= 1) {
-      btn.textContent = `Submit 1 batch (${assignedCylinderCount} cylinder${assignedCylinderCount !== 1 ? 's' : ''})`;
+      btn.textContent = `Submit 1 batch (${validItems.length} cylinder${validItems.length !== 1 ? 's' : ''})`;
     } else {
-      btn.textContent = `Submit ${groupCount} batches (${assignedCylinderCount} cylinders)`;
+      btn.textContent = `Submit ${groupCount} batches (${validItems.length} cylinders)`;
     }
     return;
   }
@@ -4185,9 +4243,9 @@ async function collectionSubmitAll() {
   }
 
   // Check if any error cylinder
-  const errItem = activeItems.find(i => i.state === 'error');
+  const errItem = activeItems.find(i => i.state === 'error' || i.error === true);
   if (errItem) {
-    showManualInlineMsg(`Cannot submit: cylinder ${errItem.entered_id} has error: ${errItem.result_msg || 'Must resolve or remove.'}`, 'error');
+    showManualInlineMsg(`Cannot submit: cylinder ${errItem.entered_id} has error: ${errItem.result_msg || 'Already at Depot. Must remove to proceed.'}`, 'error');
     if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
     return;
   }
@@ -4200,25 +4258,15 @@ async function collectionSubmitAll() {
     return;
   }
 
-  // Block submit if any unassigned cylinders remain
-  const unassignedCount = activeItems.filter(i => {
-    const c = (i.last_customer || '').trim();
-    return !c || c === 'Unassigned (no history)' || c.toLowerCase() === 'unassigned customer';
-  }).length;
-  if (unassignedCount > 0) {
-    showManualInlineMsg(`Assign a customer to the ${unassignedCount} unassigned cylinder${unassignedCount !== 1 ? 's' : ''}, or delete them.`, 'warn');
-    if (navigator.vibrate) navigator.vibrate([80]);
-    return;
-  }
-
-  // Group items strictly by assigned customer (never mixing unassigned)
+  // Group items by customer (unassigned cylinders grouped under 'Unassigned Cust')
   const groups = {};
   activeItems.forEach(item => {
-    const cust = (item.last_customer || '').trim();
-    if (cust && cust !== 'Unassigned (no history)' && cust.toLowerCase() !== 'unassigned customer') {
-      if (!groups[cust]) groups[cust] = [];
-      groups[cust].push(item);
-    }
+    const c = (item.last_customer || '').trim();
+    const cust = (!c || c.toLowerCase() === 'unassigned cust' || c.toLowerCase() === 'unassigned customer' || c === 'Unassigned (no history)')
+      ? 'Unassigned Cust'
+      : c;
+    if (!groups[cust]) groups[cust] = [];
+    groups[cust].push(item);
   });
 
   const custNames = Object.keys(groups);
