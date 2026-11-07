@@ -7368,6 +7368,8 @@ def add_customer():
 #  INVENTORY & BULK TANKS ROUTES
 # ================================================================
 
+@app.route('/admin/daily-dispatch')
+@app.route('/admin/daily_dispatch')
 @app.route('/admin/inventory')
 @admin_required
 def admin_inventory():

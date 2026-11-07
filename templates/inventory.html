@@ -1,6 +1,6 @@
 {% extends "admin_base.html" %}
 
-{% block title %}Inventory &amp; Tank Status{% endblock %}
+{% block title %}Daily Dispatch Matrix — Noble Air Gases{% endblock %}
 
 {% block head %}
 <style>
@@ -526,8 +526,8 @@
 
 <div class="inventory-header">
   <div>
-    <h1 class="page-title" style="margin:0;">Inventory &amp; Tank Status</h1>
-    <p class="page-sub" style="margin:0;">Daily dispatch stock and bulk tank inventory tracking</p>
+    <h1 class="page-title" style="margin:0;">Daily Dispatch Matrix</h1>
+    <p class="page-sub" style="margin:0;">Party-wise dispatch and empty cylinder collection tracking</p>
   </div>
 
   <div class="header-actions">
@@ -555,51 +555,6 @@
       </a>
     </div>
   </div>
-</div>
-
-<!-- Bulk Tank visual progress grid -->
-<div class="tank-grid">
-  {% for row in t2 %}
-  {% set pct = 0 %}
-  {% if row.capacity > 0 %}
-    {% set pct = (row.closing / row.capacity * 100)|round|int %}
-  {% endif %}
-  <div class="tank-card orange-theme">
-    <div class="tank-card-title">
-      {{ row.gas }} Tank Level
-      <span class="tank-unit-badge">{{ row.unit }}</span>
-    </div>
-
-    <!-- Progress gauge -->
-    <div class="tank-progress-wrap">
-      <div class="tank-progress-bar-bg">
-        <div class="tank-progress-fill" style="width: {{ pct }}%;"></div>
-      </div>
-      <div class="tank-progress-labels">
-        <span style="color: var(--gray-text);">{{ pct }}% Full</span>
-        <span>{{ "{:,.2f}".format(row.closing) }} / {{ "{:,.0f}".format(row.capacity) }}</span>
-      </div>
-    </div>
-
-    <!-- Tank stats -->
-    <div class="tank-stat-row">
-      <span class="tank-stat-label">Opening Stock:</span>
-      <span class="tank-stat-value">{{ "{:,.2f}".format(row.opening) }}</span>
-    </div>
-    <div class="tank-stat-row">
-      <span class="tank-stat-label">Consumed Today:</span>
-      <span class="tank-stat-value consumed">- {{ "{:,.2f}".format(row.used_today) }}</span>
-    </div>
-    <div class="tank-stat-row">
-      <span class="tank-stat-label">Usable Stock (excl. heel):</span>
-      <span class="tank-stat-value" style="color:var(--green-700);">{{ "{:,.2f}".format(row.usable) }}</span>
-    </div>
-    <div class="tank-stat-row">
-      <span class="tank-stat-label">Fleet Size (Total Cyls):</span>
-      <span class="tank-stat-value">{{ row.fleet }}</span>
-    </div>
-  </div>
-  {% endfor %}
 </div>
 
 <!-- Daily Dispatch Report (Matrix) Section -->
@@ -829,88 +784,6 @@
   </div>
 </div>
 
-<!-- Main Tables Section -->
-<div class="tables-layout">
-  
-  <!-- Table 1: Cyl Status Dispatch Stock -->
-  <div class="card card-pad">
-    <div class="tbl-title-bar">
-      <h3 class="tbl-title">Table 1 — Cyl Status Dispatch Stock (Filled Cylinder Inventory)</h3>
-    </div>
-    <div class="table-wrap">
-      <table class="inv-table" style="width:100%; border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;">Product / Gas Mixture</th>
-            <th>Full Feeling Cyl</th>
-            <th>Pra Arg (Gas/Cyl)</th>
-            <th>Total Gas</th>
-            <th style="width:60px;">Unit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in t1.rows %}
-          <tr>
-            <td style="text-align:left; font-weight: 600; color:var(--dark-text);">{{ row.name }}</td>
-            <td>{{ row.filled_count }}</td>
-            <td>{{ "{:,.4f}".format(row.gas_per_cyl).rstrip('0').rstrip('.') if row.gas_per_cyl > 0 else '—' }}</td>
-            <td style="font-weight:600; color:var(--green-900);">{{ "{:,.4f}".format(row.total_gas).rstrip('0').rstrip('.') }}</td>
-            <td>{{ row.unit }}</td>
-          </tr>
-          {% endfor %}
-          <tr class="total-row">
-            <td style="text-align:left;">TOTAL FILLED</td>
-            <td>{{ t1.total_filled }}</td>
-            <td>—</td>
-            <td>{{ t1.total_cum }} Cum + {{ t1.total_kg }} KG</td>
-            <td>Mixed</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-
-  <!-- Table 2: Bulk Tanks -->
-  <div class="card card-pad">
-    <div class="tbl-title-bar">
-      <h3 class="tbl-title">Table 2 — Total Used Stock (Bulk Tank Gas Inventory)</h3>
-      <button class="btn-tanks-edit" onclick="openTanksModal()">⚙ Manage Tanks</button>
-    </div>
-    <div class="table-wrap">
-      <table class="inv-table orange-headers" style="width:100%; border-collapse:collapse;">
-        <thead>
-          <tr>
-            <th style="text-align:left;">Gas Type</th>
-            <th>Opening Stock</th>
-            <th>Used Today</th>
-            <th>Closing Stock</th>
-            <th>Fleet Size</th>
-            <th>Unit</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in t2 %}
-          <tr>
-            <td style="text-align:left; font-weight:600;">{{ row.gas }}</td>
-            <td>{{ "{:,.2f}".format(row.opening) }}</td>
-            <td style="color:#c0392b; font-weight: 500;">{{ "{:,.2f}".format(row.used_today) }}</td>
-            <td style="font-weight:700; color:var(--dark-text);">{{ "{:,.2f}".format(row.closing) }}</td>
-            <td>{{ row.fleet }}</td>
-            <td>{{ row.unit }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <div style="margin-top: 14px; font-size: 12px; color: var(--gray-text); line-height: 1.4;">
-      💡 **Calculation Logic:**<br>
-      • **Used Today** is computed dynamically from Filling scans today multiplied by gas capacities (ACM split 90.73% ARG / 19.28% CO₂).<br>
-      • **Closing Stock** = Opening Stock − Used Today.
-    </div>
-  </div>
-
-</div>
-
 <!-- Hydroalerts section -->
 <div class="hydro-alerts-card">
   <div class="tbl-title-bar" style="margin-bottom:12px;">
@@ -961,66 +834,7 @@
   {% endif %}
 </div>
 
-<!-- Modal Form: Update Tank Levels -->
-<div class="modal-overlay" id="tanks-modal">
-  <div class="modal-card">
-    <div class="modal-header">
-      <h3>Manage Tank Levels &amp; Capacities</h3>
-      <button class="modal-close" onclick="closeTanksModal()">&times;</button>
-    </div>
-    <form action="/admin/tanks/update" method="POST">
-      <input type="hidden" name="date" value="{{ target_date }}">
-      <div class="modal-body">
-        <p style="font-size: 13px; color: var(--gray-text); margin-bottom: 18px;">
-          Set tank levels, total capacities, and dead volume heels for <strong>{{ target_date }}</strong>. Leaving values as is will carry them forward.
-        </p>
-        
-        <!-- Header labels -->
-        <div class="grid-form" style="border-bottom:1.5px solid var(--gray-bd); padding-bottom:6px; margin-bottom:10px;">
-          <div class="grid-form-label">Gas Tank</div>
-          <div class="grid-form-label">Opening Stock</div>
-          <div class="grid-form-label">Tank Capacity</div>
-          <div class="grid-form-label" style="display:none;">Dead Vol</div>
-        </div>
-
-        {% for row in t2 %}
-        <div class="grid-form">
-          <div style="font-weight:600; font-size:13px; color:var(--dark-text);">
-            {{ row.gas }} <span style="font-size:11px; font-weight:400; color:var(--gray-text);">({{ row.unit }})</span>
-          </div>
-          <div>
-            <input type="number" step="0.01" inputmode="decimal" name="{{ row.gas }}_opening" value="{{ row.opening }}" required>
-          </div>
-          <div>
-            <input type="number" step="0.01" inputmode="decimal" name="{{ row.gas }}_capacity" value="{{ row.capacity }}" required>
-          </div>
-        </div>
-        <div class="grid-form" style="margin-top:-6px; margin-bottom:12px; border-bottom:1px dashed #eeeee9; padding-bottom:10px;">
-          <div style="font-size:12px; color:var(--gray-text); padding-left:10px;">➔ Heel (Dead Vol):</div>
-          <div style="grid-column: span 2;">
-            <input type="number" step="0.01" inputmode="decimal" name="{{ row.gas }}_dead" value="{{ row.dead_volume }}" placeholder="Heel / Dead Volume" required>
-          </div>
-        </div>
-        {% endfor %}
-
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn-tanks-edit" style="border-color:var(--gray-bd); color:var(--gray-text);" onclick="closeTanksModal()">Cancel</button>
-        <button type="submit" class="btn-add-cyl" style="padding: 7px 18px; border-radius: 6px;">Save &amp; Apply</button>
-      </div>
-    </form>
-  </div>
-</div>
-
 <script>
-  function openTanksModal() {
-    document.getElementById('tanks-modal').classList.add('active');
-  }
-  
-  function closeTanksModal() {
-    document.getElementById('tanks-modal').classList.remove('active');
-  }
-
   function loadHtml2Canvas() {
     if (window.html2canvas) return Promise.resolve(window.html2canvas);
     return new Promise(function(resolve, reject) {

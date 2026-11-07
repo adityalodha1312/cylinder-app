@@ -874,6 +874,13 @@
       </svg>
       Tanks
     </a>
+    <!-- Daily Dispatch -->
+    <a href="/admin/daily-dispatch" class="nav-primary {{ 'active' if '/admin/daily-dispatch' in request.path or '/admin/daily_dispatch' in request.path or '/admin/inventory' in request.path else '' }}">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>
+      </svg>
+      Daily Dispatch
+    </a>
     <!-- Go to Scan App -->
     <a href="/scan" class="nav-secondary" style="margin-top: 12px; border-top: 1px solid var(--green-500); padding-top: 12px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -895,7 +902,6 @@
         <a href="/admin/rotation" class="nav-secondary {{ 'active' if request.path == '/admin/rotation' else '' }}">Rotation</a>
         <a href="/admin/drivers" class="nav-secondary {{ 'active' if request.path == '/admin/drivers' else '' }}">Drivers</a>
         <a href="/admin/movement" class="nav-secondary {{ 'active' if request.path == '/admin/movement' else '' }}">Movement</a>
-        <a href="/admin/inventory" class="nav-secondary {{ 'active' if '/admin/inventory' in request.path else '' }}">Inventory</a>
         <a href="/admin/spares" class="nav-secondary {{ 'active' if '/admin/spares' in request.path else '' }}">Spare Parts</a>
         <a href="/admin/products" class="nav-secondary {{ 'active' if request.path == '/admin/products' else '' }}">Products</a>
         <a href="/admin/cold_calls" class="nav-secondary {{ 'active' if request.path == '/admin/cold_calls' else '' }}">Cold Calls</a>
@@ -1068,14 +1074,14 @@
         <span>Activity</span>
       </div>
     </a>
-    <!-- Inventory -->
-    <a href="/admin/inventory" class="bn-item {{ 'active' if '/admin/inventory' in request.path else '' }}" data-color="green">
+    <!-- Daily Dispatch -->
+    <a href="/admin/daily-dispatch" class="bn-item {{ 'active' if '/admin/daily-dispatch' in request.path or '/admin/inventory' in request.path else '' }}" data-color="green">
       <div class="bn-glow" style="background: radial-gradient(circle, rgba(16,185,129,0.2) 0%, rgba(16,185,129,0.06) 55%, rgba(16,185,129,0) 100%);"></div>
       <div class="bn-content">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-          <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+          <rect x="1" y="3" width="15" height="13"></rect><polygon points="16 8 20 8 23 11 23 16 16 16 8"></polygon><circle cx="5.5" cy="18.5" r="2.5"></circle><circle cx="18.5" cy="18.5" r="2.5"></circle>
         </svg>
-        <span>Inventory</span>
+        <span>Daily Dispatch</span>
       </div>
     </a>
     <!-- Search -->
