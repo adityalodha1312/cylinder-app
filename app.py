@@ -8151,6 +8151,33 @@ def admin_scanner_logs_bulk_delete():
         db.session.rollback()
         return jsonify({'success': False, 'error': 'Failed, please try again.'})
 
+def generate_accounts_batch_ref(d_str, now_dt):
+    """Generate a collision-free sequential batch reference ACCT-YYYYMMDD-XXX."""
+    today_compact = now_dt.strftime('%Y%m%d')
+    prefix = f'ACCT-{today_compact}-'
+    try:
+        existing_batches = AccountsBatch.query.filter(
+            AccountsBatch.batch_ref.like(f'{prefix}%')
+        ).all()
+        max_seq = 0
+        for b in existing_batches:
+            ref = (b.batch_ref or '').strip()
+            if ref.startswith(prefix):
+                suffix = ref[len(prefix):]
+                try:
+                    num = int(suffix)
+                    if num > max_seq:
+                        max_seq = num
+                except (ValueError, TypeError):
+                    pass
+        candidate_seq = max_seq + 1
+        while AccountsBatch.query.filter_by(batch_ref=f'{prefix}{candidate_seq:03d}').first():
+            candidate_seq += 1
+        return f'{prefix}{candidate_seq:03d}'
+    except Exception as e:
+        print(f"[accounts] Error generating batch_ref: {e}")
+        return f'ACCT-{today_compact}-{now_dt.strftime("%H%M%S")}'
+
 @app.route('/admin/scanner/submit', methods=['POST'])
 @admin_required
 def admin_scanner_submit():
@@ -8355,11 +8382,7 @@ def admin_scanner_submit():
     if os.environ.get('DATABASE_URL') and rows_to_append and action in ('Delivery', 'Party Refill'):
         try:
             # Generate batch ref: ACCT-YYYYMMDD-<id>
-            today_compact = now.strftime('%Y%m%d')
-            batch_count = AccountsBatch.query.filter(
-                AccountsBatch.batch_date == d_str
-            ).count() + 1
-            batch_ref = f'ACCT-{today_compact}-{batch_count:03d}'
+            batch_ref = generate_accounts_batch_ref(d_str, now)
 
             acct_batch = AccountsBatch(
                 batch_ref=batch_ref,
@@ -10327,8 +10350,8 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                     if c_db.status in ['Empty', 'Filled'] or c_db.location == 'Depot':
                         return f"Validation Error: Cylinder '{scan_uid}' is already at the Depot (status: {c_db.status or 'Empty'}). Cannot collect twice.", 400
                 else:
-                    status_info = get_cylinder_status(scan_uid)
-                    if status_info.get('status') in ['Empty', 'Filled'] and (not status_info.get('owner') or status_info.get('owner') == 'Depot') and status_info.get('date'):
+                    latest_scan = Scan.query.filter(Scan.cylinder_uid.ilike(scan_uid)).order_by(Scan.id.desc()).first()
+                    if latest_scan and latest_scan.action == 'Collection':
                         return f"Validation Error: Cylinder '{scan_uid}' is already at the Depot according to scan logs. Cannot collect twice.", 400
             elif scan_action == 'Delivery':
                 c_db = Cylinder.query.filter(Cylinder.uid.ilike(scan_uid)).first()
@@ -10339,10 +10362,10 @@ def process_cylinder_action(parsed_scans, driver_username, source='qr', scan_dt=
                 if c_db and c_db.status == 'Delivered':
                     return f"Validation Error: Cylinder '{scan_uid}' is already delivered to {c_db.location or 'Customer'}. Cannot deliver twice.", 400
                 elif not c_db:
-                    status_info = get_cylinder_status(scan_uid)
-                    if status_info.get('status') == 'Delivered':
-                        owner_msg = f" to {status_info.get('owner')}" if status_info.get('owner') else ""
-                        date_msg = f" on {status_info.get('date')}" if status_info.get('date') else ""
+                    latest_scan = Scan.query.filter(Scan.cylinder_uid.ilike(scan_uid)).order_by(Scan.id.desc()).first()
+                    if latest_scan and latest_scan.action == 'Delivery':
+                        owner_msg = f" to {latest_scan.customer}" if latest_scan.customer else ""
+                        date_msg = f" on {latest_scan.scan_date}" if latest_scan.scan_date else ""
                         return f"Validation Error: Cylinder '{scan_uid}' is already delivered{owner_msg}{date_msg} according to scan logs. Cannot deliver twice.", 400
     else:
         # Fallback validation using Google Sheets
@@ -11069,10 +11092,7 @@ def api_admin_scan_submit_manual():
         accounts_count = 0
         if os.environ.get('DATABASE_URL') and parsed_scans and action in ('Delivery', 'Party Refill'):
             try:
-                batch_count = AccountsBatch.query.filter(
-                    AccountsBatch.batch_date == d_str
-                ).count() + 1
-                batch_ref = f'ACCT-{today_compact}-{batch_count:03d}'
+                batch_ref = generate_accounts_batch_ref(d_str, now)
 
                 acct_batch = AccountsBatch(
                     batch_ref=batch_ref,
