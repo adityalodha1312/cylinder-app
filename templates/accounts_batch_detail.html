@@ -9,7 +9,12 @@
 <!-- Header -->
 <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:20px;">
   <div>
-    <div style="font-size:12px; font-weight:700; color:#0F6E56; letter-spacing:.5px; text-transform:uppercase; margin-bottom:4px;">{{ batch.batch_ref }}</div>
+    <div style="font-size:12px; font-weight:700; color:#0F6E56; letter-spacing:.5px; text-transform:uppercase; margin-bottom:4px; display:flex; align-items:center; gap:8px;">
+      <span>{{ batch.batch_ref }}</span>
+      {% if batch.is_party_refill or (batch.notes and 'Party' in batch.notes) or (batch.customer and 'Party' in batch.customer) %}
+        <span style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; font-size: 11px; padding: 2px 8px; border-radius: 9999px; font-weight: 700; text-transform: none; letter-spacing: normal;">Party Refill</span>
+      {% endif %}
+    </div>
     <h1 class="page-title" id="page-customer-title">{{ batch.customer or 'No Customer' }}</h1>
     <p class="page-sub">{{ batch.batch_date }} at {{ batch.batch_time }} &nbsp;·&nbsp; Scanned by {{ batch.admin_name }}</p>
   </div>

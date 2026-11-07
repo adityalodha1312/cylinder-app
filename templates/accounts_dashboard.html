@@ -87,6 +87,11 @@
             {% else %}
               {{ b.batch_ref or '—' }}
             {% endif %}
+            {% if b.is_party_refill or (b.notes and 'Party' in b.notes) or (b.customer and 'Party' in b.customer) %}
+              <div>
+                <span style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; font-size: 10px; padding: 1px 7px; border-radius: 9999px; display: inline-block; font-weight: 700; margin-top: 3px; letter-spacing: 0.2px;">Party Refill</span>
+              </div>
+            {% endif %}
           </td>
           <td style="white-space:nowrap;">{{ b.batch_date }}<br><span style="font-size:11px; color:#888;">{{ b.batch_time }}</span></td>
           <td style="font-weight:600;">{{ b.customer or '—' }}</td>
@@ -458,7 +463,10 @@
 
     tr.innerHTML = `
       <td style="text-align:center;"><input type="checkbox" class="batch-checkbox" value="${b.id}"></td>
-      <td style="font-weight:700; color:var(--green-700); font-size:12px;">${b.batch_ref || '—'}</td>
+      <td style="font-weight:700; color:var(--green-700); font-size:12px;">
+        ${b.batch_ref || '—'}
+        ${(b.is_party_refill || (b.notes && b.notes.includes('Party')) || (b.customer && b.customer.includes('Party'))) ? '<div><span style="background: #f3e8ff; color: #7e22ce; border: 1px solid #d8b4fe; font-size: 10px; padding: 1px 7px; border-radius: 9999px; display: inline-block; font-weight: 700; margin-top: 3px; letter-spacing: 0.2px;">Party Refill</span></div>' : ''}
+      </td>
       <td style="white-space:nowrap;">${b.batch_date}<br><span style="font-size:11px; color:#888;">${b.batch_time || ''}</span></td>
       <td style="font-weight:600;">${b.customer || '—'}</td>
       <td><div class="gas-chips">${gasChipsHtml}</div></td>

@@ -275,6 +275,11 @@ class AccountsBatch(db.Model):
     created_at  = db.Column(db.DateTime, default=datetime.utcnow)
     items       = db.relationship('AccountsBatchItem', backref='batch', lazy=True, cascade='all, delete-orphan')
 
+    @property
+    def is_party_refill(self):
+        """Returns True if this batch is for Party Refill."""
+        return bool((self.notes and 'Party' in self.notes) or (self.customer and 'Party' in self.customer))
+
     def gas_summary(self):
         """Returns dict of gas_type -> count for all items in batch."""
         summary = {}
@@ -295,6 +300,7 @@ class AccountsBatch(db.Model):
             'billed_at': self.billed_at.strftime('%d-%m-%Y %H:%M') if self.billed_at else '',
             'billed_by': self.billed_by or '',
             'notes': self.notes or '',
+            'is_party_refill': self.is_party_refill,
             'gas_summary': self.gas_summary(),
             'total_cylinders': len(self.items)
         }

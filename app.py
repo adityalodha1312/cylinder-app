@@ -8349,8 +8349,8 @@ def admin_scanner_submit():
             db.session.rollback()
             return jsonify({'error': 'Failed, please try again.'}), 500
 
-    # Auto-save to Accounts Batch (purely internal, no registry changes)
-    if os.environ.get('DATABASE_URL') and rows_to_append:
+    # Auto-save to Accounts Batch for billable dispatches only (Delivery & Party Refill; Collections do not bill)
+    if os.environ.get('DATABASE_URL') and rows_to_append and action in ('Delivery', 'Party Refill'):
         try:
             # Generate batch ref: ACCT-YYYYMMDD-<id>
             today_compact = now.strftime('%Y%m%d')
@@ -8666,7 +8666,9 @@ def accounts_api_latest_batches():
             'total_cylinders': len(b.items),
             'billed_by': b.billed_by or '',
             'billed_at': b.billed_at.strftime('%d-%m-%Y %H:%M') if b.billed_at else '',
-            'gas_chips': gas_chips
+            'gas_chips': gas_chips,
+            'notes': b.notes or '',
+            'is_party_refill': bool((b.notes and 'Party' in b.notes) or (b.customer and 'Party' in b.customer))
         })
 
     return jsonify({
@@ -11162,10 +11164,10 @@ def api_admin_scan_submit_manual():
                 db.session.rollback()
                 print(f"[receipts] Error creating CustomerMap record: {cmap_err}")
 
-        # ── Create Accounts Batch for this manual entry submission ───────────
+        # ── Create Accounts Batch for billable dispatches only (Delivery & Party Refill) ───
         batch_ref = ''
         accounts_count = 0
-        if os.environ.get('DATABASE_URL') and parsed_scans:
+        if os.environ.get('DATABASE_URL') and parsed_scans and action in ('Delivery', 'Party Refill'):
             try:
                 batch_count = AccountsBatch.query.filter(
                     AccountsBatch.batch_date == d_str
