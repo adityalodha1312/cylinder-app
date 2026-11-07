@@ -3829,7 +3829,7 @@ function renderCollectionChips(container) {
         <div class="collection-group-header" style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px; flex-wrap:wrap;">
           <div style="flex:1; min-width:160px;">
             <div class="collection-group-title" style="font-size:14px; font-weight:700; color:#92400e; display:flex; align-items:center; gap:6px;">
-              <span>Unassigned Cust</span>
+              <span>Unassigned Customer</span>
             </div>
             <div class="collection-group-count" style="font-size:12px; font-weight:500; color:#b45309; margin-top:3px;">
               ${unassignedItems.length} cylinder${unassignedItems.length !== 1 ? 's' : ''} (No delivery history)
@@ -3933,12 +3933,12 @@ async function collectionVerifyAll() {
       }
     });
 
-    // Unassigned cylinders with no past delivery history strictly go to 'Unassigned Cust' (skip error items)
+    // Unassigned cylinders with no past delivery history strictly go to 'Unassigned Customer' (skip error items)
     manualItems.forEach(item => {
       if (item.state === 'error' || item.error === true) return;
       let c = (item.last_customer || '').trim();
       if (!c || c.toLowerCase() === 'depot' || c.toLowerCase() === 'unknown' || c === '—' || c.toLowerCase() === 'unassigned customer' || c.toLowerCase() === 'unassigned (no history)' || c.toLowerCase() === 'unassigned cust') {
-        item.last_customer = 'Unassigned Cust';
+        item.last_customer = 'Unassigned Customer';
       }
     });
 
@@ -4189,13 +4189,13 @@ function manualUpdateSubmitButton() {
       return;
     }
 
-    // Count customer groups + Unassigned Cust (valid items only)
+    // Count customer groups + Unassigned Customer (valid items only)
     const validItems = activeItems.filter(i => i.state !== 'error' && !i.error);
     const groups = new Set();
     validItems.forEach(item => {
       const cust = (item.last_customer || '').trim();
       if (!cust || cust.toLowerCase() === 'unassigned cust' || cust.toLowerCase() === 'unassigned customer' || cust === 'Unassigned (no history)') {
-        groups.add('Unassigned Cust');
+        groups.add('Unassigned Customer');
       } else {
         groups.add(cust);
       }
@@ -4258,12 +4258,12 @@ async function collectionSubmitAll() {
     return;
   }
 
-  // Group items by customer (unassigned cylinders grouped under 'Unassigned Cust')
+  // Group items by customer (unassigned cylinders grouped under 'Unassigned Customer')
   const groups = {};
   activeItems.forEach(item => {
     const c = (item.last_customer || '').trim();
     const cust = (!c || c.toLowerCase() === 'unassigned cust' || c.toLowerCase() === 'unassigned customer' || c === 'Unassigned (no history)')
-      ? 'Unassigned Cust'
+      ? 'Unassigned Customer'
       : c;
     if (!groups[cust]) groups[cust] = [];
     groups[cust].push(item);
