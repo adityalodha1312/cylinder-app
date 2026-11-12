@@ -12082,15 +12082,24 @@ def admin_tanks_hub():
     if not models_info:
         models_info = [{'model': {'id': 1, 'model_name': '13K17VEN', 'description': 'Cryogenic tank 11,623L'}, 'row_count': 44}]
 
+    target_date_formatted = target_date.strftime('%d %b %Y')
+    target_date_short = target_date.strftime('%d %b')
+    from_date_formatted = from_date.strftime('%d %b %Y')
+    to_date_formatted = to_date.strftime('%d %b %Y')
+
     return render_template('tanks_admin.html',
         user=session.get('user'),
         active_tab=active_tab,
         target_date_str=target_date.strftime('%Y-%m-%d'),
+        target_date_formatted=target_date_formatted,
+        target_date_short=target_date_short,
         daily_rows=daily_rows,
         total_tanks=len(active_tanks),
         completed_tanks=completed_count,
         from_date_str=from_date.strftime('%Y-%m-%d'),
         to_date_str=to_date.strftime('%Y-%m-%d'),
+        from_date_formatted=from_date_formatted,
+        to_date_formatted=to_date_formatted,
         filter_tank_id=filter_tank_id,
         report_readings=report_readings,
         tanks_by_id=tanks_by_id,

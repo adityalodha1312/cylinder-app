@@ -268,7 +268,10 @@ def compute_net_change(current_kg, previous_reading):
     Calculates net change since previous good reading.
     Returns: (change_kg, label)
     """
-    if current_kg is None or previous_reading is None or previous_reading.kg is None:
+    if current_kg is None:
+        return None, None
+
+    if previous_reading is None or previous_reading.kg is None:
         return None, "First reading"
 
     prev_kg = float(previous_reading.kg)
