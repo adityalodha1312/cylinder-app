@@ -11986,27 +11986,60 @@ def admin_tanks_hub():
     except Exception:
         target_date = date.today()
 
-    # Active tanks for daily entry
-    active_tanks = StorageTank.query.filter_by(is_active=True).order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
-    daily_rows = []
-    completed_count = 0
+    # 1. Models lookup dictionary (1 batched query)
+    try:
+        models_list = TankModel.query.order_by(TankModel.id.asc()).all()
+        models_by_id = {m.id: m.model_name for m in models_list}
+    except Exception:
+        models_list = []
+        models_by_id = {}
 
-    for t in active_tanks:
-        r = TankReading.query.filter_by(tank_id=t.id, reading_date=target_date).first()
-        prev = get_previous_good_reading(t.id, target_date)
-        _, change_lbl = compute_net_change(r.kg if r else None, prev)
+    # 2. All storage tanks (1 batched query)
+    all_tanks = StorageTank.query.order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
+    tanks_by_id = {t.id: t for t in all_tanks}
+    active_tanks = [t for t in all_tanks if t.is_active]
+    active_tank_ids = [t.id for t in active_tanks]
 
-        if r:
-            completed_count += 1
-
-        m_name = '13K17VEN'
+    # 3. Today's readings for all active tanks (1 batched query)
+    today_readings = {}
+    if active_tank_ids:
         try:
-            m = TankModel.query.get(t.model_id)
-            if m:
-                m_name = m.model_name
+            r_list = TankReading.query.filter(
+                TankReading.tank_id.in_(active_tank_ids),
+                TankReading.reading_date == target_date
+            ).all()
+            for r in r_list:
+                today_readings[r.tank_id] = r
         except Exception:
             pass
 
+    # 4. Previous good readings for active tanks (1 batched query using DISTINCT ON, with fallback)
+    prev_readings = {}
+    if active_tank_ids:
+        try:
+            prev_list = (TankReading.query
+                .filter(TankReading.tank_id.in_(active_tank_ids))
+                .filter(TankReading.reading_date < target_date)
+                .filter(TankReading.kg.isnot(None))
+                .filter(TankReading.status.in_(['ok', 'above_full']))
+                .order_by(TankReading.tank_id, TankReading.reading_date.desc(), TankReading.id.desc())
+                .distinct(TankReading.tank_id)
+                .all())
+            for pr in prev_list:
+                prev_readings[pr.tank_id] = pr
+        except Exception:
+            for tid in active_tank_ids:
+                prev_readings[tid] = get_previous_good_reading(tid, target_date)
+
+    daily_rows = []
+    completed_count = 0
+    for t in active_tanks:
+        r = today_readings.get(t.id)
+        prev = prev_readings.get(t.id)
+        _, change_lbl = compute_net_change(r.kg if r else None, prev)
+        if r:
+            completed_count += 1
+        m_name = models_by_id.get(t.model_id, '13K17VEN')
         daily_rows.append({
             'tank': t,
             'model_name': m_name,
@@ -12015,7 +12048,7 @@ def admin_tanks_hub():
             'change_label': change_lbl
         })
 
-    # Data for Reports tab
+    # Data for Reports tab (1 query)
     from_date_str = request.args.get('from_date', (date.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
     to_date_str = request.args.get('to_date', date.today().strftime('%Y-%m-%d'))
     filter_tank_id = request.args.get('tank_id', '')
@@ -12034,7 +12067,6 @@ def admin_tanks_hub():
         query = query.filter(TankReading.tank_id == int(filter_tank_id))
 
     report_readings = query.order_by(TankReading.reading_date.desc(), TankReading.id.desc()).all()
-    tanks_by_id = {t.id: t for t in StorageTank.query.all()}
 
     # Compute KPI totals
     total_used_kg = 0.0
@@ -12047,22 +12079,22 @@ def admin_tanks_hub():
             elif chg > 0:
                 total_filled_kg += chg
 
-    # Data for Manage tab
-    all_tanks = StorageTank.query.order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
+    # Data for Manage tab (batched reading counts per tank)
+    try:
+        counts_by_tank = dict(
+            db.session.query(TankReading.tank_id, sa.func.count(TankReading.id))
+            .group_by(TankReading.tank_id)
+            .all()
+        )
+    except Exception:
+        counts_by_tank = {}
+
     tanks_manage_info = []
     for t in all_tanks:
-        readings_count = TankReading.query.filter_by(tank_id=t.id).count()
-        m_name = '13K17VEN'
-        try:
-            m = TankModel.query.get(t.model_id)
-            if m:
-                m_name = m.model_name
-        except Exception:
-            pass
         tanks_manage_info.append({
             'tank': t,
-            'model_name': m_name,
-            'readings_count': readings_count
+            'model_name': models_by_id.get(t.model_id, '13K17VEN'),
+            'readings_count': counts_by_tank.get(t.id, 0)
         })
 
     factors_rows = TankGasFactor.query.order_by(TankGasFactor.gas.asc()).all()
@@ -12073,11 +12105,19 @@ def admin_tanks_hub():
             for g, f in DEFAULT_FACTORS.items()
         ]
 
-    models_list = TankModel.query.order_by(TankModel.id.asc()).all()
+    # Batched chart row counts per model
+    try:
+        chart_counts = dict(
+            db.session.query(TankChartRow.model_id, sa.func.count(TankChartRow.id))
+            .group_by(TankChartRow.model_id)
+            .all()
+        )
+    except Exception:
+        chart_counts = {}
+
     models_info = []
     for m in models_list:
-        rc = TankChartRow.query.filter_by(model_id=m.id).count()
-        models_info.append({'model': m, 'row_count': rc})
+        models_info.append({'model': m, 'row_count': chart_counts.get(m.id, 0)})
 
     if not models_info:
         models_info = [{'model': {'id': 1, 'model_name': '13K17VEN', 'description': 'Cryogenic tank 11,623L'}, 'row_count': 44}]
