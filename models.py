@@ -664,7 +664,7 @@ class TankReading(TankBase):
     sm3_per_kg_used    = db.Column(db.Numeric(10, 4), nullable=False)
     net_change_kg      = db.Column(db.Numeric(14, 4))
     status             = db.Column(db.String(50), default='ok') # 'ok', 'below_chart', 'above_full'
-    recorded_by_id     = db.Column(db.Integer, db.ForeignKey('users.id'))
+    recorded_by_id     = db.Column(db.Integer)
     notes              = db.Column(db.Text)
     created_at         = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at         = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -11753,8 +11753,9 @@ def api_tank_reading_save():
     except Exception:
         return jsonify({'error': 'Invalid date format (must be YYYY-MM-DD)'}), 400
 
-    if reading_date > date.today():
-        return jsonify({'error': 'Reading date cannot be in the future'}), 400
+    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    if reading_date > ist_today:
+        return jsonify({'error': f'Reading date cannot be in the future (today is {ist_today.strftime("%d-%m-%Y")})'}), 400
 
     if mmwc is None or str(mmwc).strip() == '':
         return jsonify({'error': 'mmWC gauge reading is required'}), 400
@@ -11791,7 +11792,12 @@ def api_tank_reading_save():
     prev_reading = get_previous_good_reading(tank.id, reading_date)
     net_change_val, change_label = compute_net_change(calc['kg'], prev_reading)
 
-    user_id = session.get('user', {}).get('id')
+    user_id = session.get('user', {}).get('id') if isinstance(session.get('user'), dict) else None
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
     now_time = datetime.now().time()
 
     if existing and allow_update:
@@ -11863,12 +11869,18 @@ def api_tank_readings_batch_save():
     except Exception:
         return jsonify({'error': 'Invalid date format'}), 400
 
-    if reading_date > date.today():
-        return jsonify({'error': 'Reading date cannot be in the future'}), 400
+    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    if reading_date > ist_today:
+        return jsonify({'error': f'Reading date cannot be in the future (today is {ist_today.strftime("%d-%m-%Y")})'}), 400
 
     results = []
     saved_count = 0
-    user_id = session.get('user', {}).get('id')
+    user_id = session.get('user', {}).get('id') if isinstance(session.get('user'), dict) else None
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (ValueError, TypeError):
+            user_id = None
 
     for item in readings_list:
         tank_id = item.get('tank_id')
@@ -11970,7 +11982,14 @@ def api_tank_readings_batch_save():
             db.session.rollback()
             results.append({'tank_id': tank.id, 'tank_name': tank.name, 'success': False, 'error': str(e)})
 
-    return jsonify({'success': True, 'saved_count': saved_count, 'results': results})
+    all_success = saved_count > 0
+    first_error = next((r.get('error') for r in results if not r.get('success')), None)
+    return jsonify({
+        'success': all_success,
+        'saved_count': saved_count,
+        'error': first_error if saved_count == 0 else None,
+        'results': results
+    })
 
 
 # ─── Unified Admin Tanks Page ──────────────────────────────────────────────────

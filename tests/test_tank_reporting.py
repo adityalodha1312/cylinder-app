@@ -173,6 +173,26 @@ def test_api_tank_calculate_endpoint():
     assert data['sm3_display'] == 3402
 
 
+def test_tank_reading_model_creation_no_cross_metadata_error():
+    """Verify TankReading can be instantiated and mapped without cross-metadata NoReferencedTableError."""
+    from datetime import date, datetime
+    from models import TankReading
+    r = TankReading(
+        tank_id=1,
+        reading_date=date.today(),
+        reading_time=datetime.now().time(),
+        mmwc=2200,
+        chart_model_used="13K17VEN",
+        kg_per_litre_used=1.1420,
+        sm3_per_kg_used=0.7700,
+        status="ok",
+        recorded_by_id=1
+    )
+    assert r.tank_id == 1
+    assert r.mmwc == 2200
+    assert r.recorded_by_id == 1
+
+
 def test_admin_create_tank_endpoint():
     """Verify that posting to /admin/storage_tanks/create does not raise 500 error."""
     from app import app

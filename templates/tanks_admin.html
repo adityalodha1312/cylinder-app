@@ -967,31 +967,55 @@
     doPcRowCalc(card);
   }
 
-  // Batch Save all readings
+  // Batch Save all readings (supports both desktop table and mobile cards)
   async function saveAllReadings() {
     const btn = document.getElementById('save-all-btn');
     const datePicker = document.getElementById('entry-date-picker');
     const targetDate = datePicker ? datePicker.value : '';
 
-    const rows = document.querySelectorAll('#pc-batch-table tbody tr');
-    const readings = [];
+    const readingsMap = {};
 
-    rows.forEach(r => {
+    // 1. Scan desktop table rows if present
+    document.querySelectorAll('#pc-batch-table tbody tr').forEach(r => {
       const tankId = r.dataset.tankId;
       const mmwcInput = r.querySelector('.row-mmwc');
       const pInput = r.querySelector('.row-pressure');
       const uSelect = r.querySelector('.row-unit');
-
-      if (mmwcInput && mmwcInput.value.trim()) {
-        readings.push({
-          tank_id: parseInt(tankId),
-          mmwc: parseFloat(mmwcInput.value),
-          pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
-          pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
-          allow_update: true
-        });
+      if (tankId && mmwcInput && mmwcInput.value.trim()) {
+        const val = parseFloat(mmwcInput.value);
+        if (!isNaN(val) && val >= 0) {
+          readingsMap[tankId] = {
+            tank_id: parseInt(tankId),
+            mmwc: val,
+            pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
+            pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
+            allow_update: true
+          };
+        }
       }
     });
+
+    // 2. Scan mobile reading cards
+    document.querySelectorAll('.mobile-reading-card').forEach(c => {
+      const tankId = c.dataset.tankId;
+      const mmwcInput = c.querySelector('.row-mmwc');
+      const pInput = c.querySelector('.row-pressure');
+      const uSelect = c.querySelector('.row-unit');
+      if (tankId && mmwcInput && mmwcInput.value.trim()) {
+        const val = parseFloat(mmwcInput.value);
+        if (!isNaN(val) && val >= 0) {
+          readingsMap[tankId] = {
+            tank_id: parseInt(tankId),
+            mmwc: val,
+            pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
+            pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
+            allow_update: true
+          };
+        }
+      }
+    });
+
+    const readings = Object.values(readingsMap);
 
     if (readings.length === 0) {
       alert("Please enter a mmWC gauge reading for at least one tank.");
@@ -1013,8 +1037,9 @@
       });
       const data = await res.json();
 
-      if (!data.success) {
-        alert(`Error saving readings: ${data.error || 'Server error'}`);
+      if (!data.success || data.saved_count === 0) {
+        const firstErr = (data.results && data.results.find(r => !r.success))?.error || data.error || 'Server error';
+        alert(`Error saving readings: ${firstErr}`);
         return;
       }
 
