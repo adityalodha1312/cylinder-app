@@ -854,12 +854,47 @@
     if (m) m.style.display = 'none';
   }
 
+  // Synchronize inputs between Desktop table and Mobile cards
+  function syncInputs(sourceElem, isFromDesktop) {
+    const container = sourceElem.closest('tr') || sourceElem.closest('.mobile-card-row');
+    if (!container) return;
+    const tankId = container.dataset.tankId;
+    if (!tankId) return;
+
+    const targetContainer = isFromDesktop
+      ? document.querySelector(`.mobile-card-row[data-tank-id="${tankId}"]`)
+      : document.querySelector(`#pc-batch-table tbody tr[data-tank-id="${tankId}"]`);
+
+    if (targetContainer) {
+      const srcMmwc = container.querySelector('.row-mmwc');
+      const tgtMmwc = targetContainer.querySelector('.row-mmwc');
+      if (srcMmwc && tgtMmwc && tgtMmwc.value !== srcMmwc.value) {
+        tgtMmwc.value = srcMmwc.value;
+      }
+
+      const srcP = container.querySelector('.row-pressure');
+      const tgtP = targetContainer.querySelector('.row-pressure');
+      if (srcP && tgtP && tgtP.value !== srcP.value) {
+        tgtP.value = srcP.value;
+      }
+
+      const srcU = container.querySelector('.row-unit');
+      const tgtU = targetContainer.querySelector('.row-unit');
+      if (srcU && tgtU && tgtU.value !== srcU.value) {
+        tgtU.value = srcU.value;
+      }
+
+      doPcRowCalc(targetContainer);
+    }
+  }
+
   // Live row calculation on PC table
   let pcCalcTimers = {};
   function onPcRowInput(elem) {
     const row = elem.closest('tr');
     if (!row) return;
     const tankId = row.dataset.tankId;
+    syncInputs(elem, true);
     if (pcCalcTimers[tankId]) clearTimeout(pcCalcTimers[tankId]);
     pcCalcTimers[tankId] = setTimeout(() => doPcRowCalc(row), 120);
   }
@@ -964,10 +999,13 @@
   function onMobileCardInput(elem) {
     const card = elem.closest('.mobile-card-row');
     if (!card) return;
-    doPcRowCalc(card);
+    const tankId = card.dataset.tankId;
+    syncInputs(elem, false);
+    if (pcCalcTimers[tankId]) clearTimeout(pcCalcTimers[tankId]);
+    pcCalcTimers[tankId] = setTimeout(() => doPcRowCalc(card), 120);
   }
 
-  // Batch Save all readings (supports both desktop table and mobile cards)
+  // Batch Save all readings (desktop and mobile cards are synced)
   async function saveAllReadings() {
     const btn = document.getElementById('save-all-btn');
     const datePicker = document.getElementById('entry-date-picker');
@@ -975,19 +1013,19 @@
 
     const readingsMap = {};
 
-    // 1. Scan desktop table rows if present
+    // 1. Scan desktop table rows
     document.querySelectorAll('#pc-batch-table tbody tr').forEach(r => {
       const tankId = r.dataset.tankId;
       const mmwcInput = r.querySelector('.row-mmwc');
       const pInput = r.querySelector('.row-pressure');
       const uSelect = r.querySelector('.row-unit');
-      if (tankId && mmwcInput && mmwcInput.value.trim()) {
+      if (tankId && mmwcInput && mmwcInput.value.trim() !== '') {
         const val = parseFloat(mmwcInput.value);
         if (!isNaN(val) && val >= 0) {
           readingsMap[tankId] = {
             tank_id: parseInt(tankId),
             mmwc: val,
-            pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
+            pressure: pInput && pInput.value.trim() !== '' ? parseFloat(pInput.value) : null,
             pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
             allow_update: true
           };
@@ -995,22 +1033,24 @@
       }
     });
 
-    // 2. Scan mobile reading cards
+    // 2. Fallback scan mobile cards if any tank wasn't captured in table
     document.querySelectorAll('.mobile-reading-card').forEach(c => {
       const tankId = c.dataset.tankId;
-      const mmwcInput = c.querySelector('.row-mmwc');
-      const pInput = c.querySelector('.row-pressure');
-      const uSelect = c.querySelector('.row-unit');
-      if (tankId && mmwcInput && mmwcInput.value.trim()) {
-        const val = parseFloat(mmwcInput.value);
-        if (!isNaN(val) && val >= 0) {
-          readingsMap[tankId] = {
-            tank_id: parseInt(tankId),
-            mmwc: val,
-            pressure: pInput && pInput.value.trim() ? parseFloat(pInput.value) : null,
-            pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
-            allow_update: true
-          };
+      if (!readingsMap[tankId]) {
+        const mmwcInput = c.querySelector('.row-mmwc');
+        const pInput = c.querySelector('.row-pressure');
+        const uSelect = c.querySelector('.row-unit');
+        if (tankId && mmwcInput && mmwcInput.value.trim() !== '') {
+          const val = parseFloat(mmwcInput.value);
+          if (!isNaN(val) && val >= 0) {
+            readingsMap[tankId] = {
+              tank_id: parseInt(tankId),
+              mmwc: val,
+              pressure: pInput && pInput.value.trim() !== '' ? parseFloat(pInput.value) : null,
+              pressure_unit: uSelect ? uSelect.value : 'kg/cm²',
+              allow_update: true
+            };
+          }
         }
       }
     });
@@ -1037,16 +1077,27 @@
       });
       const data = await res.json();
 
-      if (!data.success || data.saved_count === 0) {
-        const firstErr = (data.results && data.results.find(r => !r.success))?.error || data.error || 'Server error';
-        alert(`Error saving readings: ${firstErr}`);
+      const failures = (data.results || []).filter(r => !r.success);
+      if (!data.success || failures.length > 0) {
+        let errMsg = 'Failed to save readings:';
+        if (failures.length > 0) {
+          errMsg += '\n' + failures.map(f => `• ${f.tank_name || 'Tank ' + f.tank_id}: ${f.error}`).join('\n');
+        } else if (data.error) {
+          errMsg += `\n• ${data.error}`;
+        }
+        if (data.saved_count > 0) {
+          errMsg += `\n\n(${data.saved_count} of ${readings.length} reading(s) saved successfully. Failed rows need attention.)`;
+        }
+        alert(errMsg);
+        // CRITICAL: Do NOT reload the page on any failure, keeping typed values intact!
         return;
       }
 
       alert(`✓ Successfully saved ${data.saved_count} tank reading(s)!`);
       window.location.reload();
     } catch (e) {
-      alert(`Network error saving readings: ${e.message}`);
+      alert(`Network error saving readings: ${e.message}\nYour typed readings have been preserved.`);
+      // CRITICAL: Do NOT reload on network error, preserving typed inputs!
     } finally {
       btn.disabled = false;
       btn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path><polyline points="17 21 17 13 7 13 7 21"></polyline><polyline points="7 3 7 8 15 8"></polyline></svg> <span>Save All Readings</span>`;

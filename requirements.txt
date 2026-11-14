@@ -16,3 +16,4 @@ pytest-playwright
 pytest-flask
 flask-compress
 brotli
+tzdata

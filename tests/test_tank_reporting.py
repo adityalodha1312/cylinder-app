@@ -193,6 +193,88 @@ def test_tank_reading_model_creation_no_cross_metadata_error():
     assert r.recorded_by_id == 1
 
 
+def test_real_endpoint_tank_reading_save_and_commit_isolated_db():
+    """Verify that saving readings through real endpoints commits to database without cross-metadata foreign key errors."""
+    from flask import Flask
+    from db import db
+    from models import tank_meta, TankModel, StorageTank, TankReading
+    from app import api_tank_reading_save, api_tank_readings_batch_save, get_ist_today
+
+    test_app = Flask(__name__)
+    test_app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
+    test_app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    test_app.config['TESTING'] = True
+    test_app.secret_key = 'test-secret'
+    db.init_app(test_app)
+
+    # Register the real endpoint functions from app.py
+    test_app.add_url_rule('/api/tanks/reading/save', 'api_tank_reading_save', api_tank_reading_save, methods=['POST'])
+    test_app.add_url_rule('/api/tanks/readings/batch-save', 'api_tank_readings_batch_save', api_tank_readings_batch_save, methods=['POST'])
+
+    with test_app.app_context():
+        # Create all tables in SQLite test DB
+        db.metadata.create_all(db.engine)
+        tank_meta.create_all(db.engine)
+
+        # Seed test model & tank
+        m = TankModel(id=1, model_name='13K17VEN', description='Plate model')
+        t = StorageTank(id=1, name='Oxygen Tank 1', gas='Oxygen', model_id=1, is_active=True)
+        db.session.add(m)
+        db.session.add(t)
+        db.session.commit()
+
+        client = test_app.test_client()
+        with client.session_transaction() as sess:
+            sess['user'] = {'username': 'testadmin', 'role': 'manager', 'id': 42}
+
+        today_str = get_ist_today().strftime('%Y-%m-%d')
+
+        # 1. Test single save endpoint commits to DB
+        res1 = client.post('/api/tanks/reading/save', json={
+            'tank_id': 1,
+            'reading_date': today_str,
+            'mmwc': 2200,
+            'pressure': 10.0,
+            'pressure_unit': 'kg/cm²',
+            'allow_update': True
+        })
+        assert res1.status_code == 200, f"res1: {res1.status_code}, data: {res1.data}"
+        d1 = res1.get_json()
+        assert d1.get('success') is True, f"d1: {d1}"
+        assert d1['reading']['kg'] == 4418
+        assert d1['reading']['recorded_by_id'] == 42
+
+        # Verify directly in SQLite test database that it was committed!
+        row1 = TankReading.query.filter_by(tank_id=1, reading_date=get_ist_today()).first()
+        assert row1 is not None
+        assert row1.recorded_by_id == 42
+        assert round(row1.kg) == 4418
+
+        # 2. Test batch save endpoint commits to DB
+        res2 = client.post('/api/tanks/readings/batch-save', json={
+            'reading_date': today_str,
+            'readings': [
+                {
+                    'tank_id': 1,
+                    'mmwc': 2400,
+                    'pressure': 12.0,
+                    'pressure_unit': 'kg/cm²',
+                    'allow_update': True
+                }
+            ],
+            'allow_update': True
+        })
+        assert res2.status_code == 200, f"res2: {res2.status_code}, data: {res2.data}"
+        d2 = res2.get_json()
+        assert d2.get('success') is True, f"d2: {d2}"
+        assert d2.get('saved_count') == 1
+
+        # Verify update in SQLite DB
+        row2 = TankReading.query.filter_by(tank_id=1, reading_date=get_ist_today()).first()
+        assert row2.mmwc == 2400
+        assert round(row2.litres) == 4248
+
+
 def test_admin_create_tank_endpoint():
     """Verify that posting to /admin/storage_tanks/create does not raise 500 error."""
     from app import app

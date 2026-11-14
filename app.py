@@ -11653,6 +11653,17 @@ def admin_api_pending_cylinder_batch_register():
 #  DAILY TANK LEVEL REPORTING ROUTES (Additive Feature)
 # ====================================================================
 
+try:
+    from zoneinfo import ZoneInfo
+    IST_TZ = ZoneInfo('Asia/Kolkata')
+except Exception:
+    from datetime import timezone
+    IST_TZ = timezone(timedelta(hours=5, minutes=30))
+
+def get_ist_today() -> date:
+    """Returns current calendar date in India Standard Time (Asia/Kolkata)."""
+    return datetime.now(IST_TZ).date()
+
 from models import StorageTank, TankModel, TankChartRow, TankGasFactor, TankReading
 from services.tank_service import (
     calculate_tank_values,
@@ -11686,11 +11697,11 @@ def api_tank_calculate():
 @login_required
 def api_tanks_active_list():
     """Returns active storage tanks for dropdowns and mobile views."""
-    target_date_str = request.args.get('date', date.today().strftime('%Y-%m-%d'))
+    target_date_str = request.args.get('date', get_ist_today().strftime('%Y-%m-%d'))
     try:
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
     except Exception:
-        target_date = date.today()
+        target_date = get_ist_today()
 
     tanks = StorageTank.query.filter_by(is_active=True).order_by(StorageTank.display_order.asc(), StorageTank.id.asc()).all()
     tank_list = []
@@ -11734,7 +11745,7 @@ def api_tank_reading_save():
     """Save or update a single daily tank reading."""
     data = request.get_json() or {}
     tank_id = data.get('tank_id')
-    reading_date_str = data.get('reading_date', date.today().strftime('%Y-%m-%d'))
+    reading_date_str = data.get('reading_date', get_ist_today().strftime('%Y-%m-%d'))
     mmwc = data.get('mmwc')
     pressure = data.get('pressure')
     pressure_unit = data.get('pressure_unit', 'kg/cm²')
@@ -11753,7 +11764,7 @@ def api_tank_reading_save():
     except Exception:
         return jsonify({'error': 'Invalid date format (must be YYYY-MM-DD)'}), 400
 
-    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    ist_today = get_ist_today()
     if reading_date > ist_today:
         return jsonify({'error': f'Reading date cannot be in the future (today is {ist_today.strftime("%d-%m-%Y")})'}), 400
 
@@ -11845,7 +11856,9 @@ def api_tank_reading_save():
         db.session.commit()
     except Exception as e:
         db.session.rollback()
-        return jsonify({'error': f'Database save error: {str(e)}'}), 500
+        import traceback
+        print(f"[api_tank_reading_save] Database save error: {e}\n{traceback.format_exc()}")
+        return jsonify({'success': False, 'error': f'Database save error: {str(e)}'}), 500
 
     return jsonify({
         'success': True,
@@ -11861,7 +11874,7 @@ def api_tank_readings_batch_save():
     """Batch save endpoint for PC table view with independent row validation."""
     data = request.get_json() or {}
     readings_list = data.get('readings', [])
-    reading_date_str = data.get('reading_date', date.today().strftime('%Y-%m-%d'))
+    reading_date_str = data.get('reading_date', get_ist_today().strftime('%Y-%m-%d'))
     allow_update = bool(data.get('allow_update', True))
 
     try:
@@ -11869,7 +11882,7 @@ def api_tank_readings_batch_save():
     except Exception:
         return jsonify({'error': 'Invalid date format'}), 400
 
-    ist_today = (datetime.utcnow() + timedelta(hours=5, minutes=30)).date()
+    ist_today = get_ist_today()
     if reading_date > ist_today:
         return jsonify({'error': f'Reading date cannot be in the future (today is {ist_today.strftime("%d-%m-%Y")})'}), 400
 
@@ -11980,14 +11993,18 @@ def api_tank_readings_batch_save():
             })
         except Exception as e:
             db.session.rollback()
+            import traceback
+            print(f"[api_tank_readings_batch_save] Error saving tank {tank.name} (id={tank.id}): {e}\n{traceback.format_exc()}")
             results.append({'tank_id': tank.id, 'tank_name': tank.name, 'success': False, 'error': str(e)})
 
-    all_success = saved_count > 0
-    first_error = next((r.get('error') for r in results if not r.get('success')), None)
+    failed_items = [r for r in results if not r.get('success')]
+    all_success = saved_count > 0 and len(failed_items) == 0
+    first_error = failed_items[0].get('error') if failed_items else None
     return jsonify({
         'success': all_success,
         'saved_count': saved_count,
-        'error': first_error if saved_count == 0 else None,
+        'total_attempted': len(results),
+        'error': first_error if not all_success else None,
         'results': results
     })
 
@@ -11999,11 +12016,11 @@ def api_tank_readings_batch_save():
 def admin_tanks_hub():
     """Unified Admin portal page for Tanks: Daily Entry, Reports, and Manage Tanks."""
     active_tab = request.args.get('tab', 'entry')
-    target_date_str = request.args.get('date', date.today().strftime('%Y-%m-%d'))
+    target_date_str = request.args.get('date', get_ist_today().strftime('%Y-%m-%d'))
     try:
         target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
     except Exception:
-        target_date = date.today()
+        target_date = get_ist_today()
 
     # 1. Models lookup dictionary (1 batched query)
     try:
@@ -12068,18 +12085,18 @@ def admin_tanks_hub():
         })
 
     # Data for Reports tab (1 query)
-    from_date_str = request.args.get('from_date', (date.today() - timedelta(days=30)).strftime('%Y-%m-%d'))
-    to_date_str = request.args.get('to_date', date.today().strftime('%Y-%m-%d'))
+    from_date_str = request.args.get('from_date', (get_ist_today() - timedelta(days=30)).strftime('%Y-%m-%d'))
+    to_date_str = request.args.get('to_date', get_ist_today().strftime('%Y-%m-%d'))
     filter_tank_id = request.args.get('tank_id', '')
 
     try:
         from_date = datetime.strptime(from_date_str, '%Y-%m-%d').date()
     except Exception:
-        from_date = date.today() - timedelta(days=30)
+        from_date = get_ist_today() - timedelta(days=30)
     try:
         to_date = datetime.strptime(to_date_str, '%Y-%m-%d').date()
     except Exception:
-        to_date = date.today()
+        to_date = get_ist_today()
 
     query = TankReading.query.filter(TankReading.reading_date >= from_date, TankReading.reading_date <= to_date)
     if filter_tank_id and filter_tank_id.isdigit():
