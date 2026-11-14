@@ -518,6 +518,216 @@
   .spin {
     animation: spin 0.9s linear infinite;
   }
+
+  /* Daily Dispatch Report Preview Styles */
+  .preview-matrix-card {
+    border: 2px solid #0F6E56;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(15, 110, 86, 0.08);
+  }
+  .preview-summary-strip {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    background: #f8fafc;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 12px 18px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+  .preview-stat-card {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .preview-stat-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #64748b;
+  }
+  .preview-stat-val {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .preview-stat-number {
+    font-size: 20px;
+    font-weight: 800;
+    line-height: 1;
+  }
+  .preview-stat-detail {
+    font-size: 13px;
+    font-weight: 600;
+    color: #475569;
+  }
+  .preview-amber-badge {
+    background: #fef3c7;
+    color: #92400e;
+    border: 1px solid #f59e0b;
+    padding: 2px 9px;
+    border-radius: 9999px;
+    font-size: 12px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+  }
+  .preview-toggle-wrap {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+  }
+  .preview-toggle-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: #334155;
+    background: #ffffff;
+    border: 1.5px solid #cbd5e1;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.15s ease;
+  }
+  .preview-toggle-label:hover {
+    border-color: #94a3b8;
+    background: #f1f5f9;
+  }
+  .preview-toggle-label input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    cursor: pointer;
+    accent-color: var(--green-700, #0F6E56);
+  }
+  .preview-table-wrap {
+    max-height: 72vh;
+    overflow: auto;
+    border-radius: 8px;
+    border: 1.5px solid var(--gray-bd);
+    -webkit-overflow-scrolling: touch;
+  }
+  .preview-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border-top: 1px solid var(--gray-bd);
+    border-left: 1px solid var(--gray-bd);
+  }
+  .preview-table thead tr:first-child th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+  .preview-table thead tr:nth-child(2) th {
+    position: sticky;
+    top: 36px;
+    z-index: 10;
+  }
+  .preview-table th.preview-sticky-col,
+  .preview-table td.preview-sticky-col {
+    position: sticky;
+    left: 0;
+    z-index: 6;
+    background: #ffffff;
+    box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+  }
+  .preview-table thead tr th.preview-sticky-col {
+    z-index: 25;
+    background: #f7f8f6;
+    top: 0;
+  }
+  .preview-table tr.total-row-sub td.preview-sticky-col {
+    background: #fcfdfc;
+  }
+  .preview-table tr.total-row-summary td.preview-sticky-col {
+    background: #ffffcc;
+  }
+  .preview-table tr.section-divider-row td.preview-sticky-col {
+    background: #f1efe8;
+  }
+  .preview-table tr.grand-total-row td.preview-sticky-col {
+    background: #fbeee9;
+  }
+  .preview-table tr.grand-total-col-row td.preview-sticky-col {
+    background: #fef3c7;
+  }
+
+  /* Empty gas column hiding */
+  #dispatchPreviewCard .preview-col-empty-dispatch,
+  #dispatchPreviewCard .preview-col-empty-collection {
+    display: none !important;
+  }
+  #dispatchPreviewCard.show-all-gases .preview-col-empty-dispatch,
+  #dispatchPreviewCard.show-all-gases .preview-col-empty-collection {
+    display: table-cell !important;
+  }
+
+  /* Cell tinting for non-zero values */
+  .preview-table td.cell-nonzero-dispatch {
+    background-color: #f0fdf4 !important;
+    color: #166534 !important;
+    font-weight: 600;
+  }
+  .preview-table td.cell-nonzero-collection {
+    background-color: #fdfaf3 !important;
+    color: #8c764b !important;
+    font-weight: 600;
+  }
+  .preview-table th.preview-header-total {
+    background: #e2e8f0;
+    color: #1e293b;
+    font-weight: 700;
+    font-size: 12.5px;
+  }
+  .preview-table td.preview-col-total {
+    font-weight: 700;
+    background-color: #f8fafc;
+  }
+  .preview-table td.preview-col-total.cell-nonzero-dispatch {
+    background-color: #dcfce7 !important;
+    color: #14532d !important;
+    font-weight: 800;
+  }
+  .preview-table td.preview-col-total.cell-nonzero-collection {
+    background-color: #f6efe2 !important;
+    color: #715526 !important;
+    font-weight: 800;
+  }
+
+  /* Reconciliation Bar */
+  .preview-reconciliation-bar {
+    margin-top: 14px;
+    padding: 10px 16px;
+    background: #f0fdf4;
+    border: 1px solid #bbf7d0;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+  }
+
+  @media (max-width: 768px) {
+    .preview-summary-strip {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px;
+    }
+    .preview-toggle-wrap {
+      margin-left: 0;
+      width: 100%;
+    }
+    .preview-toggle-label {
+      width: 100%;
+      justify-content: center;
+    }
+  }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 {% endblock %}
@@ -784,6 +994,367 @@
   </div>
 </div>
 
+<!-- Daily Dispatch Preview Section -->
+<div class="matrix-card preview-matrix-card" id="dispatchPreviewCard" style="margin-top: 24px;">
+  <div class="tbl-title-bar" style="margin-bottom: 14px;">
+    <div>
+      <div style="display:flex; align-items:center; gap:8px;">
+        <h3 class="tbl-title">Daily Dispatch Report (Preview)</h3>
+        <span class="preview-badge" style="background:#e0f2fe; color:#0369a1; border:1px solid #bae6fd; font-size:11px; font-weight:700; padding:2px 8px; border-radius:12px; text-transform:uppercase; letter-spacing:0.5px;">Filtered Preview</span>
+      </div>
+      <p style="margin: 4px 0 0 0; font-size: 12px; color: var(--gray-text);">
+        Filtered grid displaying active gases with customer totals &amp; reconciliation for {{ target_date }}
+      </p>
+      <div class="matrix-scroll-hint">👉 Swipe horizontally to view all gas columns</div>
+    </div>
+    <div class="matrix-actions-bar">
+      <button type="button" class="btn-matrix-copy" id="btnCopyPreviewImage" onclick="copyPreviewTableImage()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        <span>Copy Table Image</span>
+      </button>
+      <button type="button" class="btn-matrix-copy btn-matrix-dl" id="btnDlPreviewImage" onclick="downloadPreviewTableImage()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        <span>Download PNG</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Compute unassigned count across company_rows & party_rows -->
+  {% set ns_preview = namespace(unassigned_count=0) %}
+  {% for r in dispatch_report.company_rows %}
+    {% if 'unassigned' in r.customer|lower or '(no customer)' in r.customer|lower %}
+      {% for val in r.raw_collection.values() %}
+        {% set ns_preview.unassigned_count = ns_preview.unassigned_count + (val or 0) %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+  {% for r in dispatch_report.party_rows %}
+    {% if 'unassigned' in r.customer|lower or '(no customer)' in r.customer|lower %}
+      {% for val in r.raw_collection.values() %}
+        {% set ns_preview.unassigned_count = ns_preview.unassigned_count + (val or 0) %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %}
+
+  <!-- Active gas columns count -->
+  {% set ns_cols = namespace(dispatch_count=0, collection_count=0) %}
+  {% for col in dispatch_report.gas_cols %}
+    {% if dispatch_report.grand_totals.dispatch.get(col.key, 0) != 0 %}
+      {% set ns_cols.dispatch_count = ns_cols.dispatch_count + 1 %}
+    {% endif %}
+    {% if dispatch_report.grand_totals.collection.get(col.key, 0) != 0 %}
+      {% set ns_cols.collection_count = ns_cols.collection_count + 1 %}
+    {% endif %}
+  {% endfor %}
+  {% set preview_active_d = ns_cols.dispatch_count %}
+  {% set preview_active_c = ns_cols.collection_count %}
+  {% set preview_total_cols = dispatch_report.gas_cols|length %}
+
+  <!-- 1. Totals at the Top Summary Strip -->
+  <div class="preview-summary-strip">
+    <div class="preview-stat-card">
+      <div class="preview-stat-label">Total dispatched</div>
+      <div class="preview-stat-val">
+        <span class="preview-stat-number" style="color:var(--green-700);">{{ dispatch_report.grand_totals.dispatch_total }}</span>
+        <span class="preview-stat-detail">({{ dispatch_report.company_totals.dispatch_total }} delivered + {{ dispatch_report.party_totals.dispatch_total }} customer-owned)</span>
+      </div>
+    </div>
+    <div class="preview-stat-card">
+      <div class="preview-stat-label">Collected</div>
+      <div class="preview-stat-val">
+        <span class="preview-stat-number" style="color:#8c764b;">{{ dispatch_report.grand_totals.collection_total }}</span>
+        <span class="preview-amber-badge">{{ ns_preview.unassigned_count }} unassigned</span>
+      </div>
+    </div>
+    <div class="preview-toggle-wrap">
+      <label class="preview-toggle-label">
+        <input type="checkbox" id="previewShowAllGases" onchange="togglePreviewAllGases(this.checked)">
+        <span>Show all gases</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- Preview Table Wrap -->
+  <div class="matrix-table-wrap preview-table-wrap" id="dispatchPreviewTableWrap">
+    <table class="matrix-table preview-table" id="dispatchPreviewTable">
+      <thead>
+        <!-- Row 1: Section Headers -->
+        <tr>
+          <th rowspan="2" class="border-right-thick preview-sticky-col" style="vertical-align: middle; min-width: 190px;">
+            Today Dispatch &amp; Empty Collection Party Name
+          </th>
+          <th id="previewDispatchHeaderTh" colspan="{{ preview_active_d + 1 }}" data-active-cols="{{ preview_active_d }}" data-total-cols="{{ preview_total_cols }}" class="dispatch-header border-right-thick">
+            Today Dispatch Cyld.
+          </th>
+          <th id="previewCollectionHeaderTh" colspan="{{ preview_active_c + 1 }}" data-active-cols="{{ preview_active_c }}" data-total-cols="{{ preview_total_cols }}" class="collection-header">
+            Today Empty Collection Cyld.
+          </th>
+        </tr>
+        <!-- Row 2: Gas Sub-headers + Total Column on each side -->
+        <tr>
+          <!-- Dispatch Gas Columns -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+            <th class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}">{{ col.label }}</th>
+          {% endfor %}
+          <!-- Dispatch Total Header -->
+          <th class="preview-header-total border-right-thick">Total</th>
+
+          <!-- Collection Gas Columns -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+            <th class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}">{{ col.label }}</th>
+          {% endfor %}
+          <!-- Collection Total Header -->
+          <th class="preview-header-total">Total</th>
+        </tr>
+      </thead>
+      <tbody>
+        <!-- 1. Company-Owned Cylinders -->
+        {% if dispatch_report.company_rows %}
+          {% for row in dispatch_report.company_rows %}
+          <tr>
+            <td class="border-right-thick preview-sticky-col">
+              {{ row.customer }}
+            </td>
+            <!-- Dispatch values -->
+            {% for col in dispatch_report.gas_cols %}
+              {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+              {% set raw_val = row.raw_dispatch.get(col.key, 0) %}
+              {% set disp_val = row.dispatch.get(col.key, '') %}
+              <td class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}{% if raw_val and raw_val != 0 %} cell-nonzero-dispatch{% endif %}{% if col.key == 'DURA' %} dura-cell{% endif %}">
+                {% if raw_val and raw_val != 0 %}
+                  {{ disp_val }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <!-- Dispatch Row Total -->
+            {% set row_d_tot = row.raw_dispatch.values()|sum %}
+            <td class="preview-col-total border-right-thick{% if row_d_tot > 0 %} cell-nonzero-dispatch{% endif %}">
+              {{ row_d_tot if row_d_tot > 0 else '' }}
+            </td>
+
+            <!-- Collection values -->
+            {% for col in dispatch_report.gas_cols %}
+              {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+              {% set raw_val = row.raw_collection.get(col.key, 0) %}
+              {% set disp_val = row.collection.get(col.key, '') %}
+              <td class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}{% if raw_val and raw_val != 0 %} cell-nonzero-collection{% endif %}{% if col.key == 'DURA' %} dura-cell{% endif %}">
+                {% if raw_val and raw_val != 0 %}
+                  {{ disp_val }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <!-- Collection Row Total -->
+            {% set row_c_tot = row.raw_collection.values()|sum %}
+            <td class="preview-col-total{% if row_c_tot > 0 %} cell-nonzero-collection{% endif %}">
+              {{ row_c_tot if row_c_tot > 0 else '' }}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="border-right-thick preview-sticky-col" style="color:var(--gray-text); font-style:italic;">No company-owned cylinders dispatched/collected today.</td>
+            <td colspan="{{ preview_active_d + 1 }}" data-active-span="{{ preview_active_d + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-dispatch-only border-right-thick"></td>
+            <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection"></td>
+          </tr>
+        {% endif %}
+
+        <!-- Company Totals Row (renamed to Total) -->
+        <tr class="total-row-sub">
+          <td class="border-right-thick preview-sticky-col">Total</td>
+          <!-- Dispatch totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.company_totals.dispatch.get(col.key, 0) %}
+            <td class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}{% if val and val != 0 %} cell-nonzero-dispatch{% endif %}">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total border-right-thick{% if dispatch_report.company_totals.dispatch_total != 0 %} cell-nonzero-dispatch{% endif %}">
+            {{ dispatch_report.company_totals.dispatch_total if dispatch_report.company_totals.dispatch_total != 0 else '' }}
+          </td>
+          <!-- Collection totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.company_totals.collection.get(col.key, 0) %}
+            <td class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}{% if val and val != 0 %} cell-nonzero-collection{% endif %}">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total{% if dispatch_report.company_totals.collection_total != 0 %} cell-nonzero-collection{% endif %}">
+            {{ dispatch_report.company_totals.collection_total if dispatch_report.company_totals.collection_total != 0 else '' }}
+          </td>
+        </tr>
+
+        <!-- Today Dispatch / Collection summaries -->
+        <tr class="total-row-summary">
+          <td colspan="{{ preview_active_d + 2 }}" data-active-span="{{ preview_active_d + 2 }}" data-total-span="{{ preview_total_cols + 2 }}" class="preview-span-dispatch border-right-thick" style="text-align:center;">
+            Today Dispatch Cyld: <span style="font-size:14px; font-weight:800; color:var(--green-700);">{{ dispatch_report.company_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection" style="text-align:center;">
+            Today Empty Collection Cyld: <span style="font-size:14px; font-weight:800; color:#8c764b;">{{ dispatch_report.company_totals.collection_total }}</span>
+          </td>
+        </tr>
+
+        <!-- 2. Customer-Owned Cylinders (Party Cylinders) -->
+        <tr class="section-divider-row">
+          <td colspan="{{ preview_active_d + 2 }}" data-active-span="{{ preview_active_d + 2 }}" data-total-span="{{ preview_total_cols + 2 }}" class="preview-span-dispatch border-right-thick preview-sticky-col">
+            Party Name &amp; Today Dispatch Party Cyld
+          </td>
+          <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection"></td>
+        </tr>
+
+        {% if dispatch_report.party_rows %}
+          {% for row in dispatch_report.party_rows %}
+          <tr>
+            <td class="border-right-thick preview-sticky-col">
+              {{ row.customer }}
+            </td>
+            <!-- Dispatch values -->
+            {% for col in dispatch_report.gas_cols %}
+              {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+              {% set raw_val = row.raw_dispatch.get(col.key, 0) %}
+              {% set disp_val = row.dispatch.get(col.key, '') %}
+              <td class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}{% if raw_val and raw_val != 0 %} cell-nonzero-dispatch{% endif %}{% if col.key == 'DURA' %} dura-cell{% endif %}">
+                {% if raw_val and raw_val != 0 %}
+                  {{ disp_val }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <!-- Dispatch Row Total -->
+            {% set row_d_tot = row.raw_dispatch.values()|sum %}
+            <td class="preview-col-total border-right-thick{% if row_d_tot > 0 %} cell-nonzero-dispatch{% endif %}">
+              {{ row_d_tot if row_d_tot > 0 else '' }}
+            </td>
+
+            <!-- Collection values -->
+            {% for col in dispatch_report.gas_cols %}
+              {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+              {% set raw_val = row.raw_collection.get(col.key, 0) %}
+              {% set disp_val = row.collection.get(col.key, '') %}
+              <td class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}{% if raw_val and raw_val != 0 %} cell-nonzero-collection{% endif %}{% if col.key == 'DURA' %} dura-cell{% endif %}">
+                {% if raw_val and raw_val != 0 %}
+                  {{ disp_val }}
+                {% endif %}
+              </td>
+            {% endfor %}
+            <!-- Collection Row Total -->
+            {% set row_c_tot = row.raw_collection.values()|sum %}
+            <td class="preview-col-total{% if row_c_tot > 0 %} cell-nonzero-collection{% endif %}">
+              {{ row_c_tot if row_c_tot > 0 else '' }}
+            </td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          <tr>
+            <td class="border-right-thick preview-sticky-col" style="color:var(--gray-text); font-style:italic;">No customer-owned (party) cylinders dispatched/collected today.</td>
+            <td colspan="{{ preview_active_d + 1 }}" data-active-span="{{ preview_active_d + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-dispatch-only border-right-thick"></td>
+            <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection"></td>
+          </tr>
+        {% endif %}
+
+        <!-- Party Totals Row -->
+        <tr class="total-row-sub">
+          <td class="border-right-thick preview-sticky-col">Total</td>
+          <!-- Dispatch totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.party_totals.dispatch.get(col.key, 0) %}
+            <td class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}{% if val and val != 0 %} cell-nonzero-dispatch{% endif %}">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total border-right-thick{% if dispatch_report.party_totals.dispatch_total != 0 %} cell-nonzero-dispatch{% endif %}">
+            {{ dispatch_report.party_totals.dispatch_total if dispatch_report.party_totals.dispatch_total != 0 else '' }}
+          </td>
+          <!-- Collection totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.party_totals.collection.get(col.key, 0) %}
+            <td class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}{% if val and val != 0 %} cell-nonzero-collection{% endif %}">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total{% if dispatch_report.party_totals.collection_total != 0 %} cell-nonzero-collection{% endif %}">
+            {{ dispatch_report.party_totals.collection_total if dispatch_report.party_totals.collection_total != 0 else '' }}
+          </td>
+        </tr>
+
+        <!-- Party Today Dispatch / Collection summaries -->
+        <tr class="total-row-summary">
+          <td colspan="{{ preview_active_d + 2 }}" data-active-span="{{ preview_active_d + 2 }}" data-total-span="{{ preview_total_cols + 2 }}" class="preview-span-dispatch border-right-thick" style="text-align:center;">
+            Today Party Cyld Dispatch Total: <span style="font-size:14px; font-weight:800; color:var(--green-700);">{{ dispatch_report.party_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection" style="text-align:center;">
+            Today Party Cyld Collection Total: <span style="font-size:14px; font-weight:800; color:#8c764b;">{{ dispatch_report.party_totals.collection_total }}</span>
+          </td>
+        </tr>
+
+        <!-- Grand Total per gas column row -->
+        <tr class="total-row-sub grand-total-col-row" style="background:#fef3c7; font-weight:800;">
+          <td class="border-right-thick preview-sticky-col" style="background:#fef3c7; font-weight:800; color:#92400e;">Grand Total</td>
+          <!-- Dispatch grand totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_d = (dispatch_report.grand_totals.dispatch.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.grand_totals.dispatch.get(col.key, 0) %}
+            <td class="preview-col-d preview-col-d-{{ col.key }}{% if is_empty_d %} preview-col-empty-dispatch{% endif %}{% if val and val != 0 %} cell-nonzero-dispatch{% endif %}" style="font-weight:800;">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total border-right-thick cell-nonzero-dispatch" style="font-weight:900; font-size:13px;">
+            {{ dispatch_report.grand_totals.dispatch_total if dispatch_report.grand_totals.dispatch_total != 0 else '' }}
+          </td>
+          <!-- Collection grand totals -->
+          {% for col in dispatch_report.gas_cols %}
+            {% set is_empty_c = (dispatch_report.grand_totals.collection.get(col.key, 0) == 0) %}
+            {% set val = dispatch_report.grand_totals.collection.get(col.key, 0) %}
+            <td class="preview-col-c preview-col-c-{{ col.key }}{% if is_empty_c %} preview-col-empty-collection{% endif %}{% if val and val != 0 %} cell-nonzero-collection{% endif %}" style="font-weight:800;">
+              {{ val if val and val != 0 else '' }}
+            </td>
+          {% endfor %}
+          <td class="preview-col-total cell-nonzero-collection" style="font-weight:900; font-size:13px;">
+            {{ dispatch_report.grand_totals.collection_total if dispatch_report.grand_totals.collection_total != 0 else '' }}
+          </td>
+        </tr>
+
+        <!-- Bottom Grand Summary Row -->
+        <tr class="grand-total-row">
+          <td colspan="{{ preview_active_d + 2 }}" data-active-span="{{ preview_active_d + 2 }}" data-total-span="{{ preview_total_cols + 2 }}" class="preview-span-dispatch border-right-thick" style="text-align:center; padding: 12px;">
+            Today Total Dispatch Cylinders: <span style="font-size:15px; font-weight:900;">{{ dispatch_report.grand_totals.dispatch_total }}</span>
+          </td>
+          <td colspan="{{ preview_active_c + 1 }}" data-active-span="{{ preview_active_c + 1 }}" data-total-span="{{ preview_total_cols + 1 }}" class="preview-span-collection" style="text-align:center; padding: 12px;">
+            Today Total Collection Cylinders: <span style="font-size:15px; font-weight:900;">{{ dispatch_report.grand_totals.collection_total }}</span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- 6. Reconciliation Line -->
+  <div class="preview-reconciliation-bar" id="previewReconciliationBar">
+    <div style="display:flex; align-items:center; gap:8px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+        <polyline points="22 4 12 14.01 9 11.01"></polyline>
+      </svg>
+      <div>
+        <span style="font-weight:700; color:#166534;">Reconciliation Check:</span>
+        <span style="color:#15803d; font-size:12.5px; margin-left:4px;" id="previewReconText">
+          ✓ Preview totals match the Daily Dispatch Matrix exactly (Dispatched: {{ dispatch_report.grand_totals.dispatch_total }}, Collected: {{ dispatch_report.grand_totals.collection_total }}).
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Hydroalerts section -->
 <div class="hydro-alerts-card">
   <div class="tbl-title-bar" style="margin-bottom:12px;">
@@ -872,7 +1443,8 @@
       scrollX: 0,
       scrollY: 0,
       onclone: function(clonedDoc) {
-        var clonedCard = clonedDoc.getElementById('dispatchMatrixCard');
+        var cardId = card && card.id ? card.id : 'dispatchMatrixCard';
+        var clonedCard = clonedDoc.getElementById(cardId);
         if (clonedCard) {
           clonedCard.style.backgroundColor = '#ffffff';
           clonedCard.style.boxShadow = 'none';
@@ -906,6 +1478,7 @@
             wrap.scrollLeft = 0;
             wrap.style.overflow = 'visible';
             wrap.style.overflowX = 'visible';
+            wrap.style.maxHeight = 'none';
             wrap.style.width = '100%';
             wrap.style.maxWidth = 'none';
             wrap.style.border = '1px solid #d8d9d4';
@@ -916,7 +1489,7 @@
             t.style.width = '100%';
             t.style.minWidth = (targetWidth - 40) + 'px';
             // Unset sticky positioning during export clone
-            var stickyCells = t.querySelectorAll('td:first-child, th:first-child');
+            var stickyCells = t.querySelectorAll('td.preview-sticky-col, th.preview-sticky-col, td:first-child, th:first-child, thead th');
             stickyCells.forEach(function(c) {
               c.style.position = 'static';
               c.style.boxShadow = 'none';
@@ -1032,6 +1605,169 @@
       }
     }
   }
+
+  /* Preview Section Specific Functions */
+  function togglePreviewAllGases(showAll) {
+    var card = document.getElementById('dispatchPreviewCard');
+    if (!card) return;
+    card.classList.toggle('show-all-gases', showAll);
+
+    // Update dispatch header colspan
+    var thD = document.getElementById('previewDispatchHeaderTh');
+    if (thD) {
+      var actD = parseInt(thD.getAttribute('data-active-cols') || 0);
+      var totD = parseInt(thD.getAttribute('data-total-cols') || 0);
+      thD.colSpan = (showAll ? totD : actD) + 1;
+    }
+
+    // Update collection header colspan
+    var thC = document.getElementById('previewCollectionHeaderTh');
+    if (thC) {
+      var actC = parseInt(thC.getAttribute('data-active-cols') || 0);
+      var totC = parseInt(thC.getAttribute('data-total-cols') || 0);
+      thC.colSpan = (showAll ? totC : actC) + 1;
+    }
+
+    // Update all span cells
+    card.querySelectorAll('.preview-span-dispatch').forEach(function(td) {
+      td.colSpan = showAll ? parseInt(td.getAttribute('data-total-span')) : parseInt(td.getAttribute('data-active-span'));
+    });
+    card.querySelectorAll('.preview-span-collection').forEach(function(td) {
+      td.colSpan = showAll ? parseInt(td.getAttribute('data-total-span')) : parseInt(td.getAttribute('data-active-span'));
+    });
+    card.querySelectorAll('.preview-span-dispatch-only').forEach(function(td) {
+      td.colSpan = showAll ? parseInt(td.getAttribute('data-total-span')) : parseInt(td.getAttribute('data-active-span'));
+    });
+
+    updatePreviewHeaderSticky();
+  }
+
+  function updatePreviewHeaderSticky() {
+    var table = document.getElementById('dispatchPreviewTable');
+    if (!table) return;
+    var rows = table.querySelectorAll('thead tr');
+    if (rows.length >= 2) {
+      var h1 = rows[0].offsetHeight;
+      var ths2 = rows[1].querySelectorAll('th');
+      ths2.forEach(function(th) {
+        th.style.top = (h1 - 1) + 'px';
+      });
+    }
+  }
+
+  async function copyPreviewTableImage() {
+    var btn = document.getElementById('btnCopyPreviewImage');
+    var card = document.getElementById('dispatchPreviewCard');
+    if (!card) {
+      alert('Dispatch preview table not found.');
+      return;
+    }
+
+    var originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Copying...</span>';
+    }
+
+    try {
+      var canvas = await renderMatrixCanvas(card);
+
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Direct clipboard copy is not supported in this browser. Falling back to download.');
+      }
+
+      await new Promise(function(resolve, reject) {
+        canvas.toBlob(async function(blob) {
+          if (!blob) {
+            reject(new Error('Failed to create image blob.'));
+            return;
+          }
+          try {
+            await navigator.clipboard.write([
+              new ClipboardItem({ 'image/png': blob })
+            ]);
+            resolve();
+          } catch (writeErr) {
+            reject(writeErr);
+          }
+        }, 'image/png');
+      });
+
+      if (btn) {
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Copied to Clipboard!</span>';
+        btn.style.background = '#04342C';
+        btn.style.borderColor = '#04342C';
+        btn.style.color = '#ffffff';
+        setTimeout(function() {
+          btn.innerHTML = originalHtml;
+          btn.style.background = '';
+          btn.style.borderColor = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 2500);
+      }
+    } catch (err) {
+      console.warn('Clipboard write failed:', err);
+      if (confirm('Could not write directly to clipboard (' + (err.message || 'Permission denied') + '). Would you like to download the PNG image instead?')) {
+        downloadPreviewTableImage();
+      }
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+  }
+
+  async function downloadPreviewTableImage() {
+    var btn = document.getElementById('btnDlPreviewImage');
+    var card = document.getElementById('dispatchPreviewCard');
+    if (!card) {
+      alert('Dispatch preview table not found.');
+      return;
+    }
+
+    var originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="spin"><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="7.76" y2="7.76"/><line x1="16.24" y1="16.24" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="7.76" y2="16.24"/><line x1="16.24" y1="7.76" x2="19.07" y2="4.93"/></svg><span>Saving PNG...</span>';
+    }
+
+    try {
+      var canvas = await renderMatrixCanvas(card);
+      var dateStr = '{{ target_date }}'.replace(/[^a-zA-Z0-9_-]/g, '_');
+      var filename = 'Daily_Dispatch_Preview_' + dateStr + '.png';
+
+      var link = document.createElement('a');
+      link.download = filename;
+      link.href = canvas.toDataURL('image/png');
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      if (btn) {
+        btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg><span>Downloaded!</span>';
+        setTimeout(function() {
+          btn.innerHTML = originalHtml;
+          btn.disabled = false;
+        }, 2200);
+      }
+    } catch (err) {
+      console.error('Error exporting image:', err);
+      alert('Failed to generate image: ' + (err.message || 'Unknown error'));
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = originalHtml;
+      }
+    }
+  }
+
+  // Initialize on page load
+  window.addEventListener('DOMContentLoaded', function() {
+    updatePreviewHeaderSticky();
+  });
+  window.addEventListener('resize', function() {
+    updatePreviewHeaderSticky();
+  });
 </script>
 
 {% endblock %}
