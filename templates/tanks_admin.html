@@ -1111,8 +1111,8 @@
 
     {% if report_readings|length > 0 %}
     // Build dataset by tank
-    const readingsData = {{ report_readings|map(attribute='to_dict')|list|tojson }};
-    const tanksById = {{ tanks_by_id.values()|map(attribute='to_dict')|list|tojson }}.reduce((acc, t) => {
+    const readingsData = {{ report_readings_dicts|tojson }};
+    const tanksById = {{ tanks_dicts|tojson }}.reduce((acc, t) => {
       acc[t.id] = t;
       return acc;
     }, {});

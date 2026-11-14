@@ -12163,6 +12163,9 @@ def admin_tanks_hub():
     from_date_formatted = from_date.strftime('%d %b %Y')
     to_date_formatted = to_date.strftime('%d %b %Y')
 
+    report_readings_dicts = [r.to_dict() for r in report_readings]
+    tanks_dicts = [t.to_dict() for t in all_tanks]
+
     return render_template('tanks_admin.html',
         user=session.get('user'),
         active_tab=active_tab,
@@ -12178,7 +12181,9 @@ def admin_tanks_hub():
         to_date_formatted=to_date_formatted,
         filter_tank_id=filter_tank_id,
         report_readings=report_readings,
+        report_readings_dicts=report_readings_dicts,
         tanks_by_id=tanks_by_id,
+        tanks_dicts=tanks_dicts,
         total_used_kg=round(total_used_kg),
         total_filled_kg=round(total_filled_kg),
         all_tanks=all_tanks,
